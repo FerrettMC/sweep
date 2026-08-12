@@ -1,0 +1,105 @@
+// lib/format.ts
+//
+// Shared formatting. Every screen that renders a price, a date, or a retailer
+// name goes through here — one source of truth, so two screens can't quietly
+// disagree about what "$0" or "just now" looks like.
+
+import { colors } from "@/constants/theme";
+
+export type Retailer = "amazon" | "walmart" | "target" | "bestbuy" | "ebay";
+
+export const RETAILER_LABELS: Record<Retailer, string> = {
+  amazon: "Amazon",
+  walmart: "Walmart",
+  target: "Target",
+  bestbuy: "Best Buy",
+  ebay: "eBay",
+};
+
+export function retailerLabel(retailer: string) {
+  return RETAILER_LABELS[retailer as Retailer] ?? retailer;
+}
+
+export function retailerColor(retailer: string) {
+  return colors.retailers[retailer as Retailer] ?? colors.textSecondary;
+}
+
+/**
+ * Cents to a display price. Everything server-side is integer cents; this is
+ * the only place that turns them into money, so rounding can't differ by screen.
+ */
+export function formatPrice(cents: number | null | undefined): string {
+  if (cents === null || cents === undefined) return "—";
+  return `$${(cents / 100).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+/** Compact form for chart axes, where "$1.2k" beats "$1,234.00". */
+export function formatPriceShort(cents: number | null | undefined): string {
+  if (cents === null || cents === undefined) return "—";
+  const dollars = cents / 100;
+  if (dollars >= 1000) return `$${(dollars / 1000).toFixed(1)}k`;
+  return `$${Math.round(dollars)}`;
+}
+
+export function percentOff(
+  price: number | null | undefined,
+  reference: number | null | undefined,
+): number | null {
+  if (!price || !reference || reference <= 0 || price >= reference) return null;
+  return Math.round(((reference - price) / reference) * 100);
+}
+
+export function formatRelativeTime(value: string | Date | null | undefined): string {
+  if (!value) return "never";
+
+  const then = typeof value === "string" ? new Date(value) : value;
+  const seconds = Math.floor((Date.now() - then.getTime()) / 1000);
+
+  if (Number.isNaN(seconds)) return "never";
+  if (seconds < 60) return "just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  return then.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+export function formatChartDate(value: string | Date): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+/** "3 searches" / "1 search" — avoids a stray plural in the UI. */
+export function pluralize(count: number, singular: string, plural?: string) {
+  return `${count} ${count === 1 ? singular : (plural ?? `${singular}s`)}`;
+}
+
+export function formatRating(rating: number | null, count: number | null) {
+  if (rating === null) return null;
+  const stars = rating.toFixed(1);
+  if (!count) return `${stars}★`;
+  return `${stars}★ (${compactCount(count)})`;
+}
+
+/**
+ * eBay has no product ratings — only seller feedback. Rendered with an explicit
+ * "seller" label so nobody reads 99.3% as a 5-star score, or compares it
+ * against Walmart's 4.4★ as though they measured the same thing.
+ */
+export function formatSellerRating(
+  percentage: number | null,
+  count: number | null,
+) {
+  if (percentage === null) return null;
+  const pct = `${percentage % 1 === 0 ? percentage : percentage.toFixed(1)}% seller`;
+  return count ? `${pct} (${compactCount(count)})` : pct;
+}
+
+function compactCount(count: number) {
+  if (count >= 1000) {
+    return `${(count / 1000).toFixed(count >= 10000 ? 0 : 1)}k`;
+  }
+  return String(count);
+}

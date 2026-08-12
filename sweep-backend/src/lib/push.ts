@@ -1,0 +1,187 @@
+// lib/push.ts
+//
+// Price-drop push notifications, via Expo's push service.
+//
+// This is the app's core value prop, and it's on every tier — free users get
+// alerts too. Gating it behind a paywall would undercut the whole point.
+//
+// Two things this is careful about:
+//   1. Not spamming. A product that oscillates by a cent shouldn't buzz a
+//      phone, and no user should get more than one alert per product per day.
+//   2. Pruning dead tokens. Uninstalled apps return DeviceNotRegistered
+//      forever unless you delete the token, and Expo will eventually rate-limit
+//      a sender that keeps pushing to dead devices.
+
+import { Expo, type ExpoPushMessage, type ExpoPushTicket } from "expo-server-sdk";
+import { prisma } from "./prisma.js";
+import { TIER_LIMITS, type Tier, effectiveTier } from "./tiers.js";
+
+// No access token needed for sending to Expo push tokens; EXPO_ACCESS_TOKEN
+// only matters if you enable enhanced push security in your Expo account.
+const expo = new Expo({ accessToken: process.env.EXPO_ACCESS_TOKEN });
+
+/** Don't notify for trivial movement — noise costs trust. */
+const MIN_DROP_PERCENT = 3;
+const MIN_DROP_CENTS = 100;
+
+/** At most one alert per tracked product per user per this window. */
+const NOTIFY_COOLDOWN_HOURS = 12;
+
+export interface DropNotification {
+  productId: string;
+  previousPrice: number;
+  newPrice: number;
+}
+
+/**
+ * Notify everyone tracking a product that its price dropped.
+ * Returns how many notifications were actually sent.
+ */
+export async function notifyPriceDrop({
+  productId,
+  previousPrice,
+  newPrice,
+}: DropNotification): Promise<number> {
+  const product = await prisma.product.findUnique({ where: { id: productId } });
+  if (!product) return 0;
+
+  const dropCents = previousPrice - newPrice;
+  const dropPercent = Math.round((dropCents / previousPrice) * 100);
+
+  const trackers = await prisma.trackedProduct.findMany({
+    where: { productId },
+    include: {
+      user: {
+        include: {
+          pushTokens: true,
+          wallet: { select: { tier: true, tierExpiresAt: true } },
+        },
+      },
+    },
+  });
+
+  const cooldownCutoff = new Date(
+    Date.now() - NOTIFY_COOLDOWN_HOURS * 60 * 60 * 1000,
+  );
+
+  const messages: ExpoPushMessage[] = [];
+  const notifiedTrackedIds: string[] = [];
+
+  for (const tracked of trackers) {
+    if (tracked.user.pushTokens.length === 0) continue;
+
+    // Already told this user about this product recently.
+    if (tracked.lastNotifiedAt && tracked.lastNotifiedAt > cooldownCutoff) continue;
+
+    const tier: Tier = tracked.user.wallet
+      ? effectiveTier(tracked.user.wallet)
+      : "free";
+
+    // Ultimate's custom threshold replaces the default rule entirely: they
+    // asked to hear about $X, not about "any meaningful drop".
+    const hasThreshold =
+      tracked.customThreshold !== null && TIER_LIMITS[tier].customThresholds;
+
+    if (hasThreshold) {
+      if (newPrice > tracked.customThreshold!) continue;
+    } else if (dropPercent < MIN_DROP_PERCENT && dropCents < MIN_DROP_CENTS) {
+      continue;
+    }
+
+    const body = hasThreshold
+      ? `Now ${formatCents(newPrice)} — below your ${formatCents(tracked.customThreshold!)} alert.`
+      : `Down ${dropPercent}% to ${formatCents(newPrice)} (was ${formatCents(previousPrice)}).`;
+
+    for (const { token } of tracked.user.pushTokens) {
+      if (!Expo.isExpoPushToken(token)) continue;
+
+      messages.push({
+        to: token,
+        sound: "default",
+        title: truncate(product.title, 60),
+        body,
+        // Consumed by the app to deep-link straight to the product.
+        data: { productId: product.id, type: "price_drop" },
+        // Must match the channel the app creates, or Android silently drops it.
+        channelId: "price-drops",
+      });
+    }
+
+    notifiedTrackedIds.push(tracked.id);
+  }
+
+  if (messages.length === 0) return 0;
+
+  const tickets = await send(messages);
+  await pruneDeadTokens(messages, tickets);
+
+  // Stamp the cooldown only for users we actually messaged.
+  if (notifiedTrackedIds.length > 0) {
+    await prisma.trackedProduct.updateMany({
+      where: { id: { in: notifiedTrackedIds } },
+      data: { lastNotifiedAt: new Date() },
+    });
+  }
+
+  return messages.length;
+}
+
+/** Chunked send. Expo caps a request at 100 messages. */
+async function send(messages: ExpoPushMessage[]): Promise<ExpoPushTicket[]> {
+  const tickets: ExpoPushTicket[] = [];
+
+  for (const chunk of expo.chunkPushNotifications(messages)) {
+    try {
+      tickets.push(...(await expo.sendPushNotificationsAsync(chunk)));
+    } catch (err) {
+      console.error("[push] chunk failed:", err);
+      // Keep ticket indices aligned with messages so pruning can't blame the
+      // wrong token for a failure.
+      tickets.push(
+        ...chunk.map(
+          () => ({ status: "error", message: "chunk send failed" }) as ExpoPushTicket,
+        ),
+      );
+    }
+  }
+
+  return tickets;
+}
+
+/**
+ * Delete tokens Expo tells us are dead. DeviceNotRegistered means the app was
+ * uninstalled or the token was replaced — it will never succeed again.
+ */
+async function pruneDeadTokens(
+  messages: ExpoPushMessage[],
+  tickets: ExpoPushTicket[],
+) {
+  const dead: string[] = [];
+
+  tickets.forEach((ticket, index) => {
+    if (ticket.status !== "error") return;
+
+    const message = messages[index];
+    const token = Array.isArray(message?.to) ? message.to[0] : message?.to;
+    if (!token) return;
+
+    if (ticket.details?.error === "DeviceNotRegistered") {
+      dead.push(token);
+    } else {
+      console.error(`[push] ${ticket.details?.error ?? "error"}: ${ticket.message}`);
+    }
+  });
+
+  if (dead.length === 0) return;
+
+  await prisma.pushToken.deleteMany({ where: { token: { in: dead } } });
+  console.log(`[push] pruned ${dead.length} dead token(s)`);
+}
+
+function formatCents(cents: number) {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+function truncate(text: string, max: number) {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+}

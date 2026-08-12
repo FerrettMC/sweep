@@ -1,0 +1,41 @@
+{
+  "name": "sweep-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "test:scrapers": "tsx src/test-scrapers.ts",
+    "test:amazon": "tsx src/test-amazon.ts",
+    "test:amazon-search": "tsx src/test-amazon-search.ts",
+    "test:api": "tsx src/test-api.ts",
+    "test:paste": "tsx src/test-paste.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@prisma/client": "6.19.3",
+    "@sentry/node": "^10.70.0",
+    "@supabase/supabase-js": "^2.112.2",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.4.2",
+    "expo-server-sdk": "^7.1.0",
+    "fastify": "^5.11.3",
+    "node-cron": "^4.6.0",
+    "nodemailer": "^9.0.5",
+    "prisma": "6.19.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@types/nodemailer": "^8.0.1",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  }
+}

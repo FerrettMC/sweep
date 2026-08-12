@@ -1,0 +1,218 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String   @id
+  email        String   @unique
+  username     String?  @unique
+  createdAt    DateTime @default(now())
+
+  wallet            Wallet?
+  trackedProducts   TrackedProduct[]
+  transactions      Transaction[]
+  budgetEntries     BudgetEntry[]
+  promoRedemptions  PromoCodeRedemption[]
+  pushTokens        PushToken[]
+}
+
+// One row per device a user has granted notification permission on. A user can
+// have several (phone + tablet), and a token can migrate between users if a
+// device is handed over — hence the unique on token rather than on userId.
+model PushToken {
+  id         String   @id @default(uuid())
+  token      String   @unique // ExponentPushToken[...]
+  platform   String?  // "ios" | "android"
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  @@index([userId])
+}
+
+model Wallet {
+  id                String    @id @default(uuid())
+  tier              String    @default("free") // "free" | "pro" | "ultimate"
+  tierExpiresAt     DateTime?
+  xp                Int       @default(0)
+  searchesUsedToday Int       @default(0)
+  // Extra searches unlocked today by watching rewarded ads, on top of the
+  // tier's base allowance. Resets on the same daily boundary.
+  bonusSearchesToday Int      @default(0)
+  searchesResetAt   DateTime  @default(now())
+
+  // Fixed times of day this user's products are checked, as local hours (0-23).
+  // Free tier picks 2 — that's what bounds scraping load predictably instead of
+  // it scaling with signups. Pro/Ultimate ignore this and use a rolling
+  // interval instead.
+  checkHours        Int[]     @default([9, 21])
+  // IANA zone, so "9am" means 9am where the user is, and survives DST. Stored
+  // rather than an offset because an offset goes stale twice a year.
+  timezone          String    @default("UTC")
+  updatedAt         DateTime  @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @unique
+}
+
+// One row per unique product being tracked ANYWHERE in the app — shared
+// across all users tracking the same item, so a single check refreshes
+// the price for everyone at once (same principle as Fervor's odds polling).
+model Product {
+  id            String    @id @default(uuid())
+  retailer      String    // "amazon" | "walmart" | "target" | "bestbuy" | "ebay"
+  retailerId    String    // ASIN / item ID / SKU — however that retailer identifies it
+  url           String
+  title         String
+  imageUrl      String?
+  currentPrice  Int?      // cents, null if not yet checked
+  listPrice     Int?      // cents — retailer's "was"/list price, when shown
+  currency      String    @default("USD")
+  availability  String?   // free-text from the retailer, normalized where possible
+  rating        Float?
+  ratingCount   Int?
+  lastCheckedAt DateTime?
+  // Outcome of the most recent check. Mirrors ScrapeCheck.status but kept here
+  // so a stale/blocked product can be filtered without joining the log.
+  lastStatus    String?   // "success" | "failed" | "blocked"
+  createdAt     DateTime  @default(now())
+
+  priceHistory  PriceHistory[]
+  trackedBy     TrackedProduct[]
+  scrapeChecks  ScrapeCheck[]
+
+  @@unique([retailer, retailerId])
+  @@index([retailer])
+  // Drives the scheduler's "who is due for a check" query.
+  @@index([lastCheckedAt])
+}
+
+model PriceHistory {
+  id        String   @id @default(uuid())
+  price     Int      // cents
+  checkedAt DateTime @default(now())
+
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+
+  @@index([productId, checkedAt])
+}
+
+// Join between a user and a product they're tracking — per-user settings
+// (custom threshold, notification state) live here, not on Product.
+model TrackedProduct {
+  id              String    @id @default(uuid())
+  customThreshold Int?      // cents — only notify below this (Ultimate feature)
+  addedAt         DateTime  @default(now())
+  lastNotifiedAt  DateTime?
+
+  user      User    @relation(fields: [userId], references: [id])
+  userId    String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+
+  @@unique([userId, productId])
+  @@index([userId])
+}
+
+// Every price-check attempt writes one row here, success or not. This is the
+// raw material for scraper health monitoring — a retailer changing its page
+// structure shows up as a failure-rate spike, not as silent staleness.
+model ScrapeCheck {
+  id        String   @id @default(uuid())
+  retailer  String
+  status    String   // "success" | "failed" | "blocked"
+  // Truncated response body or error message, kept so the alert email can show
+  // WHY it broke (structure change vs. actively blocked vs. timeout) without
+  // needing to re-run the scrape to find out.
+  detail    String?
+  durationMs Int?
+  checkedAt DateTime @default(now())
+
+  product   Product? @relation(fields: [productId], references: [id])
+  productId String?
+
+  @@index([retailer, checkedAt])
+}
+
+// Tracks when we last alerted about a given retailer, so a sustained outage
+// sends one email instead of one per failed check.
+model ScraperAlert {
+  id          String   @id @default(uuid())
+  retailer    String   @unique
+  lastAlertAt DateTime @default(now())
+  resolvedAt  DateTime?
+}
+
+// Guests have no User row, so their 1-search-per-day cap is keyed by a device
+// ID generated on the client. Server-side so the client can't reset it by
+// clearing state — reinstalling gets you one more search, and that's an
+// acceptable ceiling for a free anonymous tier.
+model GuestQuota {
+  id                String   @id @default(uuid())
+  deviceId          String   @unique
+  searchesUsedToday Int      @default(0)
+  searchesResetAt   DateTime @default(now())
+  createdAt         DateTime @default(now())
+}
+
+model BudgetEntry {
+  id          String   @id @default(uuid())
+  amount      Int      // cents
+  category    String
+  description String?
+  spentAt     DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+
+  @@index([userId, spentAt])
+}
+
+model Transaction {
+  id        String   @id @default(uuid())
+  xpChange  Int
+  reason    String   // "deal_found" | "search_used" | etc.
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+
+  @@index([userId])
+}
+
+// Promo codes YOU create and share (e.g. while creating content) — one
+// directional: you issue it, someone redeems it for free Pro/Ultimate time.
+model PromoCode {
+  id                 String    @id @default(uuid())
+  code               String    @unique
+  grantsTier         String    // "pro" | "ultimate"
+  grantsDurationDays Int       // e.g. 7 for a week free
+  maxRedemptions     Int?      // null = unlimited
+  timesRedeemed      Int       @default(0)
+  expiresAt          DateTime? // code itself stops working after this date, if set
+  createdAt          DateTime  @default(now())
+
+  redemptions PromoCodeRedemption[]
+}
+
+model PromoCodeRedemption {
+  id          String   @id @default(uuid())
+  redeemedAt  DateTime @default(now())
+
+  user        User      @relation(fields: [userId], references: [id])
+  userId      String
+  promoCode   PromoCode @relation(fields: [promoCodeId], references: [id])
+  promoCodeId String
+
+  @@unique([userId, promoCodeId]) // can't redeem the same code twice
+}
