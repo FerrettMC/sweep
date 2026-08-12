@@ -223,13 +223,64 @@ export function getTrackedProducts() {
   }>("/products");
 }
 
+export interface TrackLimits {
+  maxTrackedProducts: number;
+  used: number;
+  canTrack: boolean;
+  checkTimesPerDay: number;
+  fixedCheckTimes: boolean;
+  checkIntervalMinutes: number;
+}
+
+export interface ProductPreview {
+  product: Product;
+  alreadyTracking: boolean;
+  limits: TrackLimits;
+  schedule: {
+    checkHours: number[];
+    timezone: string;
+    nextCheckAt: string | null;
+  };
+  tier: string;
+}
+
+/** Scrape a pasted link and show what we found, without committing to track it. */
+export function previewProduct(url: string) {
+  return request<ProductPreview>("/products/preview", {
+    method: "POST",
+    body: { url },
+  });
+}
+
 export function trackProduct(
   target: { url: string } | { retailer: string; retailerId: string },
+  schedule?: { checkHours: number[]; timezone: string },
 ) {
   return request<{ tracked: TrackedProduct }>("/products/track", {
     method: "POST",
-    body: target,
+    body: { ...target, ...(schedule ?? {}) },
   });
+}
+
+export interface Schedule {
+  checkHours: number[];
+  timezone: string;
+  maxCheckTimes: number;
+  fixedCheckTimes: boolean;
+  checkIntervalMinutes: number;
+  nextCheckAt: string | null;
+  tier: string;
+}
+
+export function getSchedule() {
+  return request<Schedule>("/me/schedule");
+}
+
+export function updateSchedule(checkHours: number[], timezone: string) {
+  return request<Omit<Schedule, "fixedCheckTimes" | "checkIntervalMinutes" | "tier">>(
+    "/me/schedule",
+    { method: "PUT", body: { checkHours, timezone } },
+  );
 }
 
 export function untrackProduct(trackedId: string) {
