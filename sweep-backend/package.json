@@ -14,7 +14,9 @@
     "test:amazon": "tsx src/test-amazon.ts",
     "test:amazon-search": "tsx src/test-amazon-search.ts",
     "test:api": "tsx src/test-api.ts",
-    "test:paste": "tsx src/test-paste.ts"
+    "test:paste": "tsx src/test-paste.ts",
+    "test:notify": "tsx src/test-notify.ts",
+    "postinstall": "prisma generate"
   },
   "keywords": [],
   "author": "",

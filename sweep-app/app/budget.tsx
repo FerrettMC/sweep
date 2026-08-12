@@ -4,6 +4,7 @@
 // Scheduled for the next pass. The BudgetEntry model it writes to already
 // exists in the Prisma schema; what's missing is its endpoints and this screen.
 
+import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
 import { Screen } from "@/components/ui";
 import { colors, radius, spacing, type } from "@/constants/theme";
@@ -12,7 +13,7 @@ export default function BudgetScreen() {
   return (
     <Screen>
       <View style={styles.container}>
-        <Text style={styles.glyph}>💰</Text>
+        <Ionicons name="wallet-outline" size={44} color={colors.textTertiary} />
         <Text style={styles.title}>Budget Tracker</Text>
         <Text style={styles.body}>
           Log what you spend, sort it into categories, and see where the month
@@ -34,7 +35,6 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     gap: spacing.sm,
   },
-  glyph: { fontSize: 44 },
   title: { color: colors.textPrimary, fontSize: type.title.fontSize, fontWeight: "800" },
   body: {
     color: colors.textSecondary,

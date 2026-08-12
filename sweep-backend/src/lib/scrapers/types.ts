@@ -7,9 +7,10 @@
 export const RETAILERS = [
   "amazon",
   "walmart",
-  "target",
   "bestbuy",
   "ebay",
+  "newegg",
+  "asos",
 ] as const;
 
 export type Retailer = (typeof RETAILERS)[number];
@@ -21,9 +22,10 @@ export function isRetailer(value: string): value is Retailer {
 export const RETAILER_LABELS: Record<Retailer, string> = {
   amazon: "Amazon",
   walmart: "Walmart",
-  target: "Target",
   bestbuy: "Best Buy",
   ebay: "eBay",
+  newegg: "Newegg",
+  asos: "ASOS",
 };
 
 export interface ScrapedProduct {

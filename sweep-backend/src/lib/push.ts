@@ -77,8 +77,8 @@ export async function notifyPriceDrop({
       ? effectiveTier(tracked.user.wallet)
       : "free";
 
-    // Ultimate's custom threshold replaces the default rule entirely: they
-    // asked to hear about $X, not about "any meaningful drop".
+    // A custom threshold replaces the default rule entirely: they asked to
+    // hear about $X, not about "any meaningful drop".
     const hasThreshold =
       tracked.customThreshold !== null && TIER_LIMITS[tier].customThresholds;
 

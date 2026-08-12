@@ -10,7 +10,9 @@
 import cron from "node-cron";
 import { runHealthCheck } from "./health.js";
 import { checkProducts, findDueProducts } from "./priceChecker.js";
+import { recordDeal } from "./deals.js";
 import { notifyPriceDrop } from "./push.js";
+import { awardDealFound } from "./xp.js";
 
 /** Guard against a slow batch overlapping the next tick. */
 let priceCheckRunning = false;
@@ -21,11 +23,13 @@ export function startScheduler() {
     return;
   }
 
-  // Every 15 minutes. This is the *sweep* interval, not the check interval —
-  // it wakes up, asks which products are actually due based on the tiers
-  // tracking them, and checks only those. Ultimate's 30-minute promise needs a
-  // sweep at least twice that often to be honoured on time.
-  cron.schedule("*/15 * * * *", runPriceChecks);
+  // Every 5 minutes. This is the *sweep* interval, not the check interval — it
+  // wakes up, asks which products are actually due, and checks only those.
+  //
+  // It has to be well below the finest scheduling granularity we offer, or a
+  // user who asks for checks at :35 gets them at "somewhere in the following
+  // quarter hour", which makes the setting a lie.
+  cron.schedule("*/5 * * * *", runPriceChecks);
 
   // Health sweep runs on its own cadence, half an hour offset from the price
   // checks so it reports on a window that has actually filled up.
@@ -88,6 +92,32 @@ export async function runPriceChecks() {
       );
 
       try {
+        // XP first: it's computed from our own price history and is the thing
+        // the leaderboard depends on, so it shouldn't be skipped if push
+        // happens to fail.
+        const awards = await awardDealFound({
+          productId: drop.productId,
+          newPrice: drop.newPrice,
+        });
+        if (awards.length > 0) {
+          console.log(
+            `[scheduler] XP: ${awards.length} user(s) earned ${awards[0].award.xp} — ${awards[0].award.detail}`,
+          );
+        }
+
+        // Same drop, same data — record it on the public feed if it clears
+        // the (higher) bar for being worth showing strangers.
+        const deal = await recordDeal({
+          productId: drop.productId,
+          previousPrice: drop.previousPrice,
+          newPrice: drop.newPrice,
+        });
+        if (deal) {
+          console.log(
+            `[scheduler] FEED: ${deal.percentBelowAverage}% below average`,
+          );
+        }
+
         const sent = await notifyPriceDrop({
           productId: drop.productId,
           previousPrice: drop.previousPrice,

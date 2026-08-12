@@ -9,8 +9,10 @@
 // searches free.
 
 import type { FastifyInstance } from "fastify";
+import { verifySsvCallback } from "../lib/admobSsv.js";
 import { optionalAuth, requireAuth } from "../lib/auth.js";
 import { recordCheck } from "../lib/health.js";
+import { pickHighlights } from "../lib/highlights.js";
 import { prisma } from "../lib/prisma.js";
 import {
   consumeGuestSearch,
@@ -19,14 +21,14 @@ import {
   getUserQuota,
   grantRewardedSearch,
 } from "../lib/quota.js";
-import { searchAllRetailers } from "../lib/scrapers/index.js";
-import { getSearchJob, startAmazonSearch } from "../lib/searchJobs.js";
+import { routeQuery, searchAllRetailers } from "../lib/scrapers/index.js";
 import {
   RETAILERS,
   RETAILER_LABELS,
   type Retailer,
   isRetailer,
 } from "../lib/scrapers/types.js";
+import { getSearchJob, startAmazonSearch } from "../lib/searchJobs.js";
 import { effectiveTier } from "../lib/tiers.js";
 
 const MAX_KEYWORD_LENGTH = 120;
@@ -86,10 +88,15 @@ export async function searchRoutes(app: FastifyInstance) {
       });
     }
 
+    // Skip retailers that plainly don't sell what's being searched for — no
+    // point asking a clothing site about earbuds. General stores are always
+    // included, and an unclassifiable query includes everyone.
+    const routing = routeQuery(keyword, only);
+
     // Amazon is split out of the synchronous path: Bright Data's free tier can
     // take up to ~3 minutes, and making the user stare at a spinner that long
     // for four retailers that answered in 3 seconds is the wrong trade.
-    const requested = only ?? [...RETAILERS];
+    const requested = routing.retailers;
     const fastRetailers = requested.filter((r) => r !== "amazon");
     const wantsAmazon = requested.includes("amazon");
 
@@ -120,6 +127,17 @@ export async function searchRoutes(app: FastifyInstance) {
     return {
       keyword,
       quota,
+      // The few results worth showing above the per-store columns. Computed
+      // here so "cheapest" means the same thing everywhere, and so Amazon
+      // arriving late can be folded into the same ranking client-side.
+      highlights: pickHighlights(outcomes.flatMap((o) => o.products)),
+      // What we decided the query was about, and who we skipped because of it.
+      // Sent so the UI can explain an absent store rather than leaving a hole.
+      categories: routing.categories,
+      skipped: routing.skipped.map((retailer) => ({
+        retailer,
+        label: RETAILER_LABELS[retailer],
+      })),
       // Present when Amazon is still running. The client polls
       // /search/amazon/:id and slots the results in when they arrive.
       amazonJobId,
@@ -160,9 +178,10 @@ export async function searchRoutes(app: FastifyInstance) {
         retailer: "amazon",
         label: RETAILER_LABELS.amazon,
         products: job.products,
-        message: job.status === "pending" || job.status === "success"
-          ? null
-          : friendlyMessage(job.status),
+        message:
+          job.status === "pending" || job.status === "success"
+            ? null
+            : friendlyMessage(job.status),
         elapsedMs: (job.finishedAt ?? Date.now()) - job.startedAt,
       };
     },
@@ -206,16 +225,74 @@ export async function searchRoutes(app: FastifyInstance) {
     },
   );
 
-  // ---- rewarded ad → one extra search ----
+  // ---- AdMob server-side verification callback ----
   //
-  // SECURITY: this currently trusts the client's claim that an ad played.
-  // That is fine for development and NOT fine at launch — it lets anyone mint
-  // free searches by calling this endpoint directly. Wire AdMob server-side
-  // verification before shipping; see docs/INTEGRATIONS.md.
+  // Google calls this when a rewarded ad completes. This is the ONLY path that
+  // grants a bonus search in production — the client saying "I watched an ad"
+  // is not evidence, and a search costs real money on the Amazon leg.
+  //
+  // Register the URL in the AdMob console against the rewarded ad unit:
+  //   https://<your-backend>/ads/admob/ssv
+  app.get("/ads/admob/ssv", async (request, reply) => {
+    // Verify against the RAW query string. Rebuilding it from parsed params can
+    // reorder or re-encode values, and the signature covers the exact bytes.
+    const rawQuery = request.raw.url?.split("?")[1] ?? "";
+    const result = await verifySsvCallback(rawQuery);
+
+    if (!result.valid) {
+      request.log.warn(
+        { reason: result.reason },
+        "rejected AdMob SSV callback",
+      );
+      // 200 regardless: a non-2xx makes Google retry a callback that will
+      // never verify. The rejection is logged, which is what we actually need.
+      return reply.status(200).send({ ok: false });
+    }
+
+    // AdMob retries callbacks, so the same completion can arrive twice. The
+    // unique constraint is what makes granting idempotent.
+    try {
+      await prisma.adReward.create({
+        data: {
+          transactionId: result.transactionId,
+          userId: result.userId,
+          amount: result.amount,
+        },
+      });
+    } catch {
+      request.log.info(
+        { transactionId: result.transactionId },
+        "duplicate SSV callback ignored",
+      );
+      return reply.status(200).send({ ok: true, duplicate: true });
+    }
+
+    const quota = await grantRewardedSearch(result.userId);
+    request.log.info(
+      { userId: result.userId, granted: Boolean(quota) },
+      "AdMob reward verified",
+    );
+
+    return reply.status(200).send({ ok: true });
+  });
+
+  // ---- development-only reward shortcut ----
+  //
+  // Lets the reward flow be exercised without a real ad and without AdMob
+  // configured. Refuses to run in production, because it is exactly the hole
+  // the SSV callback above exists to close.
   app.post(
     "/search/rewarded",
     { preHandler: requireAuth },
     async (request, reply) => {
+      if (process.env.NODE_ENV === "production") {
+        return reply.status(403).send({
+          error:
+            "Rewards are granted by AdMob verification, not by the client.",
+          code: "SSV_REQUIRED",
+        });
+      }
+
       const quota = await grantRewardedSearch(request.userId!);
 
       if (!quota) {
@@ -225,7 +302,7 @@ export async function searchRoutes(app: FastifyInstance) {
         });
       }
 
-      return { quota };
+      return { quota, devOnly: true };
     },
   );
 

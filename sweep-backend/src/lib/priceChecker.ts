@@ -9,7 +9,7 @@ import { prisma } from "./prisma.js";
 import { adapters } from "./scrapers/index.js";
 import { type Retailer, type ScrapedProduct, isRetailer } from "./scrapers/types.js";
 import { recordCheck } from "./health.js";
-import { isDueAtFixedTimes } from "./schedule.js";
+import { isDueAtFixedTimes, isDueAtInterval } from "./schedule.js";
 import { TIER_LIMITS, type Tier } from "./tiers.js";
 
 export interface CheckOutcome {
@@ -124,6 +124,7 @@ export async function findDueProducts(limit = 200): Promise<string[]> {
               tier: true,
               tierExpiresAt: true,
               checkHours: true,
+              checkMinute: true,
               timezone: true,
             },
           },
@@ -162,10 +163,17 @@ export async function findDueProducts(limit = 200): Promise<string[]> {
       // staleness so the longest-neglected go first.
       overdueBy = last ? now - last.getTime() : Number.MAX_SAFE_INTEGER;
     } else {
-      overdueBy = last
-        ? now - last.getTime() - limits.checkIntervalMinutes * 60 * 1000
-        : Number.MAX_SAFE_INTEGER;
-      isDue = overdueBy >= 0;
+      // Interval tiers check at fixed clock slots (every N minutes past local
+      // midnight, offset by the user's chosen minute) rather than "N minutes
+      // after the last run" — which would drift a little later every day.
+      isDue = isDueAtInterval(
+        last,
+        limits.checkIntervalMinutes,
+        wallet?.checkMinute ?? 0,
+        wallet?.timezone ?? "UTC",
+        nowDate,
+      );
+      overdueBy = last ? now - last.getTime() : Number.MAX_SAFE_INTEGER;
     }
 
     if (!isDue) continue;

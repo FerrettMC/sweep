@@ -135,6 +135,104 @@ export async function grantRewardedSearch(
   };
 }
 
+// ---- manual "check price now" ----------------------------------------------
+
+export interface ManualCheckState {
+  used: number;
+  /** Null when the tier has no daily cap. */
+  limit: number | null;
+  remaining: number | null;
+  cooldownMinutes: number | null;
+  /** When the cooldown expires, if one is currently in force. */
+  availableAt: Date | null;
+  resetsAt: Date;
+}
+
+export type ManualCheckOutcome =
+  | { ok: true; state: ManualCheckState }
+  | { ok: false; reason: "limit"; state: ManualCheckState }
+  | { ok: false; reason: "cooldown"; state: ManualCheckState };
+
+/** Read the manual-check budget without spending any of it. */
+export async function getManualCheckState(
+  userId: string,
+): Promise<ManualCheckState | null> {
+  const wallet = await prisma.wallet.findUnique({ where: { userId } });
+  if (!wallet) return null;
+
+  const limits = TIER_LIMITS[effectiveTier(wallet)];
+  const stale = isStale(wallet.manualChecksResetAt);
+  const used = stale ? 0 : wallet.manualChecksToday;
+
+  return manualState(wallet.lastManualCheckAt, used, limits, stale ? nextResetAt() : wallet.manualChecksResetAt);
+}
+
+/**
+ * Spend one manual check.
+ *
+ * Two different limits apply depending on tier, and both are enforced here so
+ * the client can't decide it's allowed. Ultimate passes straight through.
+ */
+export async function consumeManualCheck(
+  userId: string,
+): Promise<ManualCheckOutcome | null> {
+  const wallet = await prisma.wallet.findUnique({ where: { userId } });
+  if (!wallet) return null;
+
+  const limits = TIER_LIMITS[effectiveTier(wallet)];
+  const now = new Date();
+
+  // Roll the daily window over first, so a stale count can't block a new day.
+  const stale = isStale(wallet.manualChecksResetAt);
+  const used = stale ? 0 : wallet.manualChecksToday;
+  const resetsAt = stale ? nextResetAt() : wallet.manualChecksResetAt;
+
+  const state = manualState(wallet.lastManualCheckAt, used, limits, resetsAt);
+
+  if (limits.manualChecksPerDay !== null && used >= limits.manualChecksPerDay) {
+    return { ok: false, reason: "limit", state };
+  }
+
+  if (state.availableAt && state.availableAt > now) {
+    return { ok: false, reason: "cooldown", state };
+  }
+
+  await prisma.wallet.update({
+    where: { userId },
+    data: {
+      manualChecksToday: used + 1,
+      manualChecksResetAt: resetsAt,
+      lastManualCheckAt: now,
+    },
+  });
+
+  return { ok: true, state: manualState(now, used + 1, limits, resetsAt) };
+}
+
+function manualState(
+  lastCheckAt: Date | null,
+  used: number,
+  limits: { manualChecksPerDay: number | null; manualCheckCooldownMinutes: number | null },
+  resetsAt: Date,
+): ManualCheckState {
+  const cooldown = limits.manualCheckCooldownMinutes;
+
+  return {
+    used,
+    limit: limits.manualChecksPerDay,
+    remaining:
+      limits.manualChecksPerDay === null
+        ? null
+        : Math.max(0, limits.manualChecksPerDay - used),
+    cooldownMinutes: cooldown,
+    availableAt:
+      cooldown && lastCheckAt
+        ? new Date(lastCheckAt.getTime() + cooldown * 60 * 1000)
+        : null,
+    resetsAt,
+  };
+}
+
 // ---- guests ----------------------------------------------------------------
 
 export async function getGuestQuota(deviceId: string): Promise<QuotaState> {

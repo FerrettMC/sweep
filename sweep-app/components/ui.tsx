@@ -170,6 +170,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: spacing.xl,
     gap: spacing.sm,
+    // Loading and empty states are rendered OUTSIDE <Screen> by most screens
+    // (`if (loading) return <Loading />`), so they need their own background —
+    // without it they show the navigator's default, which is white.
+    backgroundColor: colors.background,
   },
   centeredText: { color: colors.textSecondary, fontSize: type.label.fontSize },
   emptyTitle: {

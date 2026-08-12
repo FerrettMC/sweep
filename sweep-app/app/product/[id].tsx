@@ -20,7 +20,9 @@ import { Button, ErrorBanner, Loading, Screen, SectionTitle, Stat } from "@/comp
 import { colors, radius, spacing, type } from "@/constants/theme";
 import {
   ApiError,
+  type ManualCheckState,
   type ProductDetail,
+  getManualChecks,
   getProductDetail,
   refreshProduct,
   trackProduct,
@@ -44,6 +46,7 @@ export default function ProductDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [manualChecks, setManualChecks] = useState<ManualCheckState | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -52,6 +55,13 @@ export default function ProductDetailScreen() {
       setError(null);
     } catch (err) {
       setError((err as ApiError).message);
+    }
+    // Separate call, and deliberately not fatal: the budget is a nicety on the
+    // button label, and failing to read it shouldn't blank the whole screen.
+    try {
+      setManualChecks((await getManualChecks()).manualChecks);
+    } catch {
+      // ignore
     }
   }, [id]);
 
@@ -74,16 +84,20 @@ export default function ProductDetailScreen() {
     setBusy(true);
     setNotice(null);
     try {
-      await refreshProduct(id);
+      const result = await refreshProduct(id);
+      setManualChecks(result.manualChecks);
       await load();
-      setNotice("Price checked just now.");
+      setNotice(
+        result.status === "fresh"
+          ? "Already up to date — checked moments ago."
+          : "Price checked just now.",
+      );
     } catch (err) {
       const apiError = err as ApiError;
-      setNotice(
-        apiError.code === "REFRESH_TOO_SOON"
-          ? "Already checked in the last few minutes."
-          : apiError.message,
-      );
+      // The server sends the remaining budget alongside the refusal, so the
+      // counter stays right even when the tap was rejected.
+      if (apiError.body?.manualChecks) setManualChecks(apiError.body.manualChecks);
+      setNotice(apiError.message);
     } finally {
       setBusy(false);
     }
@@ -129,14 +143,8 @@ export default function ProductDetailScreen() {
 
   return (
     <Screen>
-      <Stack.Screen
-        options={{
-          title: retailerLabel(product.retailer),
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.textPrimary,
-          headerShadowVisible: false,
-        }}
-      />
+      {/* Styling comes from the root layout; only the title is dynamic. */}
+      <Stack.Screen options={{ title: retailerLabel(product.retailer) }} />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -215,7 +223,12 @@ export default function ProductDetailScreen() {
         {notice && <Text style={styles.notice}>{notice}</Text>}
 
         <View style={styles.actions}>
-          <Button label="Check price now" onPress={onCheckNow} busy={busy} variant="secondary" />
+          <Button
+            label={manualCheckLabel(manualChecks)}
+            onPress={onCheckNow}
+            busy={busy}
+            variant="secondary"
+          />
           <Button
             label={`Open on ${retailerLabel(product.retailer)}`}
             onPress={() => Linking.openURL(product.url)}
@@ -231,6 +244,12 @@ export default function ProductDetailScreen() {
       </ScrollView>
     </Screen>
   );
+}
+
+/** Fold the remaining budget into the button so it isn't a surprise. */
+function manualCheckLabel(state: ManualCheckState | null) {
+  if (!state || state.remaining === null) return "Check price now";
+  return `Check price now (${state.remaining} left today)`;
 }
 
 const styles = StyleSheet.create({

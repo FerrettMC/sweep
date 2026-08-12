@@ -6,14 +6,21 @@
 
 import { colors } from "@/constants/theme";
 
-export type Retailer = "amazon" | "walmart" | "target" | "bestbuy" | "ebay";
+export type Retailer =
+  | "amazon"
+  | "walmart"
+  | "bestbuy"
+  | "ebay"
+  | "newegg"
+  | "asos";
 
 export const RETAILER_LABELS: Record<Retailer, string> = {
   amazon: "Amazon",
   walmart: "Walmart",
-  target: "Target",
   bestbuy: "Best Buy",
   ebay: "eBay",
+  newegg: "Newegg",
+  asos: "ASOS",
 };
 
 export function retailerLabel(retailer: string) {

@@ -1,66 +1,76 @@
 // app/(tabs)/index.tsx
 //
-// Tracking — the home tab. Everything the user is watching, cheapest-first by
-// how good a deal it is right now rather than by when it was added.
+// Home — the landing screen, and the app's pitch in one view.
+//
+// Deliberately led by SEARCH rather than by tracking. Price tracking is a
+// commodity — Keepa and CamelCamelCamel have done it for years — so opening on
+// a list of tracked items would frame Sweep as a worse version of something
+// free. Comparing every store in one query is the part they don't do, so it
+// gets the hero slot and tracking sits below it as a supporting feature.
 
 import { useCallback, useState } from "react";
-import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
-import AddByLink from "@/components/AddByLink";
-import ProductCard from "@/components/ProductCard";
-import { Button, EmptyState, ErrorBanner, Loading, Screen } from "@/components/ui";
+import { Loading, Screen, SectionTitle } from "@/components/ui";
 import { colors, radius, spacing, type } from "@/constants/theme";
 import {
-  ApiError,
   type TrackedProduct,
+  getNotificationStatus,
+  getQuota,
   getTrackedProducts,
-  untrackProduct,
 } from "@/lib/api";
-import { percentOff, pluralize } from "@/lib/format";
+import {
+  formatPrice,
+  percentOff,
+  pluralize,
+  retailerColor,
+  retailerLabel,
+} from "@/lib/format";
 
-export default function TrackingScreen() {
+type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
+
+const TIER_LABEL: Record<string, string> = {
+  free: "Free",
+  pro: "Pro",
+  ultimate: "Ultimate",
+};
+
+export default function HomeScreen() {
   const router = useRouter();
 
-  const [tracked, setTracked] = useState<TrackedProduct[] | null>(null);
-  const [limits, setLimits] = useState<{ maxTrackedProducts: number; used: number } | null>(
-    null,
-  );
+  const [tracked, setTracked] = useState<TrackedProduct[]>([]);
   const [tier, setTier] = useState("free");
-  const [error, setError] = useState<string | null>(null);
+  const [searchesLeft, setSearchesLeft] = useState<number | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
+  const [pushOn, setPushOn] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [removing, setRemoving] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    try {
-      const result = await getTrackedProducts();
-      setTracked(result.tracked);
-      setLimits(result.limits);
-      setTier(result.tier);
-      setError(null);
-    } catch (err) {
-      const apiError = err as ApiError;
-      // A guest landing here has no account — send them to sign up rather than
-      // showing a bare 401.
-      if (apiError.status === 401) {
-        setTracked([]);
-        setError(null);
-      } else {
-        setError(apiError.message);
-      }
+    // Every one of these is allowed to fail independently — Home should still
+    // render something useful if one endpoint is down.
+    const [products, quota, push] = await Promise.all([
+      getTrackedProducts().catch(() => null),
+      getQuota().catch(() => null),
+      getNotificationStatus().catch(() => null),
+    ]);
+
+    if (products) {
+      setTracked(products.tracked);
     }
+    if (quota) {
+      setTier(quota.tier);
+      setSearchesLeft(quota.quota.remaining);
+      setIsGuest(quota.isGuest);
+    }
+    setPushOn(push?.registered ?? null);
+    setLoading(false);
   }, []);
 
-  // Prices update in the background while the user is elsewhere in the app, so
-  // this re-reads on focus rather than once on mount.
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-      load().finally(() => {
-        if (cancelled) return;
-      });
-      return () => {
-        cancelled = true;
-      };
+      load();
     }, [load]),
   );
 
@@ -70,178 +80,417 @@ export default function TrackingScreen() {
     setRefreshing(false);
   }
 
-  async function onUntrack(item: TrackedProduct) {
-    setRemoving(item.id);
-    // Optimistic: the row disappears immediately, and comes back if the server
-    // rejects it.
-    const previous = tracked;
-    setTracked((current) => current?.filter((t) => t.id !== item.id) ?? null);
+  if (loading) return <Loading />;
 
-    try {
-      await untrackProduct(item.id);
-      setLimits((current) =>
-        current ? { ...current, used: Math.max(0, current.used - 1) } : current,
-      );
-    } catch (err) {
-      setTracked(previous);
-      setError((err as ApiError).message);
-    } finally {
-      setRemoving(null);
-    }
-  }
-
-  if (tracked === null && !error) return <Loading />;
-
-  const sorted = [...(tracked ?? [])].sort((a, b) => dealScore(b) - dealScore(a));
-  const atLimit = limits ? limits.used >= limits.maxTrackedProducts : false;
+  // The single most useful fact on this screen: the best deal you're currently
+  // sitting on. If nothing's tracked, that space becomes the call to action.
+  const best = [...tracked]
+    .map((t) => ({ item: t, off: percentOff(t.product.price, t.product.listPrice) ?? 0 }))
+    .sort((a, b) => b.off - a.off)[0];
 
   return (
     <Screen>
-      {error && <ErrorBanner message={error} onRetry={load} />}
-
-      {limits && (
-        <View style={styles.limitRow}>
-          <Text style={styles.limitText}>
-            {limits.used} of {limits.maxTrackedProducts} tracked
-            {tier !== "free" ? ` · ${tier}` : ""}
-          </Text>
-          {atLimit && <Text style={styles.limitFull}>Limit reached</Text>}
-        </View>
-      )}
-
-      <AddByLink
-        disabled={atLimit}
-        disabledReason={
-          limits
-            ? `You're tracking ${limits.maxTrackedProducts} products — remove one to add another.`
-            : undefined
-        }
-        onTracked={(added) => {
-          setError(null);
-
-          // Tracking is idempotent server-side, so pasting a link for something
-          // already in the list must not double-count against the plan limit.
-          const isNew = !(tracked ?? []).some((t) => t.id === added.id);
-
-          // Prepend rather than refetch: the server already returned the full
-          // record, so a round trip would only add latency.
-          setTracked((current) => [
-            added,
-            ...(current ?? []).filter((t) => t.id !== added.id),
-          ]);
-          if (isNew) {
-            setLimits((current) =>
-              current ? { ...current, used: current.used + 1 } : current,
-            );
-          }
-
-          router.push(`/product/${added.product.id}`);
-        }}
-      />
-
-      <FlatList
-        data={sorted}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={sorted.length === 0 ? styles.emptyList : styles.list}
+      <ScrollView
+        contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.accent}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />
         }
-        ListEmptyComponent={
-          <EmptyState
-            title="Nothing tracked yet"
-            body="Copy a product link from Amazon, Walmart, Best Buy, Target or eBay and paste it above. Sweep will watch the price and tell you when it drops."
-            action={
-              <Button
-                label="Compare prices instead"
-                onPress={() => router.push("/search")}
-                variant="secondary"
-              />
-            }
-          />
-        }
-        renderItem={({ item }) => {
-          const drop = percentOff(item.product.price, item.product.listPrice);
-          return (
-            <View style={styles.cardWrap}>
-              <ProductCard
-                title={item.product.title}
-                retailer={item.product.retailer}
-                price={item.product.price}
-                listPrice={item.product.listPrice}
-                imageUrl={item.product.imageUrl}
-                rating={item.product.rating}
-                ratingCount={item.product.ratingCount}
-                lastCheckedAt={item.product.lastCheckedAt}
-                note={drop !== null && drop >= 20 ? `${drop}% below list — good time to buy` : null}
-                onPress={() => router.push(`/product/${item.product.id}`)}
-                action={
-                  <Button
-                    label="Remove"
-                    onPress={() => onUntrack(item)}
-                    variant="danger"
-                    busy={removing === item.id}
-                    compact
-                  />
-                }
-              />
-              {item.product.lastStatus && item.product.lastStatus !== "success" && (
-                <Text style={styles.staleWarning}>
-                  {item.product.lastStatus === "blocked"
-                    ? "This store is blocking price checks right now — showing the last known price."
-                    : "Last price check failed — showing the last known price."}
-                </Text>
-              )}
+      >
+        {/* ---- who we are ---- */}
+        <View style={styles.brand}>
+          <Text style={styles.brandName}>Sweep</Text>
+          <Text style={styles.brandTagline}>Your online shopping buddy</Text>
+        </View>
+
+        {/* ---- the pitch: one search, every store ---- */}
+        <Pressable
+          style={({ pressed }) => [styles.searchHero, pressed && styles.pressed]}
+          onPress={() => router.push("/search")}
+        >
+          <View style={styles.searchHeroTop}>
+            <Ionicons name="search" size={20} color={colors.accent} />
+            <Text style={styles.searchHeroTitle}>What are you shopping for?</Text>
+          </View>
+          <Text style={styles.searchHeroBody}>
+            Search once and see Amazon, Walmart, Best Buy, eBay, Newegg and ASOS
+            side by side — so you know who's actually cheapest before you buy.
+          </Text>
+          <View style={styles.searchHeroFooter}>
+            <View style={styles.storeDots}>
+              {(["amazon", "walmart", "bestbuy", "ebay", "newegg", "asos"] as const).map((r) => (
+                <View
+                  key={r}
+                  style={[styles.storeDot, { backgroundColor: retailerColor(r) }]}
+                />
+              ))}
             </View>
-          );
-        }}
-      />
+            <Text style={styles.searchHeroMeta}>
+              {searchesLeft === null
+                ? "5 stores, one search"
+                : `${pluralize(searchesLeft, "search")} left today`}
+            </Text>
+          </View>
+        </Pressable>
+
+        {/* ---- what you're watching, kept secondary ---- */}
+        {best && best.item.product.price !== null ? (
+          <Pressable
+            style={({ pressed }) => [styles.watchCard, pressed && styles.pressed]}
+            onPress={() => router.push(`/product/${best.item.product.id}`)}
+          >
+            <View style={styles.watchLeft}>
+              <Text style={styles.watchLabel}>
+                {best.off >= 20 ? "BIGGEST DROP YOU'RE WATCHING" : "YOU'RE WATCHING"}
+              </Text>
+              <Text style={styles.watchTitle} numberOfLines={1}>
+                {best.item.product.title}
+              </Text>
+              <View style={styles.watchPriceRow}>
+                <Text style={styles.watchPrice}>
+                  {formatPrice(best.item.product.price)}
+                </Text>
+                {best.off > 0 && (
+                  <Text style={styles.watchOff}>{best.off}% off</Text>
+                )}
+                <Text style={styles.watchRetailer}>
+                  {retailerLabel(best.item.product.retailer)}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+          </Pressable>
+        ) : (
+          <Pressable
+            style={({ pressed }) => [styles.watchEmpty, pressed && styles.pressed]}
+            onPress={() => router.push("/tracking")}
+          >
+            <Ionicons name="pricetag-outline" size={18} color={colors.textSecondary} />
+            <Text style={styles.watchEmptyText}>
+              Found something? Paste its link to watch the price.
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </Pressable>
+        )}
+
+        {/* ---- things that need fixing ---- */}
+        {(pushOn === false || isGuest) && (
+          <View style={styles.section}>
+            <SectionTitle>Needs attention</SectionTitle>
+
+            {isGuest && (
+              <ActionCard
+                icon="person-add-outline"
+                tone="accent"
+                title="Create an account"
+                body="Guests get one search a day and can't track prices."
+                onPress={() => router.push("/auth")}
+              />
+            )}
+
+            {pushOn === false && !isGuest && (
+              <ActionCard
+                icon="notifications-off-outline"
+                tone="warning"
+                title="Price alerts are off"
+                body="You won't hear about a drop while it's still live."
+                onPress={() => router.push("/profile")}
+              />
+            )}
+          </View>
+        )}
+
+        {/* ---- everything that isn't a tab ---- */}
+        <View style={styles.section}>
+          <SectionTitle>Shortcuts</SectionTitle>
+          <View style={styles.shortcutGrid}>
+            <Shortcut
+              icon="wallet-outline"
+              label="Budget"
+              hint="Track spending"
+              onPress={() => router.push("/budget")}
+            />
+            <Shortcut icon="list-outline" label="Lists" hint="Gift & wishlists" soon />
+            <Shortcut
+              icon="trophy-outline"
+              label="Leaderboard"
+              hint="XP & ranks"
+              onPress={() => router.push("/leaderboard")}
+            />
+            <Shortcut
+              icon="person-circle-outline"
+              label="Profile"
+              hint="Account & stores"
+              onPress={() => router.push("/profile")}
+            />
+          </View>
+        </View>
+
+        {/* ---- plan ---- */}
+        <Pressable
+          style={({ pressed }) => [styles.planCard, pressed && styles.pressed]}
+          onPress={() => router.push("/plans")}
+        >
+          <View style={styles.planLeft}>
+            <Text style={styles.planLabel}>YOUR PLAN</Text>
+            <Text style={styles.planTier}>{TIER_LABEL[tier] ?? "Free"}</Text>
+          </View>
+          {tier === "free" ? (
+            <View style={styles.upgradePill}>
+              <Text style={styles.upgradeText}>See upgrades</Text>
+            </View>
+          ) : (
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+          )}
+        </Pressable>
+      </ScrollView>
     </Screen>
   );
 }
 
-/**
- * Sort key: how good a deal this is right now. Discount off list is the honest
- * signal we have on this screen — the deeper "% below historical average" needs
- * the full history, which lives on the detail screen.
- */
-function dealScore(item: TrackedProduct): number {
-  return percentOff(item.product.price, item.product.listPrice) ?? 0;
+function ActionCard({
+  icon,
+  title,
+  body,
+  tone,
+  onPress,
+}: {
+  icon: IoniconName;
+  title: string;
+  body: string;
+  tone: "accent" | "warning";
+  onPress: () => void;
+}) {
+  const accentColor = tone === "warning" ? colors.warning : colors.accent;
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.actionCard,
+        { borderColor: accentColor },
+        pressed && styles.pressed,
+      ]}
+      onPress={onPress}
+    >
+      <Ionicons name={icon} size={20} color={accentColor} />
+      <View style={styles.actionText}>
+        <Text style={styles.actionTitle}>{title}</Text>
+        <Text style={styles.actionBody}>{body}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+    </Pressable>
+  );
+}
+
+function Shortcut({
+  icon,
+  label,
+  hint,
+  onPress,
+  soon,
+}: {
+  icon: IoniconName;
+  label: string;
+  hint: string;
+  onPress?: () => void;
+  soon?: boolean;
+}) {
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.shortcut,
+        soon && styles.shortcutSoon,
+        pressed && !soon && styles.pressed,
+      ]}
+      onPress={onPress}
+      disabled={soon}
+    >
+      <Ionicons
+        name={icon}
+        size={22}
+        color={soon ? colors.textTertiary : colors.accent}
+      />
+      <Text style={[styles.shortcutLabel, soon && styles.shortcutLabelSoon]}>{label}</Text>
+      <Text style={styles.shortcutHint}>{soon ? "Coming soon" : hint}</Text>
+    </Pressable>
+  );
 }
 
 const styles = StyleSheet.create({
-  limitRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
+  content: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xxl },
+  pressed: { opacity: 0.75 },
+
+  brand: { gap: 1 },
+  brandName: {
+    color: colors.textPrimary,
+    fontSize: type.display.fontSize,
+    fontWeight: "900",
+    letterSpacing: -0.5,
   },
-  limitText: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
+  brandTagline: {
+    color: colors.accent,
+    fontSize: type.body.fontSize,
     fontWeight: "600",
   },
-  limitFull: {
-    color: colors.warning,
+
+  searchHero: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.accentMuted,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  searchHeroTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  searchHeroTitle: {
+    color: colors.textPrimary,
+    fontSize: type.heading.fontSize,
+    fontWeight: "800",
+    flex: 1,
+  },
+  searchHeroBody: {
+    color: colors.textSecondary,
+    fontSize: type.label.fontSize,
+    lineHeight: 19,
+  },
+  searchHeroFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: spacing.xs,
+  },
+  storeDots: { flexDirection: "row", gap: 5 },
+  storeDot: { width: 9, height: 9, borderRadius: radius.pill },
+  searchHeroMeta: {
+    color: colors.textTertiary,
+    fontSize: type.caption.fontSize,
+    fontWeight: "600",
+  },
+
+  watchCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    padding: spacing.md,
+  },
+  watchLeft: { flex: 1, gap: 2 },
+  watchLabel: {
+    color: colors.textTertiary,
     fontSize: type.caption.fontSize,
     fontWeight: "800",
-    backgroundColor: colors.surface,
-    borderRadius: radius.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    overflow: "hidden",
+    letterSpacing: 0.5,
   },
-  list: { padding: spacing.md, gap: spacing.sm },
-  emptyList: { flexGrow: 1 },
-  cardWrap: { marginBottom: spacing.sm },
-  staleWarning: {
-    color: colors.warning,
+  watchTitle: {
+    color: colors.textPrimary,
+    fontSize: type.body.fontSize,
+    fontWeight: "600",
+  },
+  watchPriceRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: spacing.sm,
+    marginTop: 1,
+  },
+  watchPrice: { color: colors.textPrimary, fontSize: 17, fontWeight: "800" },
+  watchOff: {
+    color: colors.success,
     fontSize: type.caption.fontSize,
-    paddingHorizontal: spacing.sm,
-    paddingTop: 4,
+    fontWeight: "800",
+  },
+  watchRetailer: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+
+  watchEmpty: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    borderStyle: "dashed",
+    padding: spacing.md,
+  },
+  watchEmptyText: {
+    color: colors.textSecondary,
+    fontSize: type.label.fontSize,
+    flex: 1,
+  },
+
+  section: { gap: spacing.xs },
+
+  actionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  actionText: { flex: 1, gap: 1 },
+  actionTitle: {
+    color: colors.textPrimary,
+    fontSize: type.body.fontSize,
+    fontWeight: "700",
+  },
+  actionBody: { color: colors.textSecondary, fontSize: type.caption.fontSize },
+
+  shortcutGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  shortcut: {
+    // Two per row, accounting for the gap between them.
+    width: "48%",
+    flexGrow: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    padding: spacing.md,
+    gap: 2,
+  },
+  shortcutSoon: { opacity: 0.55 },
+  shortcutLabel: {
+    color: colors.textPrimary,
+    fontSize: type.body.fontSize,
+    fontWeight: "700",
+    marginTop: spacing.xs,
+  },
+  shortcutLabelSoon: { color: colors.textSecondary },
+  shortcutHint: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+
+  planCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    padding: spacing.md,
+  },
+  planLeft: { gap: 2 },
+  planLabel: {
+    color: colors.textTertiary,
+    fontSize: type.caption.fontSize,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+  },
+  planTier: {
+    color: colors.textPrimary,
+    fontSize: type.heading.fontSize,
+    fontWeight: "800",
+  },
+  upgradePill: {
+    backgroundColor: colors.accentMuted,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+  },
+  upgradeText: {
+    color: colors.accent,
+    fontSize: type.caption.fontSize,
+    fontWeight: "800",
   },
 });

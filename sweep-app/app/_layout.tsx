@@ -143,8 +143,69 @@ export default function RootLayout() {
       >
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="auth" />
-        <Stack.Screen name="product/[id]" options={{ headerShown: true }} />
-        <Stack.Screen name="profile" options={{ headerShown: true, presentation: "modal" }} />
+        {/*
+          Header styling lives here rather than only inside each screen. A
+          screen that returns a loading state before rendering its own
+          <Stack.Screen options> would otherwise flash the navigator defaults
+          for that first frame — a white bar titled "product/[id]". Screens
+          still override `title` once their data arrives.
+        */}
+        <Stack.Screen
+          name="product/[id]"
+          options={{
+            headerShown: true,
+            title: "",
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.textPrimary,
+            headerShadowVisible: false,
+            headerTitleStyle: { fontWeight: "800" },
+          }}
+        />
+        <Stack.Screen
+          name="budget"
+          options={{
+            headerShown: true,
+            title: "Budget",
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.textPrimary,
+            headerShadowVisible: false,
+            headerTitleStyle: { fontWeight: "800" },
+          }}
+        />
+        <Stack.Screen
+          name="plans"
+          options={{
+            headerShown: true,
+            title: "Plans",
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.textPrimary,
+            headerShadowVisible: false,
+            headerTitleStyle: { fontWeight: "800" },
+          }}
+        />
+        <Stack.Screen
+          name="leaderboard"
+          options={{
+            headerShown: true,
+            title: "Leaderboard",
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.textPrimary,
+            headerShadowVisible: false,
+            headerTitleStyle: { fontWeight: "800" },
+          }}
+        />
+        <Stack.Screen
+          name="profile"
+          options={{
+            headerShown: true,
+            presentation: "modal",
+            title: "Profile",
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.textPrimary,
+            headerShadowVisible: false,
+            headerTitleStyle: { fontWeight: "800" },
+          }}
+        />
       </Stack>
     </>
   );

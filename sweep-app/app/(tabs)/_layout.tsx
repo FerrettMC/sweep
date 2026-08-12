@@ -1,20 +1,26 @@
 // app/(tabs)/_layout.tsx
 //
-// Four tabs for the core loop — Tracking, Search, Deals, Budget — with the
-// profile reachable from the header rather than spending a tab slot on it.
+// Four tabs: Home, Tracking, Search, Deals.
+//
+// Home is the landing screen and the way into everything that doesn't warrant
+// a permanent slot — budget, lists, plan, profile. The tab bar is reserved for
+// the screens you open repeatedly; anything else is a shortcut on Home.
+//
+// Icons are Ionicons (@expo/vector-icons), which ships with Expo as a font
+// rather than a native module, so it needs no rebuild. Outline when inactive,
+// filled when active.
 
 import { Link, Tabs } from "expo-router";
-import { type ColorValue, Pressable, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { type ColorValue, Pressable, StyleSheet, View } from "react-native";
 import { colors, spacing, type } from "@/constants/theme";
 
-/**
- * Text glyphs instead of an icon font. expo-symbols renders SF Symbols on iOS
- * but falls back to Material names on Android, and the starter template's
- * placeholder mapping pointed every tab at the same "code" icon. These read
- * correctly on both platforms with no asset pipeline.
- */
-function TabIcon({ glyph, color }: { glyph: string; color: ColorValue }) {
-  return <Text style={[styles.icon, { color }]}>{glyph}</Text>;
+type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
+
+function tabIcon(active: IoniconName, inactive: IoniconName) {
+  return ({ color, focused }: { color: ColorValue; focused: boolean }) => (
+    <Ionicons name={focused ? active : inactive} size={24} color={color as string} />
+  );
 }
 
 function ProfileButton() {
@@ -22,7 +28,7 @@ function ProfileButton() {
     <Link href="/profile" asChild>
       <Pressable hitSlop={12} style={({ pressed }) => pressed && styles.pressed}>
         <View style={styles.profileButton}>
-          <Text style={styles.profileGlyph}>👤</Text>
+          <Ionicons name="person" size={17} color={colors.textSecondary} />
         </View>
       </Pressable>
     </Link>
@@ -33,6 +39,9 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
+        // The scene container defaults to the system background. On a dark-only
+        // app that's a white flash between navigations.
+        sceneStyle: { backgroundColor: colors.background },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textTertiary,
         tabBarStyle: {
@@ -53,29 +62,29 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
+          title: "Home",
+          tabBarIcon: tabIcon("home", "home-outline"),
+        }}
+      />
+      <Tabs.Screen
+        name="tracking"
+        options={{
           title: "Tracking",
-          tabBarIcon: ({ color }) => <TabIcon glyph="📌" color={color} />,
+          tabBarIcon: tabIcon("bookmark", "bookmark-outline"),
         }}
       />
       <Tabs.Screen
         name="search"
         options={{
           title: "Search",
-          tabBarIcon: ({ color }) => <TabIcon glyph="🔍" color={color} />,
+          tabBarIcon: tabIcon("search", "search-outline"),
         }}
       />
       <Tabs.Screen
         name="deals"
         options={{
           title: "Deals",
-          tabBarIcon: ({ color }) => <TabIcon glyph="🔥" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="budget"
-        options={{
-          title: "Budget",
-          tabBarIcon: ({ color }) => <TabIcon glyph="💰" color={color} />,
+          tabBarIcon: tabIcon("flame", "flame-outline"),
         }}
       />
     </Tabs>
@@ -83,7 +92,6 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  icon: { fontSize: 20 },
   profileButton: {
     width: 32,
     height: 32,
@@ -93,6 +101,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: spacing.md,
   },
-  profileGlyph: { fontSize: 15 },
   pressed: { opacity: 0.6 },
 });

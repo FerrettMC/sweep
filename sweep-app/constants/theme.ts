@@ -33,9 +33,12 @@ export const colors = {
   retailers: {
     amazon: "#FF9900",
     walmart: "#0071DC",
-    target: "#CC0000",
     bestbuy: "#FFE000",
     ebay: "#E53238",
+    newegg: "#E87F1E",
+    // ASOS brands in black, which is invisible on a dark background — use a
+    // near-white so the store dot still reads.
+    asos: "#EDEDED",
   },
 } as const;
 

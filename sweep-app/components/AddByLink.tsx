@@ -67,8 +67,8 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
     }
   }
 
-  /** Step 2 — the user confirmed, so commit it along with their chosen times. */
-  async function onConfirm(checkHours: number[]) {
+  /** Step 2 — the user confirmed, so commit it. */
+  async function onConfirm() {
     if (!preview) return;
 
     setConfirming(true);
@@ -80,11 +80,9 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
           retailer: preview.product.retailer,
           retailerId: preview.product.retailerId,
         },
-        {
-          checkHours,
-          // The device's own zone, so "9 AM" means 9 AM where they are.
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        },
+        // Still send the timezone: check times are no longer user-chosen, but
+        // the defaults are still interpreted in the user's local time.
+        { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone },
       );
       setPreview(null);
       setLink("");
@@ -138,7 +136,7 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
         <Pressable onPress={onPasteFromClipboard} hitSlop={8}>
           <Text style={styles.pasteLink}>Paste from clipboard</Text>
         </Pressable>
-        <Text style={styles.hint}>Amazon · Walmart · Best Buy · Target · eBay</Text>
+        <Text style={styles.hint}>Amazon · Walmart · Best Buy · eBay · Newegg · ASOS</Text>
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}

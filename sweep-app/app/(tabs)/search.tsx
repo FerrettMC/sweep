@@ -11,9 +11,12 @@
 // without knowing it was their last one.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   Linking,
+  Pressable,
+  ScrollView,
   SectionList,
   StyleSheet,
   Text,
@@ -21,11 +24,15 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
+import CompareTray from "@/components/CompareTray";
+import WhyLimitedSheet from "@/components/WhyLimitedSheet";
+import HighlightCard from "@/components/HighlightCard";
 import ProductCard from "@/components/ProductCard";
 import { Button, EmptyState, ErrorBanner, Loading, Screen } from "@/components/ui";
 import { colors, radius, spacing, type } from "@/constants/theme";
 import {
   ApiError,
+  type Highlight,
   type Quota,
   type RetailerResult,
   type SearchProduct,
@@ -34,7 +41,13 @@ import {
   getQuota,
   search as runSearch,
 } from "@/lib/api";
+import {
+  countActionAndMaybeShowInterstitial,
+  preloadInterstitial,
+  showRewardedAd,
+} from "@/lib/ads";
 import { pluralize, retailerColor } from "@/lib/format";
+import { supabase } from "@/lib/supabase";
 
 interface Section {
   title: string;
@@ -60,10 +73,20 @@ export default function SearchScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [amazonJobId, setAmazonJobId] = useState<string | null>(null);
+  const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const [skipped, setSkipped] = useState<{ retailer: string; label: string }[]>([]);
+
+  // Starred results, kept as a map so they survive a new search — that's what
+  // makes comparing across two different queries possible.
+  const [starred, setStarred] = useState<Record<string, SearchProduct>>({});
+  const [watchingAd, setWatchingAd] = useState(false);
+  const [showAds, setShowAds] = useState(false);
+  const [showWhy, setShowWhy] = useState(false);
 
   // Bumped on each new search so an in-flight poll from the previous one can
   // tell it's stale and stop writing results into the current view.
   const searchGeneration = useRef(0);
+  const listRef = useRef<SectionList<SearchProduct, Section>>(null);
 
   // useFocusEffect, not useEffect: the quota changes while the user is on other
   // screens (it resets at midnight, and tracking flows can spend one), so the
@@ -77,6 +100,10 @@ export default function SearchScreen() {
           if (cancelled) return;
           setQuota(result.quota);
           setIsGuest(result.isGuest);
+          // Only the free tier is ad-supported; canWatchAd already encodes
+          // that, so reuse it rather than duplicating the tier rules here.
+          setShowAds(result.tier === "free" && !result.isGuest);
+          if (result.tier === "free" && !result.isGuest) preloadInterstitial();
         })
         .catch(() => {
           // A quota read failing shouldn't block searching — the server
@@ -98,6 +125,8 @@ export default function SearchScreen() {
     setNotice(null);
     searchGeneration.current += 1;
     setAmazonJobId(null);
+    setHighlights([]);
+    setSkipped([]);
 
     try {
       const response = await runSearch(trimmed);
@@ -113,6 +142,17 @@ export default function SearchScreen() {
 
       // Amazon goes last and starts as pending — it's fetched out-of-band
       // because Bright Data's free tier can take minutes.
+      // A new search reuses the same scrolled list, so without this you land
+      // partway down the previous results and think nothing happened.
+      listRef.current?.getScrollResponder()?.scrollTo({ y: 0, animated: false });
+
+      setHighlights(response.highlights);
+      setSkipped(response.skipped);
+
+      // A finished search is the natural interstitial moment — the user has
+      // what they asked for, so an interruption here doesn't block anything.
+      // Paid tiers pass showAds=false and never see one.
+      countActionAndMaybeShowInterstitial(showAds);
       setSections(
         response.amazonJobId
           ? [
@@ -204,18 +244,87 @@ export default function SearchScreen() {
     };
   }, [amazonJobId]);
 
+  const productKey = (p: SearchProduct) => `${p.retailer}:${p.retailerId}`;
+
+  function toggleStar(product: SearchProduct) {
+    setStarred((current) => {
+      const key = productKey(product);
+      if (current[key]) {
+        const { [key]: _removed, ...rest } = current;
+        return rest;
+      }
+      return { ...current, [key]: product };
+    });
+  }
+
   async function onWatchAd() {
+    setWatchingAd(true);
+    setError(null);
+    setNotice(null);
+
     try {
-      // The ad SDK isn't wired yet — this claims the reward directly. When
-      // AdMob lands, the rewarded video plays here and the server verifies it
-      // via SSV before granting anything.
-      const { quota: updated } = await claimRewardedSearch();
-      setQuota(updated);
-      setError(null);
-      setNotice("Extra search unlocked.");
+      const { data } = await supabase.auth.getSession();
+      const userId = data.session?.user.id;
+      if (!userId) {
+        setError("Sign in to unlock extra searches.");
+        return;
+      }
+
+      const outcome = await showRewardedAd(userId);
+
+      if (outcome.status === "dismissed") {
+        setNotice("Ad closed early — no extra search this time.");
+        return;
+      }
+
+      if (outcome.status === "failed") {
+        // In development there's no real ad inventory, so fall back to the
+        // dev-only endpoint rather than blocking the flow entirely.
+        if (__DEV__) {
+          const { quota: updated } = await claimRewardedSearch();
+          setQuota(updated);
+          setNotice("Extra search unlocked (dev — no real ad).");
+          return;
+        }
+        setError(`Couldn't load an ad: ${outcome.reason}`);
+        return;
+      }
+
+      // Reward earned. The server credits it from AdMob's verification
+      // callback, which can land a moment after the ad closes — so poll the
+      // quota briefly rather than assuming it's already there.
+      setNotice("Ad finished — unlocking your search…");
+      const updated = await waitForBonus(quota?.bonus ?? 0);
+
+      if (updated) {
+        setQuota(updated);
+        setNotice("Extra search unlocked.");
+      } else {
+        setNotice("Reward is taking a moment to land. Pull to refresh shortly.");
+      }
     } catch (err) {
       setError((err as ApiError).message);
+    } finally {
+      setWatchingAd(false);
     }
+  }
+
+  /**
+   * Poll until the bonus count goes up. AdMob's callback hits our server
+   * independently of the app, so there's a short window where the ad is done
+   * but the credit hasn't arrived.
+   */
+  async function waitForBonus(previousBonus: number): Promise<Quota | null> {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      try {
+        const result = await getQuota();
+        if (result.quota.bonus > previousBonus) return result.quota;
+      } catch {
+        // Keep trying — a transient failure here isn't worth surfacing.
+      }
+    }
+    return null;
   }
 
   const outOfSearches = quota !== null && quota.remaining <= 0;
@@ -245,14 +354,38 @@ export default function SearchScreen() {
 
       {quota && (
         <View style={styles.quotaRow}>
-          <Text style={styles.quotaText}>
-            {quota.remaining > 0
-              ? `${pluralize(quota.remaining, "search")} left today`
-              : "No searches left today"}
-            {quota.bonus > 0 ? ` · +${quota.bonus} from ads` : ""}
-          </Text>
-          {quota.canWatchAd && outOfSearches && (
-            <Button label="Watch ad for +1" onPress={onWatchAd} variant="secondary" compact />
+          <Pressable
+            onPress={() => setShowWhy(true)}
+            hitSlop={8}
+            style={styles.quotaTextRow}
+          >
+            <Text style={styles.quotaText}>
+              {quota.remaining > 0
+                ? `${pluralize(quota.remaining, "search")} left today`
+                : "No searches left today"}
+              {quota.bonus > 0 ? ` · +${quota.bonus} from ads` : ""}
+            </Text>
+            <Ionicons
+              name="help-circle-outline"
+              size={15}
+              color={colors.textTertiary}
+            />
+          </Pressable>
+          {/*
+            Three states, not two. Silently hiding the button once the daily ad
+            cap is hit looks identical to the feature being broken, so say why.
+          */}
+          {outOfSearches && quota.canWatchAd && (
+            <Button
+              label="Watch ad for +1"
+              onPress={onWatchAd}
+              busy={watchingAd}
+              variant="secondary"
+              compact
+            />
+          )}
+          {outOfSearches && !quota.canWatchAd && !isGuest && (
+            <Text style={styles.capNote}>No more ad searches today</Text>
           )}
         </View>
       )}
@@ -287,6 +420,7 @@ export default function SearchScreen() {
 
       {sections && (
         <SectionList
+          ref={listRef}
           sections={sections}
           keyExtractor={(item) => `${item.retailer}:${item.retailerId}`}
           contentContainerStyle={styles.list}
@@ -295,6 +429,45 @@ export default function SearchScreen() {
           // thing telling the user it's still coming.
           renderSectionFooter={undefined}
           keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={
+            <>
+              <CompareTray
+                items={Object.values(starred)}
+                onOpen={(p) => Linking.openURL(p.url)}
+                onRemove={toggleStar}
+                onClear={() => setStarred({})}
+                // Only worth explaining while there are results to try it on.
+                showHint={sections.length > 0}
+              />
+              {highlights.length > 0 && (
+                <View style={styles.highlightBlock}>
+                  <Text style={styles.highlightHeading}>Top picks</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.highlightRow}
+                  >
+                    {highlights.map((h) => (
+                      <HighlightCard
+                        key={`${h.kind}:${h.product.retailer}:${h.product.retailerId}`}
+                        highlight={h}
+                        onPress={() => Linking.openURL(h.product.url)}
+                      />
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+              {skipped.length > 0 && (
+                <Text style={styles.skippedNote}>
+                  Skipped {skipped.map((s) => s.label).join(", ")} — they don't sell
+                  this kind of thing.
+                </Text>
+              )}
+              {sections.length > 0 && (
+                <Text style={styles.byStoreHeading}>By store</Text>
+              )}
+            </>
+          }
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader}>
               <View
@@ -329,6 +502,8 @@ export default function SearchScreen() {
                 ratingCount={item.ratingCount}
                 sellerRating={item.sellerRating}
                 sellerRatingCount={item.sellerRatingCount}
+                starred={Boolean(starred[productKey(item)])}
+                onToggleStar={() => toggleStar(item)}
                 // Search is for comparing who's cheapest. Tracking happens by
                 // pasting a link on the Tracking tab, which costs no quota.
                 action={
@@ -345,6 +520,14 @@ export default function SearchScreen() {
           ListFooterComponent={<View style={styles.footerSpace} />}
         />
       )}
+      <WhyLimitedSheet
+        visible={showWhy}
+        onClose={() => setShowWhy(false)}
+        onSeePlans={() => {
+          setShowWhy(false);
+          router.push("/plans");
+        }}
+      />
     </Screen>
   );
 }
@@ -375,11 +558,17 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     gap: spacing.sm,
   },
+  quotaTextRow: { flexDirection: "row", alignItems: "center", gap: 5, flex: 1 },
   quotaText: {
     color: colors.textSecondary,
     fontSize: type.label.fontSize,
     fontWeight: "600",
     flex: 1,
+  },
+  capNote: {
+    color: colors.textTertiary,
+    fontSize: type.caption.fontSize,
+    fontWeight: "600",
   },
   notice: {
     color: colors.success,
@@ -429,6 +618,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.xs,
     flex: 1,
+  },
+  highlightBlock: { gap: spacing.sm, marginTop: spacing.sm },
+  highlightHeading: {
+    color: colors.textPrimary,
+    fontSize: type.heading.fontSize,
+    fontWeight: "800",
+  },
+  highlightRow: { gap: spacing.sm, paddingRight: spacing.md, paddingBottom: 2 },
+  skippedNote: {
+    color: colors.textTertiary,
+    fontSize: type.caption.fontSize,
+    marginTop: spacing.md,
+    lineHeight: 15,
+  },
+  byStoreHeading: {
+    color: colors.textPrimary,
+    fontSize: type.heading.fontSize,
+    fontWeight: "800",
+    marginTop: spacing.lg,
   },
   cardWrap: { marginBottom: spacing.sm },
   footerSpace: { height: spacing.xl },

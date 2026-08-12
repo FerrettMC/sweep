@@ -54,6 +54,84 @@ export function isValidTimezone(timezone: unknown): timezone is string {
   }
 }
 
+/** Minutes since local midnight at a given instant, in a given zone. */
+export function localMinutesOfDay(instant: Date, timezone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour: "numeric",
+    minute: "numeric",
+    hour12: false,
+  }).formatToParts(instant);
+
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? 0) % 24;
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+  return hour * 60 + minute;
+}
+
+/**
+ * Is an interval-tier user due for a check?
+ *
+ * Slots are anchored to LOCAL MIDNIGHT plus the user's minute offset, so
+ * "every 2 hours at :35" means 00:35, 02:35, 04:35 — predictable clock times
+ * rather than "two hours after whenever the last check happened to run".
+ *
+ * Works by finding how long ago the most recent slot was and comparing the
+ * last check against it. Deriving the slot from elapsed minutes rather than
+ * constructing a local datetime avoids having to reverse a timezone offset,
+ * which is where this kind of code usually goes wrong.
+ */
+export function isDueAtInterval(
+  lastCheckedAt: Date | null,
+  intervalMinutes: number,
+  minuteOffset: number,
+  timezone: string,
+  now: Date = new Date(),
+): boolean {
+  if (!lastCheckedAt) return true;
+  if (intervalMinutes <= 0) return false;
+
+  const local = localMinutesOfDay(now, timezone);
+  const sinceSlot =
+    (((local - minuteOffset) % intervalMinutes) + intervalMinutes) % intervalMinutes;
+
+  const lastSlot = new Date(now.getTime() - sinceSlot * 60 * 1000);
+  lastSlot.setSeconds(0, 0);
+
+  return lastCheckedAt < lastSlot;
+}
+
+/** When the next interval slot lands, for display. */
+export function nextIntervalCheckAt(
+  intervalMinutes: number,
+  minuteOffset: number,
+  timezone: string,
+  now: Date = new Date(),
+): Date | null {
+  if (intervalMinutes <= 0) return null;
+
+  const local = localMinutesOfDay(now, timezone);
+  const sinceSlot =
+    (((local - minuteOffset) % intervalMinutes) + intervalMinutes) % intervalMinutes;
+
+  const next = new Date(now.getTime() + (intervalMinutes - sinceSlot) * 60 * 1000);
+  next.setSeconds(0, 0);
+  return next;
+}
+
+/** Validate a minute offset against what the tier allows. */
+export function normalizeCheckMinute(
+  input: unknown,
+  max: number,
+): { ok: true; minute: number } | { ok: false; error: string } {
+  if (typeof input !== "number" || !Number.isInteger(input)) {
+    return { ok: false, error: "Check minute must be a whole number" };
+  }
+  if (input < 0 || input > max) {
+    return { ok: false, error: `Check minute must be between 0 and ${max}` };
+  }
+  return { ok: true, minute: input };
+}
+
 /** The local hour (0-23) at a given instant, in a given zone. */
 export function localHourAt(instant: Date, timezone: string): number {
   const formatted = new Intl.DateTimeFormat("en-US", {

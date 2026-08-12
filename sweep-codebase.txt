@@ -1,7 +1,7 @@
 ################################################################################
 #
 #  SWEEP - FULL SOURCE CODE DUMP
-#  Generated: 2026-08-11 22:23:35
+#  Generated: 2026-08-12 12:33:44
 #  Root: /home/ferret/Sweep
 #
 #  Price tracking + shopping companion app.
@@ -179,7 +179,7 @@ app.listen({ port, host: "0.0.0.0" }, (err, address) => {
 
 ### FILE: sweep-backend/prisma/schema.prisma
 ### PURPOSE: Postgres schema. Product is a SHARED cache — one row per unique item across all users, so a single check serves everyone tracking it.
-### LINES: 208
+### LINES: 223
 --- BEGIN sweep-backend/prisma/schema.prisma ---
 generator client {
   provider = "prisma-client-js"
@@ -231,6 +231,21 @@ model Wallet {
   // tier's base allowance. Resets on the same daily boundary.
   bonusSearchesToday Int      @default(0)
   searchesResetAt   DateTime  @default(now())
+
+  // Fixed times of day this user's products are checked, as local hours (0-23).
+  // Free tier picks 2 — that's what bounds scraping load predictably instead of
+  // it scaling with signups. Pro/Ultimate ignore this and use a rolling
+  // interval instead.
+  // Manual "Check price now" budget. Free gets a daily count, Pro a cooldown
+  // between checks, Ultimate neither — see TIER_LIMITS.
+  manualChecksToday Int       @default(0)
+  manualChecksResetAt DateTime @default(now())
+  lastManualCheckAt DateTime?
+
+  checkHours        Int[]     @default([9, 21])
+  // IANA zone, so "9am" means 9am where the user is, and survives DST. Stored
+  // rather than an offset because an offset goes stale twice a year.
+  timezone          String    @default("UTC")
   updatedAt         DateTime  @updatedAt
 
   user   User   @relation(fields: [userId], references: [id])
@@ -398,7 +413,7 @@ model PromoCodeRedemption {
 
 ### FILE: sweep-backend/src/lib/scrapers/types.ts
 ### PURPOSE: The one shape every retailer normalizes into, plus the success/failed/blocked result type and cents conversion.
-### LINES: 86
+### LINES: 100
 --- BEGIN sweep-backend/src/lib/scrapers/types.ts ---
 // lib/scrapers/types.ts
 //
@@ -409,9 +424,10 @@ model PromoCodeRedemption {
 export const RETAILERS = [
   "amazon",
   "walmart",
-  "target",
   "bestbuy",
   "ebay",
+  "newegg",
+  "asos",
 ] as const;
 
 export type Retailer = (typeof RETAILERS)[number];
@@ -423,9 +439,10 @@ export function isRetailer(value: string): value is Retailer {
 export const RETAILER_LABELS: Record<Retailer, string> = {
   amazon: "Amazon",
   walmart: "Walmart",
-  target: "Target",
   bestbuy: "Best Buy",
   ebay: "eBay",
+  newegg: "Newegg",
+  asos: "ASOS",
 };
 
 export interface ScrapedProduct {
@@ -441,8 +458,20 @@ export interface ScrapedProduct {
   imageUrl: string | null;
   url: string;
   availability: string | null;
+  /** Product rating out of 5. Null where the retailer doesn't publish one. */
   rating: number | null;
   ratingCount: number | null;
+  /**
+   * Seller feedback as a percentage (0–100), for marketplaces where the
+   * meaningful signal is who's selling rather than what's being sold.
+   *
+   * eBay only. Deliberately a separate field from `rating`: 99.3% seller
+   * feedback and 4.4 stars on a product are not the same claim, and showing
+   * one in place of the other would let users compare numbers that don't mean
+   * the same thing.
+   */
+  sellerRating: number | null;
+  sellerRatingCount: number | null;
 }
 
 /**
@@ -684,7 +713,7 @@ export function extractBalancedObject(
 
 ### FILE: sweep-backend/src/lib/scrapers/index.ts
 ### PURPOSE: Retailer registry incl. per-retailer concurrency. searchAllRetailers() fans out in parallel and never rejects.
-### LINES: 160
+### LINES: 232
 --- BEGIN sweep-backend/src/lib/scrapers/index.ts ---
 // lib/scrapers/index.ts
 //
@@ -695,8 +724,10 @@ export function extractBalancedObject(
 import { scrapeAmazonProduct, searchAmazonProducts } from "./amazon.js";
 import { bestBuyProductUrl, scrapeBestBuyProduct, searchBestBuy } from "./bestbuy.js";
 import { ebayProductUrl, scrapeEbayProduct, searchEbay } from "./ebay.js";
-import { scrapeTargetProduct, searchTarget, targetProductUrl } from "./target.js";
+import { asosProductUrl, scrapeAsosProduct, searchAsos } from "./asos.js";
+import { neweggProductUrl, scrapeNeweggProduct, searchNewegg } from "./newegg.js";
 import { scrapeWalmartProduct, searchWalmart, walmartProductUrl } from "./walmart.js";
+import { type Category, classifyQuery } from "../categories.js";
 import {
   RETAILERS,
   type Retailer,
@@ -725,6 +756,14 @@ interface RetailerAdapter {
   concurrency: number;
   /** Minimum gap between consecutive requests, for retailers that need pacing. */
   minIntervalMs?: number;
+  /**
+   * What this retailer actually sells. `null` means a general store that
+   * carries everything and is therefore always worth asking.
+   *
+   * Specialists are skipped when the query clearly isn't about their
+   * categories — no point asking a clothing site about earbuds.
+   */
+  categories: Category[] | null;
 }
 
 export const adapters: Record<Retailer, RetailerAdapter> = {
@@ -736,6 +775,7 @@ export const adapters: Record<Retailer, RetailerAdapter> = {
     metered: true,
     // Bright Data absorbs Amazon's blocking, but each call costs quota.
     concurrency: 1,
+    categories: null,
   },
   walmart: {
     search: searchWalmart,
@@ -744,14 +784,25 @@ export const adapters: Record<Retailer, RetailerAdapter> = {
     matchesUrl: (url) => /(^|\.)walmart\.com$/i.test(hostOf(url)),
     metered: false,
     concurrency: 3,
+    categories: null,
   },
-  target: {
-    search: searchTarget,
-    scrapeProduct: scrapeTargetProduct,
-    productUrl: targetProductUrl,
-    matchesUrl: (url) => /(^|\.)target\.com$/i.test(hostOf(url)),
+  newegg: {
+    search: searchNewegg,
+    scrapeProduct: scrapeNeweggProduct,
+    productUrl: neweggProductUrl,
+    matchesUrl: (url) => /(^|\.)newegg\.com$/i.test(hostOf(url)),
     metered: false,
     concurrency: 2,
+    categories: ["electronics"],
+  },
+  asos: {
+    search: searchAsos,
+    scrapeProduct: scrapeAsosProduct,
+    productUrl: asosProductUrl,
+    matchesUrl: (url) => /(^|\.)asos\.com$/i.test(hostOf(url)),
+    metered: false,
+    concurrency: 2,
+    categories: ["clothing"],
   },
   bestbuy: {
     search: searchBestBuy,
@@ -762,6 +813,7 @@ export const adapters: Record<Retailer, RetailerAdapter> = {
     // Each refresh is a full search-page fetch — pace them.
     concurrency: 1,
     minIntervalMs: 3000,
+    categories: ["electronics"],
   },
   ebay: {
     search: searchEbay,
@@ -771,6 +823,7 @@ export const adapters: Record<Retailer, RetailerAdapter> = {
     metered: false,
     // Official API with a generous quota.
     concurrency: 3,
+    categories: null,
   },
 };
 
@@ -827,6 +880,54 @@ export async function searchAllRetailers(
       }
     }),
   );
+}
+
+export interface RetailerRouting {
+  retailers: Retailer[];
+  /** Specialists deliberately left out, so the UI can explain the absence. */
+  skipped: Retailer[];
+  categories: Category[];
+}
+
+/**
+ * Decide which retailers are worth asking about a query.
+ *
+ * General stores (Amazon, Walmart, eBay) are always included — they sell
+ * everything, so skipping them can only lose results. Specialists are included
+ * when the query matches what they sell.
+ *
+ * When the classifier has no idea, EVERY retailer is included. That's the
+ * deliberate choice: a wasted call on a specialist costs a few seconds, while
+ * wrongly skipping one shows the user an absence they can't explain.
+ */
+export function routeQuery(query: string, only?: Retailer[]): RetailerRouting {
+  const candidates = only?.length ? only : [...RETAILERS];
+  const { categories, confident } = classifyQuery(query);
+
+  if (!confident) {
+    return { retailers: candidates, skipped: [], categories: [] };
+  }
+
+  const retailers: Retailer[] = [];
+  const skipped: Retailer[] = [];
+
+  for (const retailer of candidates) {
+    const serves = adapters[retailer].categories;
+    // A general store has no category restriction.
+    if (serves === null || serves.some((c) => categories.includes(c))) {
+      retailers.push(retailer);
+    } else {
+      skipped.push(retailer);
+    }
+  }
+
+  // Never return nothing. If a filter somehow excluded everything, fall back to
+  // asking everyone rather than showing an empty search.
+  if (retailers.length === 0) {
+    return { retailers: candidates, skipped: [], categories };
+  }
+
+  return { retailers, skipped, categories };
 }
 
 /** Which retailer does this pasted url belong to? Null if we don't support it. */
@@ -1019,7 +1120,7 @@ async function resolveRedirect(url: string): Promise<string | null> {
 
 ### FILE: sweep-backend/src/lib/scrapers/walmart.ts
 ### PURPOSE: WORKING, free. __NEXT_DATA__. Handles BOTH of Walmart's price payload shapes — in one of them linePrice is current and itemPrice is the WAS price.
-### LINES: 231
+### LINES: 235
 --- BEGIN sweep-backend/src/lib/scrapers/walmart.ts ---
 // lib/scrapers/walmart.ts
 //
@@ -1187,6 +1288,8 @@ function parseSearchItem(item: any): ScrapedProduct | null {
     ),
     rating: numberOrNull(item?.averageRating),
     ratingCount: numberOrNull(item?.numberOfReviews),
+    sellerRating: null,
+    sellerRatingCount: null,
   };
 }
 
@@ -1215,6 +1318,8 @@ function parseProductPage(product: any, fallbackUrl: string): ScrapedProduct | n
     availability: normalizeAvailability(product?.availabilityStatus),
     rating: numberOrNull(product?.averageRating),
     ratingCount: numberOrNull(product?.numberOfReviews),
+    sellerRating: null,
+    sellerRatingCount: null,
   };
 }
 
@@ -1256,7 +1361,7 @@ function messageOf(err: unknown) {
 
 ### FILE: sweep-backend/src/lib/scrapers/bestbuy.ts
 ### PURPOSE: WORKING, free. Parses the inlined Apollo SSR cache. Product pages do NOT load from datacenter IPs, so refresh goes via search — see the header comment.
-### LINES: 265
+### LINES: 267
 --- BEGIN sweep-backend/src/lib/scrapers/bestbuy.ts ---
 // lib/scrapers/bestbuy.ts
 //
@@ -1485,6 +1590,8 @@ function parseProductNode(node: any): ScrapedProduct | null {
       node?.dotComDisplayStatus === "active" ? "IN_STOCK" : node?.dotComDisplayStatus ?? null,
     rating: numberOrNull(node?.reviewInfo?.averageRating),
     ratingCount: numberOrNull(node?.reviewInfo?.reviewCount),
+    sellerRating: null,
+    sellerRatingCount: null,
   };
 }
 
@@ -1527,7 +1634,7 @@ function messageOf(err: unknown) {
 
 ### FILE: sweep-backend/src/lib/scrapers/amazon.ts
 ### PURPOSE: Bright Data Scraper API. The one metered retailer — every call spends from 5,000 records/month.
-### LINES: 232
+### LINES: 276
 --- BEGIN sweep-backend/src/lib/scrapers/amazon.ts ---
 // lib/scrapers/amazon.ts
 //
@@ -1643,7 +1750,7 @@ async function runJob(
   });
 
   if (res.status === 200) {
-    return (await res.json()) as any[];
+    return parseRows(await res.text());
   }
 
   if (res.status === 202) {
@@ -1692,7 +1799,7 @@ async function pollSnapshot(
           signal: AbortSignal.timeout(60_000),
         },
       );
-      return (await dataRes.json()) as any[];
+      return parseRows(await dataRes.text());
     }
 
     if (progress.status === "failed") {
@@ -1706,6 +1813,48 @@ async function pollSnapshot(
     `job ${snapshotId} timed out after ${(maxAttempts * delayMs) / 1000}s`,
     "failed",
   );
+}
+
+/**
+ * Bright Data does not always answer with a JSON array.
+ *
+ * Requests that pass `format=json` get one; the keyword-discovery endpoint
+ * answers with NDJSON — one object per line — and feeding that to JSON.parse
+ * dies at line 2 with "Unexpected non-whitespace character". Handle both,
+ * plus a bare single object, so a format change can't silently blank Amazon.
+ */
+function parseRows(body: string): any[] {
+  const trimmed = body.trim();
+  if (!trimmed) return [];
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) return parsed;
+    // A single object, or an error envelope.
+    return [parsed];
+  } catch {
+    // Fall through to NDJSON.
+  }
+
+  const rows: any[] = [];
+  for (const line of trimmed.split("\n")) {
+    const candidate = line.trim();
+    if (!candidate) continue;
+    try {
+      rows.push(JSON.parse(candidate));
+    } catch {
+      // One malformed line shouldn't discard the whole response.
+    }
+  }
+
+  if (rows.length === 0) {
+    throw new BrightDataError(
+      `couldn't parse response as JSON or NDJSON: ${trimmed.slice(0, 200)}`,
+      "failed",
+    );
+  }
+
+  return rows;
 }
 
 // ---- shared: normalize raw Bright Data fields into our shape ----
@@ -1729,6 +1878,8 @@ function parseAmazonProduct(raw: any, fallbackUrl: string): ScrapedProduct | nul
     availability: raw?.availability ?? null,
     rating: numberOrNull(raw?.rating),
     ratingCount: numberOrNull(raw?.reviews_count),
+    sellerRating: null,
+    sellerRatingCount: null,
   };
 }
 
@@ -1763,38 +1914,23 @@ function messageOf(err: unknown) {
 }
 --- END sweep-backend/src/lib/scrapers/amazon.ts ---
 
-### FILE: sweep-backend/src/lib/scrapers/target.ts
-### PURPOSE: BLOCKED. Implemented against RedSky with runtime key scraping, but PerimeterX serves a captcha to datacenter IPs. Header comment explains the options.
-### LINES: 239
---- BEGIN sweep-backend/src/lib/scrapers/target.ts ---
-// lib/scrapers/target.ts
+### FILE: sweep-backend/src/lib/scrapers/newegg.ts
+### PURPOSE: WORKING, free. Electronics. Search parses ItemCell objects; PDPs need a different path — the viewed item is NOT in an ItemCell.
+### LINES: 243
+--- BEGIN sweep-backend/src/lib/scrapers/newegg.ts ---
+// lib/scrapers/newegg.ts
 //
-// STATUS: implemented but currently blocked. Read this before debugging it.
+// Newegg — electronics and computer parts. Free, no key, no provider.
 //
-// Target does NOT work the way Walmart does, despite both being Next.js sites.
-// Their __NEXT_DATA__ contains only { statusCode, pageContentQuerySSRPreloadVars }
-// — the product grid is fetched client-side from RedSky, their internal API.
+// Search results come back inside a large inline JSON blob whose shape is
+// PascalCase (it mirrors their internal .NET models):
 //
-// So the only viable path is calling RedSky directly. That works in principle:
-// the required `key` is a public web key inlined in every Target page, and this
-// module scrapes it at runtime rather than hardcoding it, so a key rotation
-// heals itself.
+//   "Products":[{ "ItemCell":{ "Item":"...", "UnitCost":249.99, "FinalPrice":199.99, ... } }]
 //
-// What actually stops us is PerimeterX. RedSky answers datacenter IPs with
-// HTTP 403 and a captcha body:
-//
-//   { "captchaRelativeURL": "/captcha?trackingId=..." }
-//
-// That will hit Railway/Render too, since those are datacenter IPs as well.
-// Options, in the order worth trying — see docs/INTEGRATIONS.md:
-//   1. A residential proxy in front of just this scraper.
-//   2. Bright Data, which already handles Amazon for us, has a Target dataset.
-//   3. Ship without Target and light the tile up later.
-//
-// Everything below is wired and will start returning data the moment requests
-// stop being challenged — no rewrite needed.
+// UnitCost is the list price and FinalPrice is what you pay — the opposite way
+// round from what the names suggest, so read them carefully.
 
-import { ScrapeHttpError, fetchJson, fetchText } from "./http.js";
+import { ScrapeHttpError, extractBalancedObject, fetchText } from "./http.js";
 import {
   type ScrapeResult,
   type ScrapedProduct,
@@ -1803,61 +1939,29 @@ import {
   toCents,
 } from "./types.js";
 
-const BASE = "https://www.target.com";
-const REDSKY = "https://redsky.target.com/redsky_aggregations/v1/web";
+const BASE = "https://www.newegg.com";
 
-// Last key observed inlined in Target's HTML. Only a seed — refreshKey()
-// re-scrapes it, and this is here so a cold start still has something to try.
-const FALLBACK_KEY = "9f36aeafbe60771e321a7cc95a78140772ab3e96";
-
-// Default store for pricing. Target prices vary by store and RedSky requires
-// one; this is a high-volume store that keeps national pricing sane.
-const PRICING_STORE_ID = "3991";
-
-let cachedKey: { value: string; fetchedAt: number } | null = null;
-const KEY_TTL_MS = 6 * 60 * 60 * 1000;
-
-export async function searchTarget(
+export async function searchNewegg(
   keyword: string,
   limit = 4,
 ): Promise<ScrapeResult<ScrapedProduct[]>> {
   const started = Date.now();
+  const url = `${BASE}/p/pl?d=${encodeURIComponent(keyword)}`;
 
   try {
-    const key = await resolveKey();
-    const query = new URLSearchParams({
-      key,
-      channel: "WEB",
-      count: String(limit),
-      default_purchasability_filter: "true",
-      include_dmc_dmr: "true",
-      keyword,
-      offset: "0",
-      page: `/s/${keyword}`,
-      platform: "desktop",
-      pricing_store_id: PRICING_STORE_ID,
-      useragent: "Mozilla/5.0",
-      visitor_id: randomVisitorId(),
+    const html = await fetchText(url, {
+      timeoutMs: 25_000,
+      headers: { referer: `${BASE}/` },
     });
 
-    const payload = await fetchJson<any>(`${REDSKY}/plp_search_v2?${query}`, {
-      headers: { origin: BASE, referer: `${BASE}/` },
-      retries: 1,
-    });
-
-    const raw = payload?.data?.search?.products;
-    if (!Array.isArray(raw)) {
+    const products = collectProducts(html).slice(0, limit);
+    if (products.length === 0) {
       return fail(
         "failed",
-        "data.search.products missing from RedSky response",
+        "no priced items found in the Products payload — page structure likely changed",
         elapsed(started),
       );
     }
-
-    const products = raw
-      .map(parseProduct)
-      .filter((p): p is ScrapedProduct => p !== null)
-      .slice(0, limit);
 
     return ok(products, elapsed(started));
   } catch (err) {
@@ -1865,108 +1969,87 @@ export async function searchTarget(
   }
 }
 
-export async function scrapeTargetProduct(
+export async function scrapeNeweggProduct(
   url: string,
 ): Promise<ScrapeResult<ScrapedProduct>> {
   const started = Date.now();
 
-  const tcin = extractTcin(url);
-  if (!tcin) {
-    return fail("failed", `could not read a TCIN out of ${url}`, elapsed(started));
+  const itemId = extractItemNumber(url);
+  if (!itemId) {
+    return fail("failed", `couldn't read an item number out of ${url}`, elapsed(started));
   }
 
   try {
-    const key = await resolveKey();
-    const query = new URLSearchParams({
-      key,
-      tcin,
-      is_bot: "false",
-      store_id: PRICING_STORE_ID,
-      pricing_store_id: PRICING_STORE_ID,
-      has_pricing_store_id: "true",
-      channel: "WEB",
-      page: `/p/A-${tcin}`,
+    const html = await fetchText(url, {
+      timeoutMs: 25_000,
+      headers: { referer: `${BASE}/` },
     });
 
-    const payload = await fetchJson<any>(`${REDSKY}/pdp_client_v1?${query}`, {
-      headers: { origin: BASE, referer: `${BASE}/` },
-      retries: 1,
-    });
-
-    const product = payload?.data?.product;
-    if (!product) {
-      return fail("failed", "data.product missing from RedSky response", elapsed(started));
+    // Product pages do NOT wrap the item being viewed in an "ItemCell" — that
+    // key only appears for the recommendation carousel, so parsing the page the
+    // same way search is parsed silently returns a *different* product's price.
+    // The viewed item is a bare object keyed by its own id instead.
+    const prices = extractPricesForItem(html, itemId);
+    if (!prices) {
+      return fail(
+        "failed",
+        `page didn't contain pricing for item ${itemId} — the listing may have been removed`,
+        elapsed(started),
+      );
     }
 
-    const parsed = parseProduct(product);
-    if (!parsed) {
-      return fail("failed", "product payload had no usable tcin/title", elapsed(started));
+    const title = decodeEntities(
+      html.match(/<meta property="og:title" content="([^"]+)"/)?.[1] ?? "",
+    ).replace(/\s*-\s*Newegg\.com\s*$/i, "");
+
+    if (!title) {
+      return fail("failed", "no title on the product page", elapsed(started));
     }
 
-    return ok(parsed, elapsed(started));
+    return ok(
+      {
+        retailer: "newegg",
+        retailerId: itemId,
+        title,
+        price: prices.price,
+        listPrice:
+          prices.listPrice && prices.listPrice > prices.price ? prices.listPrice : null,
+        currency: "USD",
+        imageUrl:
+          html.match(/<meta property="og:image" content="([^"]+)"/)?.[1] ?? null,
+        url,
+        availability: /"Instock"\s*:\s*true/.test(html) ? "IN_STOCK" : null,
+        rating: null,
+        ratingCount: null,
+        sellerRating: null,
+        sellerRatingCount: null,
+      },
+      elapsed(started),
+    );
   } catch (err) {
     return fail(kindOf(err), messageOf(err), elapsed(started));
   }
 }
 
-export function targetProductUrl(retailerId: string) {
-  return `${BASE}/p/-/A-${retailerId}`;
-}
+/**
+ * Pull FinalPrice/UnitCost out of the object that carries `"Item":"<id>"`.
+ *
+ * Scoped to a bounded window after the id so a nearby recommendation's price
+ * can't be picked up by accident — attaching another product's price to a
+ * tracked item is the single worst failure mode this scraper has.
+ */
+function extractPricesForItem(
+  html: string,
+  itemId: string,
+): { price: number; listPrice: number | null } | null {
+  const marker = html.indexOf(`"Item":"${itemId}"`);
+  if (marker === -1) return null;
 
-// ---- key handling ----------------------------------------------------------
+  const window = html.slice(marker, marker + 1200);
+  const price = toCents(window.match(/"FinalPrice"\s*:\s*([0-9.]+)/)?.[1]);
+  if (price === null) return null;
 
-async function resolveKey(): Promise<string> {
-  if (cachedKey && Date.now() - cachedKey.fetchedAt < KEY_TTL_MS) {
-    return cachedKey.value;
-  }
-
-  try {
-    const html = await fetchText(`${BASE}/`, { retries: 1, timeoutMs: 15_000 });
-    // The key is inside an escaped JSON island, so it reads as \"apiKey\":\"...\"
-    const found = html.match(/\\?"apiKey\\?"\s*:\s*\\?"([a-f0-9]{40})\\?"/)?.[1];
-    if (found) {
-      cachedKey = { value: found, fetchedAt: Date.now() };
-      return found;
-    }
-  } catch {
-    // Homepage blocked too — fall through to the seed key.
-  }
-
-  cachedKey = { value: FALLBACK_KEY, fetchedAt: Date.now() };
-  return FALLBACK_KEY;
-}
-
-// ---- parsing ---------------------------------------------------------------
-
-function parseProduct(product: any): ScrapedProduct | null {
-  const retailerId = product?.tcin;
-  const title = product?.item?.product_description?.title;
-  if (!retailerId || !title) return null;
-
-  const price = toCents(
-    product?.price?.current_retail ?? product?.price?.current_retail_min,
-  );
-  const listPrice = toCents(product?.price?.reg_retail);
-
-  return {
-    retailer: "target",
-    retailerId: String(retailerId),
-    // Target titles carry HTML entities from their CMS.
-    title: decodeEntities(String(title)),
-    price,
-    listPrice: listPrice && price && listPrice > price ? listPrice : null,
-    currency: "USD",
-    imageUrl: product?.item?.enrichment?.images?.primary_image_url ?? null,
-    url: product?.item?.enrichment?.buy_url ?? targetProductUrl(String(retailerId)),
-    availability: product?.item?.eligibility_rules ? "IN_STOCK" : null,
-    rating: numberOrNull(product?.ratings_and_reviews?.statistics?.rating?.average),
-    ratingCount: numberOrNull(product?.ratings_and_reviews?.statistics?.rating?.count),
-  };
-}
-
-/** Target urls look like /p/some-slug/-/A-94300569 */
-function extractTcin(url: string): string | null {
-  return url.match(/\/A-(\d+)/)?.[1] ?? url.match(/tcin=(\d+)/)?.[1] ?? null;
+  return { price, listPrice: toCents(window.match(/"UnitCost"\s*:\s*([0-9.]+)/)?.[1]) };
 }
 
 function decodeEntities(text: string) {
@@ -1976,21 +2059,95 @@ function decodeEntities(text: string) {
     .replace(/&#39;/g, "'")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
-    .replace(/&nbsp;/g, " ");
+    .trim();
 }
 
-function randomVisitorId() {
-  // RedSky wants a 32-char uppercase hex visitor id; it does not need to be
-  // stable across calls, only well-formed.
-  let out = "";
-  for (let i = 0; i < 32; i++) {
-    out += "0123456789ABCDEF"[Math.floor(Math.random() * 16)];
+export function neweggProductUrl(retailerId: string) {
+  return `${BASE}/p/${retailerId}`;
+}
+
+// ---- parsing ---------------------------------------------------------------
+
+function collectProducts(html: string): ScrapedProduct[] {
+  const byId = new Map<string, ScrapedProduct>();
+
+  // Walk every `"ItemCell":{...}` object in the document rather than trying to
+  // parse the whole blob — the surrounding payload is huge and its outer shape
+  // differs between search and product pages.
+  for (const match of html.matchAll(/"ItemCell"\s*:\s*/g)) {
+    const start = (match.index ?? 0) + match[0].length;
+    const raw = extractBalancedObject(html, start);
+    if (!raw) continue;
+
+    try {
+      const parsed = parseItemCell(JSON.parse(raw));
+      if (parsed && !byId.has(parsed.retailerId)) {
+        byId.set(parsed.retailerId, parsed);
+      }
+    } catch {
+      // One malformed cell shouldn't discard the rest of the page.
+    }
   }
-  return out;
+
+  return [...byId.values()];
+}
+
+function parseItemCell(cell: any): ScrapedProduct | null {
+  const retailerId = cell?.Item;
+  // Description is an OBJECT, not a string — its .Title is the product name.
+  // Reading it directly renders "[object Object]" on every card.
+  const title =
+    cell?.Description?.Title ?? cell?.Description?.IMDescription ?? null;
+  const price = toCents(cell?.FinalPrice);
+  if (!retailerId || !title || price === null) return null;
+
+  // UnitCost is the pre-discount price despite the name.
+  const listPrice = toCents(cell?.UnitCost);
+
+  return {
+    retailer: "newegg",
+    retailerId: String(retailerId),
+    title: String(title),
+    price,
+    listPrice: listPrice && listPrice > price ? listPrice : null,
+    currency: "USD",
+    imageUrl: imageFrom(cell),
+    url: cell?.ItemUrl
+      ? absolute(cell.ItemUrl)
+      : neweggProductUrl(String(retailerId)),
+    availability: cell?.Active === "1" || cell?.IsActivated ? "IN_STOCK" : null,
+    rating: numberOrNull(cell?.Review?.Rating ?? cell?.Review?.Score),
+    ratingCount: numberOrNull(cell?.Review?.TotalReviews ?? cell?.Review?.Count),
+    sellerRating: null,
+    sellerRatingCount: null,
+  };
+}
+
+/** Images arrive as a comma-separated filename list against a known CDN. */
+function imageFrom(cell: any): string | null {
+  const list = cell?.NewImage?.ImageNameList ?? cell?.ImageNameList;
+  if (typeof list !== "string" || !list) return null;
+  const first = list.split(",")[0]?.trim();
+  return first ? `https://c1.neweggimages.com/productimage/nb640/${first}` : null;
+}
+
+function absolute(path: unknown): string {
+  if (typeof path !== "string") return BASE;
+  return path.startsWith("http") ? path : `${BASE}${path}`;
+}
+
+/**
+ * Newegg item numbers come in two shapes and both appear in urls:
+ *   /p/N82E16826999039        legacy
+ *   /p/0TF-00D2-00003         current, with dashes
+ */
+function extractItemNumber(url: string): string | null {
+  return url.match(/\/p\/([A-Z0-9][A-Z0-9-]{6,})/i)?.[1] ?? null;
 }
 
 function numberOrNull(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+  const n = typeof value === "string" ? Number(value) : value;
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : null;
 }
 
 function elapsed(started: number) {
@@ -1998,19 +2155,255 @@ function elapsed(started: number) {
 }
 
 function kindOf(err: unknown): "failed" | "blocked" {
-  return err instanceof ScrapeHttpError && err.kind === "blocked"
-    ? "blocked"
-    : "failed";
+  return err instanceof ScrapeHttpError && err.kind === "blocked" ? "blocked" : "failed";
 }
 
 function messageOf(err: unknown) {
   return err instanceof Error ? err.message : String(err);
 }
---- END sweep-backend/src/lib/scrapers/target.ts ---
+--- END sweep-backend/src/lib/scrapers/newegg.ts ---
+
+### FILE: sweep-backend/src/lib/scrapers/asos.ts
+### PURPOSE: WORKING, free. Clothing. Parses each product individually — the island has JS escapes that break a whole-blob JSON.parse.
+### LINES: 232
+--- BEGIN sweep-backend/src/lib/scrapers/asos.ts ---
+// lib/scrapers/asos.ts
+//
+// ASOS — clothing. Free, no key.
+//
+// Search results are inlined in the page as a plain JSON island:
+//
+//   "search":{"searchTerm":"t-shirt","products":[{ id, price, description, image, url }]}
+//
+// Their public catalogue API (/api/product/catalogue/v3/products/:id) answers
+// 503 from here, so product refreshes go through the product page instead,
+// which does serve prices.
+//
+// Note ASOS image urls come back without a scheme or extension —
+// "images.asos-media.com/products/…/209900638-1-black" — so they need both
+// added before anything can render them.
+
+import { ScrapeHttpError, extractBalancedObject, fetchText } from "./http.js";
+import {
+  type ScrapeResult,
+  type ScrapedProduct,
+  fail,
+  ok,
+  toCents,
+} from "./types.js";
+
+const BASE = "https://www.asos.com";
+
+export async function searchAsos(
+  keyword: string,
+  limit = 4,
+): Promise<ScrapeResult<ScrapedProduct[]>> {
+  const started = Date.now();
+  const url = `${BASE}/us/search/?q=${encodeURIComponent(keyword)}`;
+
+  try {
+    const html = await fetchText(url, {
+      timeoutMs: 25_000,
+      headers: { referer: `${BASE}/us/` },
+    });
+
+    const products = parseSearchProducts(html).slice(0, limit);
+    if (products.length > 0) return ok(products, elapsed(started));
+
+    // No island at all is ASOS's genuine "nothing matched" page — searching it
+    // for "airpods" is a real zero-result search, not a broken scraper. Only
+    // treat it as a failure if the page is too small to be a real response,
+    // which is what a block or an error page looks like.
+    //
+    // Getting this wrong matters: a mislabelled failure would drag the health
+    // board down every time someone searched a category ASOS doesn't stock.
+    if (html.length > 50_000) return ok([], elapsed(started));
+
+    return fail(
+      "failed",
+      `unexpectedly small response (${html.length}b) with no results`,
+      elapsed(started),
+    );
+  } catch (err) {
+    return fail(kindOf(err), messageOf(err), elapsed(started));
+  }
+}
+
+export async function scrapeAsosProduct(
+  url: string,
+): Promise<ScrapeResult<ScrapedProduct>> {
+  const started = Date.now();
+
+  const productId = extractProductId(url);
+  if (!productId) {
+    return fail("failed", `couldn't read a product id out of ${url}`, elapsed(started));
+  }
+
+  try {
+    const html = await fetchText(url, {
+      timeoutMs: 25_000,
+      headers: { referer: `${BASE}/us/` },
+    });
+
+    const price = toCents(
+      html.match(/"price"\s*:\s*\{\s*"current"\s*:\s*\{\s*"value"\s*:\s*([0-9.]+)/)?.[1],
+    );
+    if (price === null) {
+      return fail("failed", "no current price on the product page", elapsed(started));
+    }
+
+    const previous = toCents(
+      html.match(/"previous"\s*:\s*\{\s*"value"\s*:\s*([0-9.]+)/)?.[1],
+    );
+    const title = decodeEntities(
+      html.match(/<meta property="og:title" content="([^"]+)"/)?.[1] ??
+        html.match(/<title>([^<]+)<\/title>/)?.[1] ??
+        "",
+    ).replace(/\s*\|\s*ASOS\s*$/i, "");
+
+    if (!title) {
+      return fail("failed", "no title on the product page", elapsed(started));
+    }
+
+    const image = html.match(/<meta property="og:image" content="([^"]+)"/)?.[1] ?? null;
+
+    return ok(
+      {
+        retailer: "asos",
+        retailerId: productId,
+        title,
+        price,
+        listPrice: previous && previous > price ? previous : null,
+        currency: "USD",
+        imageUrl: image ? normalizeImage(image) : null,
+        url,
+        availability: /"isInStock"\s*:\s*true/.test(html) ? "IN_STOCK" : null,
+        // ASOS doesn't publish star ratings on the listing.
+        rating: null,
+        ratingCount: null,
+        sellerRating: null,
+        sellerRatingCount: null,
+      },
+      elapsed(started),
+    );
+  } catch (err) {
+    return fail(kindOf(err), messageOf(err), elapsed(started));
+  }
+}
+
+export function asosProductUrl(retailerId: string) {
+  return `${BASE}/us/prd/${retailerId}`;
+}
+
+// ---- parsing ---------------------------------------------------------------
+
+/**
+ * Pull the products out of the inlined search island.
+ *
+ * Each product object is parsed on its own rather than parsing the island as a
+ * whole. The island is embedded in a JS context and contains escapes that are
+ * legal there but not in JSON ("Bad escaped character in JSON"), so a single
+ * JSON.parse over the whole thing fails and silently returns nothing — which
+ * is how ASOS came back empty for "t-shirt" while working for other queries.
+ */
+function parseSearchProducts(html: string): ScrapedProduct[] {
+  const marker = html.search(/"search"\s*:\s*\{\s*"searchTerm"/);
+  if (marker === -1) return [];
+
+  const arrayStart = html.indexOf('"products":[', marker);
+  if (arrayStart === -1) return [];
+
+  const products: ScrapedProduct[] = [];
+  let cursor = html.indexOf("[", arrayStart) + 1;
+
+  // Walk sibling objects until the array closes. Bounded by a sane item count
+  // so a malformed page can't spin.
+  for (let i = 0; i < 200; i++) {
+    while (cursor < html.length && /[\s,]/.test(html[cursor])) cursor++;
+    if (html[cursor] !== "{") break;
+
+    const raw = extractBalancedObject(html, cursor);
+    if (!raw) break;
+    cursor += raw.length;
+
+    try {
+      const parsed = parseSearchItem(JSON.parse(raw));
+      if (parsed) products.push(parsed);
+    } catch {
+      // One product with an unparseable escape shouldn't cost us the rest.
+    }
+  }
+
+  return products;
+}
+
+function parseSearchItem(item: any): ScrapedProduct | null {
+  const retailerId = item?.id;
+  const title = item?.description ?? item?.name;
+  const price = toCents(item?.price);
+  if (!retailerId || !title || price === null) return null;
+
+  const listPrice = toCents(item?.previousPrice ?? item?.rrp);
+
+  return {
+    retailer: "asos",
+    retailerId: String(retailerId),
+    title: String(title),
+    price,
+    listPrice: listPrice && listPrice > price ? listPrice : null,
+    currency: "USD",
+    imageUrl: normalizeImage(item?.image),
+    url: item?.url ? `${BASE}/us/${String(item.url).replace(/^\/+/, "")}` : asosProductUrl(String(retailerId)),
+    availability: item?.isSellingFast === undefined ? "IN_STOCK" : "IN_STOCK",
+    rating: null,
+    ratingCount: null,
+    sellerRating: null,
+    sellerRatingCount: null,
+  };
+}
+
+/**
+ * Search returns bare image paths with no scheme and no extension; product
+ * pages return full urls. Handle both so a card never renders a broken image.
+ */
+function normalizeImage(value: unknown): string | null {
+  if (typeof value !== "string" || !value) return null;
+  if (value.startsWith("http")) return value;
+  const withScheme = `https://${value.replace(/^\/+/, "")}`;
+  return /\.(jpg|jpeg|png|webp)$/i.test(withScheme) ? withScheme : `${withScheme}.jpg`;
+}
+
+/** ASOS urls end in /prd/209900638, sometimes with a #colourWayId fragment. */
+function extractProductId(url: string): string | null {
+  return url.match(/\/prd\/(\d+)/)?.[1] ?? null;
+}
+
+function decodeEntities(text: string) {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .trim();
+}
+
+function elapsed(started: number) {
+  return Date.now() - started;
+}
+
+function kindOf(err: unknown): "failed" | "blocked" {
+  return err instanceof ScrapeHttpError && err.kind === "blocked" ? "blocked" : "failed";
+}
+
+function messageOf(err: unknown) {
+  return err instanceof Error ? err.message : String(err);
+}
+--- END sweep-backend/src/lib/scrapers/asos.ts ---
 
 ### FILE: sweep-backend/src/lib/scrapers/ebay.ts
 ### PURPOSE: Official Buy Browse API with client-credentials OAuth. Needs EBAY_CLIENT_ID/SECRET; no scraping fallback (ebay.com returns 403).
-### LINES: 246
+### LINES: 261
 --- BEGIN sweep-backend/src/lib/scrapers/ebay.ts ---
 // lib/scrapers/ebay.ts
 //
@@ -2209,8 +2602,15 @@ function parseItemSummary(item: any): ScrapedProduct | null {
     imageUrl: item?.image?.imageUrl ?? item?.thumbnailImages?.[0]?.imageUrl ?? null,
     url: item?.itemWebUrl ?? ebayProductUrl(String(retailerId)),
     availability: item?.itemEndDate ? "LISTED" : "IN_STOCK",
-    rating: null, // Browse exposes seller feedback, not product ratings.
+    // eBay publishes no product rating at all — verified: not in
+    // item_summary/search, and getItem?fieldgroups=PRODUCT returns no
+    // primaryProductReviewRating for ordinary marketplace listings either.
+    // Seller feedback is the signal it does have, and on eBay it's arguably
+    // the more useful one, so it's surfaced separately.
+    rating: null,
     ratingCount: null,
+    sellerRating: numberOrNull(item?.seller?.feedbackPercentage),
+    sellerRatingCount: numberOrNull(item?.seller?.feedbackScore),
   };
 }
 
@@ -2234,7 +2634,15 @@ function parseItem(item: any): ScrapedProduct | null {
     availability: item?.estimatedAvailabilities?.[0]?.estimatedAvailabilityStatus ?? null,
     rating: null,
     ratingCount: null,
+    sellerRating: numberOrNull(item?.seller?.feedbackPercentage),
+    sellerRatingCount: numberOrNull(item?.seller?.feedbackScore),
   };
+}
+
+/** feedbackPercentage comes back as a string ("99.3"), feedbackScore as a number. */
+function numberOrNull(value: unknown): number | null {
+  const n = typeof value === "string" ? Number(value) : value;
+  return typeof n === "number" && Number.isFinite(n) ? n : null;
 }
 
 function extractItemId(url: string): string | null {
@@ -2348,9 +2756,720 @@ function isValidDeviceId(value: string) {
 }
 --- END sweep-backend/src/lib/auth.ts ---
 
+### FILE: sweep-backend/src/lib/categories.ts
+### PURPOSE: Keyword classifier deciding what a query is about, so clothing sites are skipped for earbuds. Widens rather than narrows when unsure.
+### LINES: 137
+--- BEGIN sweep-backend/src/lib/categories.ts ---
+// lib/categories.ts
+//
+// Working out roughly WHAT someone is shopping for, so a search for "earbuds"
+// doesn't waste a call on a clothing store, and "t-shirt" doesn't ask Newegg.
+//
+// This is deliberately a keyword classifier and not a model. It runs in
+// microseconds, costs nothing, needs no key, and is trivial to correct when it
+// gets something wrong — you add a word to a list. An embedding model would
+// classify better and be far harder to reason about at 2am when a search
+// silently skips a retailer.
+//
+// The important design decision is what happens when it ISN'T sure: it widens
+// rather than narrows. A missed retailer is a worse outcome than a wasted call,
+// because the user sees a gap and can't tell whether the item isn't sold there
+// or we just didn't look.
+
+export const CATEGORIES = [
+  "electronics",
+  "clothing",
+  "home",
+  "beauty",
+  "toys",
+  "grocery",
+] as const;
+
+export type Category = (typeof CATEGORIES)[number];
+
+/**
+ * Words that place a query in a category. Kept lowercase and matched on word
+ * boundaries, so "tv" doesn't match "tvs" wrongly but "tv stand" still hits.
+ *
+ * Brand names carry real signal and are included where a brand is strongly
+ * associated with one category.
+ */
+const KEYWORDS: Record<Category, string[]> = {
+  electronics: [
+    "earbud", "earbuds", "headphone", "headphones", "airpod", "airpods", "earphone",
+    "laptop", "notebook", "macbook", "chromebook", "desktop", "pc", "computer",
+    "monitor", "display", "keyboard", "mouse", "webcam", "microphone", "mic",
+    "gpu", "graphics card", "cpu", "processor", "motherboard", "ram", "ssd", "hdd",
+    "hard drive", "nvme", "psu", "power supply", "cooler", "case fan",
+    "phone", "smartphone", "iphone", "android", "pixel", "galaxy", "tablet", "ipad",
+    "tv", "television", "soundbar", "speaker", "speakers", "subwoofer", "amplifier",
+    "console", "playstation", "ps5", "xbox", "nintendo", "switch", "steam deck",
+    "camera", "dslr", "mirrorless", "lens", "gopro", "drone",
+    "smartwatch", "watch band", "charger", "cable", "usb", "hdmi", "adapter",
+    "router", "modem", "wifi", "printer", "scanner", "projector",
+    "rtx", "gtx", "geforce", "radeon", "ryzen", "core i5", "core i7", "core i9",
+    "nvidia", "amd", "intel", "asus", "msi", "logitech", "razer", "corsair",
+    "samsung", "sony", "lg", "bose", "jbl", "anker", "apple",
+  ],
+  clothing: [
+    "shirt", "t-shirt", "tshirt", "tee", "blouse", "top", "tank top",
+    "hoodie", "sweater", "sweatshirt", "jumper", "cardigan", "fleece",
+    "jacket", "coat", "parka", "blazer", "vest",
+    "jeans", "trousers", "pants", "chinos", "shorts", "leggings", "joggers",
+    "dress", "skirt", "gown", "jumpsuit", "romper",
+    "shoe", "shoes", "sneaker", "sneakers", "trainers", "boots", "sandals", "heels",
+    "loafers", "slippers",
+    "sock", "socks", "underwear", "boxers", "briefs", "bra", "lingerie",
+    "swimwear", "swimsuit", "bikini", "trunks",
+    "hat", "cap", "beanie", "scarf", "gloves", "belt", "tie",
+    "handbag", "purse", "backpack", "tote",
+    "nike", "adidas", "puma", "levis", "zara", "uniqlo", "carhartt", "north face",
+    "outfit", "clothing", "apparel", "menswear", "womenswear",
+  ],
+  home: [
+    "sofa", "couch", "chair", "desk", "table", "bed", "mattress", "pillow",
+    "duvet", "blanket", "sheets", "bedding", "curtain", "rug", "lamp", "lighting",
+    "shelf", "bookcase", "wardrobe", "dresser", "cabinet", "storage",
+    "kettle", "toaster", "microwave", "blender", "air fryer", "coffee maker",
+    "cookware", "pan", "pot", "knife set", "cutlery", "plates", "mug",
+    "vacuum", "mop", "broom", "detergent", "cleaner",
+    "towel", "shower", "bathroom", "kitchen", "garden", "patio", "grill",
+    "drill", "hammer", "screwdriver", "toolkit", "tools", "paint", "ladder",
+  ],
+  beauty: [
+    "makeup", "foundation", "concealer", "mascara", "lipstick", "eyeliner",
+    "skincare", "moisturizer", "moisturiser", "serum", "cleanser", "toner",
+    "sunscreen", "spf", "shampoo", "conditioner", "hair dye", "hairdryer",
+    "perfume", "cologne", "fragrance", "deodorant", "razor", "shaving",
+    "nail polish", "cream", "lotion",
+  ],
+  toys: [
+    "toy", "toys", "lego", "puzzle", "board game", "action figure", "doll",
+    "plush", "stuffed animal", "nerf", "rc car", "model kit", "playset",
+    "funko", "trading cards", "pokemon", "building blocks",
+  ],
+  grocery: [
+    "coffee", "tea", "snack", "snacks", "cereal", "pasta", "rice", "sauce",
+    "chocolate", "candy", "protein powder", "supplement", "vitamins",
+    "water bottle pack", "soda", "juice", "groceries", "food",
+  ],
+};
+
+export interface Classification {
+  /** Categories the query appears to be about. Empty means "no idea". */
+  categories: Category[];
+  /** Whether we matched anything at all. */
+  confident: boolean;
+  /** Which words triggered it — useful for debugging a bad routing decision. */
+  matched: string[];
+}
+
+/**
+ * Classify a search term. Never throws, never returns a wrong-shaped result.
+ */
+export function classifyQuery(query: string): Classification {
+  const normalized = ` ${query.toLowerCase().replace(/[^a-z0-9+ -]/g, " ").replace(/\s+/g, " ")} `;
+
+  const scores = new Map<Category, number>();
+  const matched: string[] = [];
+
+  for (const category of CATEGORIES) {
+    for (const keyword of KEYWORDS[category]) {
+      // Word-boundary match so "pc" doesn't fire inside "pcs of paper", and
+      // multi-word keywords ("air fryer") still work.
+      if (normalized.includes(` ${keyword} `) || normalized.includes(` ${keyword}s `)) {
+        scores.set(category, (scores.get(category) ?? 0) + 1);
+        matched.push(keyword);
+      }
+    }
+  }
+
+  if (scores.size === 0) {
+    return { categories: [], confident: false, matched: [] };
+  }
+
+  const ranked = [...scores.entries()].sort((a, b) => b[1] - a[1]);
+  const top = ranked[0][1];
+
+  // Keep every category that tied for the top score. "gaming laptop bag" should
+  // legitimately reach both electronics and clothing rather than picking one.
+  const categories = ranked.filter(([, score]) => score === top).map(([c]) => c);
+
+  return { categories, confident: true, matched };
+}
+--- END sweep-backend/src/lib/categories.ts ---
+
+### FILE: sweep-backend/src/lib/highlights.ts
+### PURPOSE: Picks cheapest / best reviewed / biggest drop from a compiled search.
+### LINES: 93
+--- BEGIN sweep-backend/src/lib/highlights.ts ---
+// lib/highlights.ts
+//
+// Picks the handful of results worth showing above the per-store columns.
+//
+// A compiled search returns ~20 products across 6 stores, which is a wall.
+// Most people are asking one of three questions — who's cheapest, what's the
+// biggest discount, what's actually good — so answer those first and keep the
+// full per-store breakdown underneath for anyone who wants it.
+
+import type { ScrapedProduct } from "./scrapers/types.js";
+
+export type HighlightKind = "cheapest" | "best_rated" | "biggest_discount";
+
+export interface Highlight {
+  kind: HighlightKind;
+  label: string;
+  /** Why this one won, in words the UI can show directly. */
+  reason: string;
+  product: ScrapedProduct;
+}
+
+/** Ratings below this many reviews are noise, not signal. */
+const MIN_RATINGS_FOR_BEST_RATED = 25;
+/** A "discount" smaller than this is marketing, not a deal. */
+const MIN_DISCOUNT_PERCENT = 10;
+
+export function pickHighlights(products: ScrapedProduct[]): Highlight[] {
+  const priced = products.filter(
+    (p): p is ScrapedProduct & { price: number } => p.price !== null && p.price > 0,
+  );
+  if (priced.length === 0) return [];
+
+  const highlights: Highlight[] = [];
+  const claimed = new Set<string>();
+  const key = (p: ScrapedProduct) => `${p.retailer}:${p.retailerId}`;
+
+  // 1. Cheapest overall — the single most asked question.
+  const cheapest = [...priced].sort((a, b) => a.price - b.price)[0];
+  if (cheapest) {
+    highlights.push({
+      kind: "cheapest",
+      label: "Cheapest",
+      reason: `Lowest price of ${priced.length} results`,
+      product: cheapest,
+    });
+    claimed.add(key(cheapest));
+  }
+
+  // 2. Best reviewed, ignoring items with too few ratings to mean anything.
+  const rated = priced
+    .filter((p) => p.rating !== null && (p.ratingCount ?? 0) >= MIN_RATINGS_FOR_BEST_RATED)
+    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || (b.ratingCount ?? 0) - (a.ratingCount ?? 0));
+
+  const bestRated = rated.find((p) => !claimed.has(key(p)));
+  if (bestRated) {
+    highlights.push({
+      kind: "best_rated",
+      label: "Best reviewed",
+      reason: `${bestRated.rating?.toFixed(1)}★ from ${formatCount(bestRated.ratingCount ?? 0)} ratings`,
+      product: bestRated,
+    });
+    claimed.add(key(bestRated));
+  }
+
+  // 3. Biggest genuine discount off the retailer's own list price.
+  const discounted = priced
+    .map((p) => ({
+      product: p,
+      percent:
+        p.listPrice && p.listPrice > p.price
+          ? Math.round(((p.listPrice - p.price) / p.listPrice) * 100)
+          : 0,
+    }))
+    .filter((entry) => entry.percent >= MIN_DISCOUNT_PERCENT)
+    .sort((a, b) => b.percent - a.percent);
+
+  const biggest = discounted.find((entry) => !claimed.has(key(entry.product)));
+  if (biggest) {
+    highlights.push({
+      kind: "biggest_discount",
+      label: "Biggest drop",
+      reason: `${biggest.percent}% off its usual price`,
+      product: biggest.product,
+    });
+  }
+
+  return highlights;
+}
+
+function formatCount(count: number) {
+  if (count >= 1000) return `${(count / 1000).toFixed(count >= 10000 ? 0 : 1)}k`;
+  return String(count);
+}
+--- END sweep-backend/src/lib/highlights.ts ---
+
+### FILE: sweep-backend/src/lib/schedule.ts
+### PURPOSE: Fixed check times: local hours + IANA zone, DST-safe.
+### LINES: 141
+--- BEGIN sweep-backend/src/lib/schedule.ts ---
+// lib/schedule.ts
+//
+// Fixed check times for the free tier: "check my products at 9am and 9pm".
+//
+// The whole point of fixed times over a rolling interval is that load is
+// predictable — N users produce at most 2N checks a day regardless of when
+// they signed up or how often they open the app.
+//
+// Times are stored as local hours plus an IANA timezone rather than as UTC,
+// because "9am" has to keep meaning 9am after the clocks change.
+
+const MAX_LOOKBACK_HOURS = 72;
+
+/** Hours must be whole numbers in 0-23, unique, and non-empty. */
+export function normalizeCheckHours(
+  input: unknown,
+  maxCount: number,
+): { ok: true; hours: number[] } | { ok: false; error: string } {
+  if (!Array.isArray(input)) {
+    return { ok: false, error: "checkHours must be an array of hours" };
+  }
+
+  const hours = [...new Set(input)];
+
+  if (hours.length !== input.length) {
+    return { ok: false, error: "checkHours must not repeat the same hour" };
+  }
+  if (hours.length === 0) {
+    return { ok: false, error: "Pick at least one check time" };
+  }
+  if (hours.length > maxCount) {
+    return {
+      ok: false,
+      error: `Your plan allows ${maxCount} check ${maxCount === 1 ? "time" : "times"} a day`,
+    };
+  }
+  for (const hour of hours) {
+    if (typeof hour !== "number" || !Number.isInteger(hour) || hour < 0 || hour > 23) {
+      return { ok: false, error: "Each check time must be a whole hour from 0 to 23" };
+    }
+  }
+
+  return { ok: true, hours: hours.sort((a, b) => a - b) };
+}
+
+/** Is this a timezone Node actually knows about? */
+export function isValidTimezone(timezone: unknown): timezone is string {
+  if (typeof timezone !== "string" || !timezone) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The local hour (0-23) at a given instant, in a given zone. */
+export function localHourAt(instant: Date, timezone: string): number {
+  const formatted = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour: "numeric",
+    hour12: false,
+  }).format(instant);
+  // "24" shows up for midnight in some locales/versions.
+  return Number(formatted) % 24;
+}
+
+/**
+ * Has one of the user's scheduled check times passed since we last checked?
+ *
+ * Walks hour boundaries between the last check and now, and asks what local
+ * hour each one was in the user's zone. Doing it this way rather than
+ * computing UTC offsets means DST is handled by Intl rather than by us.
+ *
+ * A product never checked before is always due.
+ */
+export function isDueAtFixedTimes(
+  lastCheckedAt: Date | null,
+  checkHours: number[],
+  timezone: string,
+  now: Date = new Date(),
+): boolean {
+  if (!lastCheckedAt) return true;
+  if (checkHours.length === 0) return false;
+
+  const wanted = new Set(checkHours);
+
+  // Start at the top of the hour after the last check, and step forward.
+  const cursor = new Date(lastCheckedAt);
+  cursor.setMinutes(0, 0, 0);
+  cursor.setHours(cursor.getHours() + 1);
+
+  // A product left unchecked for days shouldn't cost an unbounded loop; if any
+  // scheduled hour fell in the last 72h we'd have found it well inside that.
+  const earliest = new Date(now.getTime() - MAX_LOOKBACK_HOURS * 60 * 60 * 1000);
+  if (cursor < earliest) return true;
+
+  while (cursor <= now) {
+    if (wanted.has(localHourAt(cursor, timezone))) return true;
+    cursor.setHours(cursor.getHours() + 1);
+  }
+
+  return false;
+}
+
+/**
+ * When the next scheduled check lands, so the UI can say "next check 9:00 PM"
+ * rather than leaving the user guessing.
+ */
+export function nextCheckAt(
+  checkHours: number[],
+  timezone: string,
+  now: Date = new Date(),
+): Date | null {
+  if (checkHours.length === 0) return null;
+
+  const wanted = new Set(checkHours);
+  const cursor = new Date(now);
+  cursor.setMinutes(0, 0, 0);
+  cursor.setHours(cursor.getHours() + 1);
+
+  // 48 steps covers a full day in every real zone, including the 30/45-minute
+  // offsets and DST days that are 23 or 25 hours long.
+  for (let i = 0; i < 48; i++) {
+    if (wanted.has(localHourAt(cursor, timezone))) return new Date(cursor);
+    cursor.setHours(cursor.getHours() + 1);
+  }
+
+  return null;
+}
+
+/** "9:00 AM" for display, in the user's own zone. */
+export function formatHour(hour: number, timezone = "UTC"): string {
+  const sample = new Date(Date.UTC(2024, 0, 1, hour));
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "UTC",
+  }).format(sample);
+}
+--- END sweep-backend/src/lib/schedule.ts ---
+
+### FILE: sweep-backend/src/lib/searchJobs.ts
+### PURPOSE: Amazon runs out-of-band because Bright Data can take ~3 minutes.
+### LINES: 123
+--- BEGIN sweep-backend/src/lib/searchJobs.ts ---
+// lib/searchJobs.ts
+//
+// Amazon is slow in a way the other retailers aren't. Bright Data's free tier
+// answers with a snapshot id and we poll it — in practice that means anywhere
+// from a few seconds to ~3 minutes, while Walmart/Best Buy/eBay all come back
+// inside ~5s.
+//
+// So a compiled search does NOT wait for Amazon. It returns the fast retailers
+// straight away and hands back a job id; the client polls that separately and
+// fills the Amazon column in when it lands.
+//
+// Deliberately in-memory: a job is only interesting for the couple of minutes
+// its client is watching it, and a dropped job on restart costs the user
+// nothing but a re-run. If this ever runs multi-instance, jobs would need to
+// move to Postgres or Redis so a poll can't hit the wrong instance.
+
+import { recordCheck } from "./health.js";
+import { adapters } from "./scrapers/index.js";
+import type { ScrapedProduct } from "./scrapers/types.js";
+
+export type SearchJobStatus = "pending" | "success" | "failed" | "blocked";
+
+export interface SearchJob {
+  id: string;
+  keyword: string;
+  status: SearchJobStatus;
+  products: ScrapedProduct[];
+  detail: string | null;
+  startedAt: number;
+  finishedAt: number | null;
+}
+
+/** Bright Data's own polling gives up around 200s; leave room past that. */
+const JOB_TIMEOUT_MS = 240_000;
+/** How long a finished job stays readable, so a slow client can still collect it. */
+const JOB_TTL_MS = 10 * 60 * 1000;
+
+const jobs = new Map<string, SearchJob>();
+
+/**
+ * Kick off an Amazon search in the background and return its job id
+ * immediately. Never throws — a failed job is a status, not an exception.
+ */
+export function startAmazonSearch(keyword: string, limit: number): string {
+  const id = crypto.randomUUID();
+
+  const job: SearchJob = {
+    id,
+    keyword,
+    status: "pending",
+    products: [],
+    detail: null,
+    startedAt: Date.now(),
+    finishedAt: null,
+  };
+
+  jobs.set(id, job);
+  sweepExpired();
+
+  void run(job, limit);
+
+  return id;
+}
+
+async function run(job: SearchJob, limit: number) {
+  try {
+    const result = await withTimeout(
+      adapters.amazon.search(job.keyword, limit),
+      JOB_TIMEOUT_MS,
+    );
+
+    if (result.status === "success") {
+      job.status = "success";
+      job.products = result.data;
+    } else {
+      job.status = result.status;
+      job.detail = result.detail;
+    }
+
+    // Feeds the health board like any other scrape, even though it finished
+    // long after the request that started it.
+    await recordCheck({
+      retailer: "amazon",
+      status: result.status,
+      detail: result.status === "success" ? null : result.detail,
+      durationMs: result.durationMs,
+    });
+  } catch (err) {
+    job.status = "failed";
+    job.detail = err instanceof Error ? err.message : String(err);
+    await recordCheck({
+      retailer: "amazon",
+      status: "failed",
+      detail: job.detail,
+      durationMs: Date.now() - job.startedAt,
+    });
+  } finally {
+    job.finishedAt = Date.now();
+  }
+}
+
+export function getSearchJob(id: string): SearchJob | null {
+  return jobs.get(id) ?? null;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Amazon search timed out after ${ms / 1000}s`)), ms),
+    ),
+  ]);
+}
+
+/** Drop finished jobs past their TTL, and abandon pending ones past the timeout. */
+function sweepExpired() {
+  const now = Date.now();
+  for (const [id, job] of jobs) {
+    const age = now - job.startedAt;
+    if (job.finishedAt && now - job.finishedAt > JOB_TTL_MS) jobs.delete(id);
+    else if (!job.finishedAt && age > JOB_TIMEOUT_MS + 30_000) jobs.delete(id);
+  }
+}
+--- END sweep-backend/src/lib/searchJobs.ts ---
+
+### FILE: sweep-backend/src/lib/push.ts
+### PURPOSE: Price-drop push via Expo.
+### LINES: 187
+--- BEGIN sweep-backend/src/lib/push.ts ---
+// lib/push.ts
+//
+// Price-drop push notifications, via Expo's push service.
+//
+// This is the app's core value prop, and it's on every tier — free users get
+// alerts too. Gating it behind a paywall would undercut the whole point.
+//
+// Two things this is careful about:
+//   1. Not spamming. A product that oscillates by a cent shouldn't buzz a
+//      phone, and no user should get more than one alert per product per day.
+//   2. Pruning dead tokens. Uninstalled apps return DeviceNotRegistered
+//      forever unless you delete the token, and Expo will eventually rate-limit
+//      a sender that keeps pushing to dead devices.
+
+import { Expo, type ExpoPushMessage, type ExpoPushTicket } from "expo-server-sdk";
+import { prisma } from "./prisma.js";
+import { TIER_LIMITS, type Tier, effectiveTier } from "./tiers.js";
+
+// No access token needed for sending to Expo push tokens; EXPO_ACCESS_TOKEN
+// only matters if you enable enhanced push security in your Expo account.
+const expo = new Expo({ accessToken: process.env.EXPO_ACCESS_TOKEN });
+
+/** Don't notify for trivial movement — noise costs trust. */
+const MIN_DROP_PERCENT = 3;
+const MIN_DROP_CENTS = 100;
+
+/** At most one alert per tracked product per user per this window. */
+const NOTIFY_COOLDOWN_HOURS = 12;
+
+export interface DropNotification {
+  productId: string;
+  previousPrice: number;
+  newPrice: number;
+}
+
+/**
+ * Notify everyone tracking a product that its price dropped.
+ * Returns how many notifications were actually sent.
+ */
+export async function notifyPriceDrop({
+  productId,
+  previousPrice,
+  newPrice,
+}: DropNotification): Promise<number> {
+  const product = await prisma.product.findUnique({ where: { id: productId } });
+  if (!product) return 0;
+
+  const dropCents = previousPrice - newPrice;
+  const dropPercent = Math.round((dropCents / previousPrice) * 100);
+
+  const trackers = await prisma.trackedProduct.findMany({
+    where: { productId },
+    include: {
+      user: {
+        include: {
+          pushTokens: true,
+          wallet: { select: { tier: true, tierExpiresAt: true } },
+        },
+      },
+    },
+  });
+
+  const cooldownCutoff = new Date(
+    Date.now() - NOTIFY_COOLDOWN_HOURS * 60 * 60 * 1000,
+  );
+
+  const messages: ExpoPushMessage[] = [];
+  const notifiedTrackedIds: string[] = [];
+
+  for (const tracked of trackers) {
+    if (tracked.user.pushTokens.length === 0) continue;
+
+    // Already told this user about this product recently.
+    if (tracked.lastNotifiedAt && tracked.lastNotifiedAt > cooldownCutoff) continue;
+
+    const tier: Tier = tracked.user.wallet
+      ? effectiveTier(tracked.user.wallet)
+      : "free";
+
+    // Ultimate's custom threshold replaces the default rule entirely: they
+    // asked to hear about $X, not about "any meaningful drop".
+    const hasThreshold =
+      tracked.customThreshold !== null && TIER_LIMITS[tier].customThresholds;
+
+    if (hasThreshold) {
+      if (newPrice > tracked.customThreshold!) continue;
+    } else if (dropPercent < MIN_DROP_PERCENT && dropCents < MIN_DROP_CENTS) {
+      continue;
+    }
+
+    const body = hasThreshold
+      ? `Now ${formatCents(newPrice)} — below your ${formatCents(tracked.customThreshold!)} alert.`
+      : `Down ${dropPercent}% to ${formatCents(newPrice)} (was ${formatCents(previousPrice)}).`;
+
+    for (const { token } of tracked.user.pushTokens) {
+      if (!Expo.isExpoPushToken(token)) continue;
+
+      messages.push({
+        to: token,
+        sound: "default",
+        title: truncate(product.title, 60),
+        body,
+        // Consumed by the app to deep-link straight to the product.
+        data: { productId: product.id, type: "price_drop" },
+        // Must match the channel the app creates, or Android silently drops it.
+        channelId: "price-drops",
+      });
+    }
+
+    notifiedTrackedIds.push(tracked.id);
+  }
+
+  if (messages.length === 0) return 0;
+
+  const tickets = await send(messages);
+  await pruneDeadTokens(messages, tickets);
+
+  // Stamp the cooldown only for users we actually messaged.
+  if (notifiedTrackedIds.length > 0) {
+    await prisma.trackedProduct.updateMany({
+      where: { id: { in: notifiedTrackedIds } },
+      data: { lastNotifiedAt: new Date() },
+    });
+  }
+
+  return messages.length;
+}
+
+/** Chunked send. Expo caps a request at 100 messages. */
+async function send(messages: ExpoPushMessage[]): Promise<ExpoPushTicket[]> {
+  const tickets: ExpoPushTicket[] = [];
+
+  for (const chunk of expo.chunkPushNotifications(messages)) {
+    try {
+      tickets.push(...(await expo.sendPushNotificationsAsync(chunk)));
+    } catch (err) {
+      console.error("[push] chunk failed:", err);
+      // Keep ticket indices aligned with messages so pruning can't blame the
+      // wrong token for a failure.
+      tickets.push(
+        ...chunk.map(
+          () => ({ status: "error", message: "chunk send failed" }) as ExpoPushTicket,
+        ),
+      );
+    }
+  }
+
+  return tickets;
+}
+
+/**
+ * Delete tokens Expo tells us are dead. DeviceNotRegistered means the app was
+ * uninstalled or the token was replaced — it will never succeed again.
+ */
+async function pruneDeadTokens(
+  messages: ExpoPushMessage[],
+  tickets: ExpoPushTicket[],
+) {
+  const dead: string[] = [];
+
+  tickets.forEach((ticket, index) => {
+    if (ticket.status !== "error") return;
+
+    const message = messages[index];
+    const token = Array.isArray(message?.to) ? message.to[0] : message?.to;
+    if (!token) return;
+
+    if (ticket.details?.error === "DeviceNotRegistered") {
+      dead.push(token);
+    } else {
+      console.error(`[push] ${ticket.details?.error ?? "error"}: ${ticket.message}`);
+    }
+  });
+
+  if (dead.length === 0) return;
+
+  await prisma.pushToken.deleteMany({ where: { token: { in: dead } } });
+  console.log(`[push] pruned ${dead.length} dead token(s)`);
+}
+
+function formatCents(cents: number) {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+function truncate(text: string, max: number) {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+}
+--- END sweep-backend/src/lib/push.ts ---
+
 ### FILE: sweep-backend/src/lib/tiers.ts
 ### PURPOSE: Every limit in the app, in one place, enforced server-side. No tier is unlimited.
-### LINES: 111
+### LINES: 135
 --- BEGIN sweep-backend/src/lib/tiers.ts ---
 // lib/tiers.ts
 //
@@ -2377,6 +3496,18 @@ export interface TierLimits {
   checkIntervalMinutes: number;
   /** Free tier picks fixed times of day rather than a rolling interval. */
   fixedCheckTimes: boolean;
+  /** How many fixed times of day the user may pick. 0 when not applicable. */
+  checkTimesPerDay: number;
+  /**
+   * Manual "Check price now" budget, expressed two ways because the tiers
+   * limit it differently:
+   *   free     — 10 a day, no cooldown
+   *   pro      — no daily cap, but one every 30 minutes
+   *   ultimate — neither
+   * Null means "no limit of this kind".
+   */
+  manualChecksPerDay: number | null;
+  manualCheckCooldownMinutes: number | null;
   /** Ultimate-only: "notify me only below $X". */
   customThresholds: boolean;
   showAds: boolean;
@@ -2393,6 +3524,9 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     // which bounds scraping load predictably.
     checkIntervalMinutes: 12 * 60,
     fixedCheckTimes: true,
+    checkTimesPerDay: 2,
+    manualChecksPerDay: 10,
+    manualCheckCooldownMinutes: null,
     customThresholds: false,
     showAds: true,
     priorityQueue: false,
@@ -2403,6 +3537,9 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     historyDays: 90,
     checkIntervalMinutes: 60,
     fixedCheckTimes: false,
+    checkTimesPerDay: 0,
+    manualChecksPerDay: null,
+    manualCheckCooldownMinutes: 30,
     customThresholds: false,
     showAds: false,
     priorityQueue: false,
@@ -2413,6 +3550,12 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     historyDays: null,
     checkIntervalMinutes: 30,
     fixedCheckTimes: false,
+    checkTimesPerDay: 0,
+    // Unlimited, deliberately: this is bounded by a human tapping a button,
+    // not by signups, so it can't run away the way an unlimited tracking
+    // allowance would.
+    manualChecksPerDay: null,
+    manualCheckCooldownMinutes: null,
     customThresholds: true,
     showAds: false,
     priorityQueue: true,
@@ -2467,7 +3610,7 @@ export function historyCutoff(tier: Tier): Date | null {
 
 ### FILE: sweep-backend/src/lib/quota.ts
 ### PURPOSE: Daily search budget for users and guests. Conditional updates make check-and-spend atomic under concurrency.
-### LINES: 221
+### LINES: 319
 --- BEGIN sweep-backend/src/lib/quota.ts ---
 // lib/quota.ts
 //
@@ -2606,6 +3749,104 @@ export async function grantRewardedSearch(
   };
 }
 
+// ---- manual "check price now" ----------------------------------------------
+
+export interface ManualCheckState {
+  used: number;
+  /** Null when the tier has no daily cap. */
+  limit: number | null;
+  remaining: number | null;
+  cooldownMinutes: number | null;
+  /** When the cooldown expires, if one is currently in force. */
+  availableAt: Date | null;
+  resetsAt: Date;
+}
+
+export type ManualCheckOutcome =
+  | { ok: true; state: ManualCheckState }
+  | { ok: false; reason: "limit"; state: ManualCheckState }
+  | { ok: false; reason: "cooldown"; state: ManualCheckState };
+
+/** Read the manual-check budget without spending any of it. */
+export async function getManualCheckState(
+  userId: string,
+): Promise<ManualCheckState | null> {
+  const wallet = await prisma.wallet.findUnique({ where: { userId } });
+  if (!wallet) return null;
+
+  const limits = TIER_LIMITS[effectiveTier(wallet)];
+  const stale = isStale(wallet.manualChecksResetAt);
+  const used = stale ? 0 : wallet.manualChecksToday;
+
+  return manualState(wallet.lastManualCheckAt, used, limits, stale ? nextResetAt() : wallet.manualChecksResetAt);
+}
+
+/**
+ * Spend one manual check.
+ *
+ * Two different limits apply depending on tier, and both are enforced here so
+ * the client can't decide it's allowed. Ultimate passes straight through.
+ */
+export async function consumeManualCheck(
+  userId: string,
+): Promise<ManualCheckOutcome | null> {
+  const wallet = await prisma.wallet.findUnique({ where: { userId } });
+  if (!wallet) return null;
+
+  const limits = TIER_LIMITS[effectiveTier(wallet)];
+  const now = new Date();
+
+  // Roll the daily window over first, so a stale count can't block a new day.
+  const stale = isStale(wallet.manualChecksResetAt);
+  const used = stale ? 0 : wallet.manualChecksToday;
+  const resetsAt = stale ? nextResetAt() : wallet.manualChecksResetAt;
+
+  const state = manualState(wallet.lastManualCheckAt, used, limits, resetsAt);
+
+  if (limits.manualChecksPerDay !== null && used >= limits.manualChecksPerDay) {
+    return { ok: false, reason: "limit", state };
+  }
+
+  if (state.availableAt && state.availableAt > now) {
+    return { ok: false, reason: "cooldown", state };
+  }
+
+  await prisma.wallet.update({
+    where: { userId },
+    data: {
+      manualChecksToday: used + 1,
+      manualChecksResetAt: resetsAt,
+      lastManualCheckAt: now,
+    },
+  });
+
+  return { ok: true, state: manualState(now, used + 1, limits, resetsAt) };
+}
+
+function manualState(
+  lastCheckAt: Date | null,
+  used: number,
+  limits: { manualChecksPerDay: number | null; manualCheckCooldownMinutes: number | null },
+  resetsAt: Date,
+): ManualCheckState {
+  const cooldown = limits.manualCheckCooldownMinutes;
+
+  return {
+    used,
+    limit: limits.manualChecksPerDay,
+    remaining:
+      limits.manualChecksPerDay === null
+        ? null
+        : Math.max(0, limits.manualChecksPerDay - used),
+    cooldownMinutes: cooldown,
+    availableAt:
+      cooldown && lastCheckAt
+        ? new Date(lastCheckAt.getTime() + cooldown * 60 * 1000)
+        : null,
+    resetsAt,
+  };
+}
+
 // ---- guests ----------------------------------------------------------------
 
 export async function getGuestQuota(deviceId: string): Promise<QuotaState> {
@@ -2694,7 +3935,7 @@ function state(
 
 ### FILE: sweep-backend/src/lib/priceChecker.ts
 ### PURPOSE: Re-checks a product and persists it. Writes history only on change; due-interval is the shortest tier among trackers; Ultimate jumps the queue.
-### LINES: 313
+### LINES: 340
 --- BEGIN sweep-backend/src/lib/priceChecker.ts ---
 // lib/priceChecker.ts
 //
@@ -2707,6 +3948,7 @@ import { prisma } from "./prisma.js";
 import { adapters } from "./scrapers/index.js";
 import { type Retailer, type ScrapedProduct, isRetailer } from "./scrapers/types.js";
 import { recordCheck } from "./health.js";
+import { isDueAtFixedTimes } from "./schedule.js";
 import { TIER_LIMITS, type Tier } from "./tiers.js";
 
 export interface CheckOutcome {
@@ -2815,43 +4057,69 @@ export async function findDueProducts(limit = 200): Promise<string[]> {
         select: { lastCheckedAt: true, retailer: true },
       },
       user: {
-        select: { wallet: { select: { tier: true, tierExpiresAt: true } } },
+        select: {
+          wallet: {
+            select: {
+              tier: true,
+              tierExpiresAt: true,
+              checkHours: true,
+              timezone: true,
+            },
+          },
+        },
       },
     },
   });
 
-  const now = Date.now();
-  const shortestInterval = new Map<string, number>();
-  const lastChecked = new Map<string, Date | null>();
-  const priority = new Set<string>();
+  const nowDate = new Date();
+  const now = nowDate.getTime();
+
+  // A product is due if ANY of its trackers wants it checked now. Two kinds of
+  // tracker want different things: free users have fixed times of day, paid
+  // users have a rolling interval. Evaluating per-tracker and OR-ing means one
+  // Ultimate user keeps an item fresh for everyone tracking it, which is the
+  // shared cache working as intended.
+  const dueProducts = new Map<string, { overdueBy: number; priority: boolean }>();
 
   for (const row of tracked) {
     const wallet = row.user.wallet;
     const tier = resolveTier(wallet);
     const limits = TIER_LIMITS[tier];
+    const last = row.product.lastCheckedAt;
 
-    const current = shortestInterval.get(row.productId);
-    if (current === undefined || limits.checkIntervalMinutes < current) {
-      shortestInterval.set(row.productId, limits.checkIntervalMinutes);
+    let isDue: boolean;
+    let overdueBy: number;
+
+    if (limits.fixedCheckTimes) {
+      isDue = isDueAtFixedTimes(
+        last,
+        wallet?.checkHours ?? [],
+        wallet?.timezone ?? "UTC",
+        nowDate,
+      );
+      // Fixed-time checks don't have a meaningful "how late" — order them by
+      // staleness so the longest-neglected go first.
+      overdueBy = last ? now - last.getTime() : Number.MAX_SAFE_INTEGER;
+    } else {
+      overdueBy = last
+        ? now - last.getTime() - limits.checkIntervalMinutes * 60 * 1000
+        : Number.MAX_SAFE_INTEGER;
+      isDue = overdueBy >= 0;
     }
-    lastChecked.set(row.productId, row.product.lastCheckedAt);
-    if (limits.priorityQueue) priority.add(row.productId);
+
+    if (!isDue) continue;
+
+    const existing = dueProducts.get(row.productId);
+    dueProducts.set(row.productId, {
+      overdueBy: Math.max(existing?.overdueBy ?? -Infinity, overdueBy),
+      priority: (existing?.priority ?? false) || limits.priorityQueue,
+    });
   }
 
-  const due: { productId: string; overdueBy: number; priority: boolean }[] = [];
-
-  for (const [productId, intervalMinutes] of shortestInterval) {
-    const last = lastChecked.get(productId);
-    // Never checked — treat as maximally overdue so new tracks resolve fast.
-    if (!last) {
-      due.push({ productId, overdueBy: Number.MAX_SAFE_INTEGER, priority: priority.has(productId) });
-      continue;
-    }
-    const overdueBy = now - last.getTime() - intervalMinutes * 60 * 1000;
-    if (overdueBy >= 0) {
-      due.push({ productId, overdueBy, priority: priority.has(productId) });
-    }
-  }
+  const due = [...dueProducts.entries()].map(([productId, info]) => ({
+    productId,
+    ...info,
+  }));
 
   // Ultimate's promised "priority queue": their items run before everyone
   // else's when the batch is larger than one run can absorb. Within the same
@@ -3233,199 +4501,6 @@ async function sendAlertEmail(health: RetailerHealth) {
 }
 --- END sweep-backend/src/lib/health.ts ---
 
-### FILE: sweep-backend/src/lib/push.ts
-### PURPOSE: Price-drop push via Expo. Noise floor, per-user cooldown, Ultimate thresholds, and dead-token pruning.
-### LINES: 187
---- BEGIN sweep-backend/src/lib/push.ts ---
-// lib/push.ts
-//
-// Price-drop push notifications, via Expo's push service.
-//
-// This is the app's core value prop, and it's on every tier — free users get
-// alerts too. Gating it behind a paywall would undercut the whole point.
-//
-// Two things this is careful about:
-//   1. Not spamming. A product that oscillates by a cent shouldn't buzz a
-//      phone, and no user should get more than one alert per product per day.
-//   2. Pruning dead tokens. Uninstalled apps return DeviceNotRegistered
-//      forever unless you delete the token, and Expo will eventually rate-limit
-//      a sender that keeps pushing to dead devices.
-
-import { Expo, type ExpoPushMessage, type ExpoPushTicket } from "expo-server-sdk";
-import { prisma } from "./prisma.js";
-import { TIER_LIMITS, type Tier, effectiveTier } from "./tiers.js";
-
-// No access token needed for sending to Expo push tokens; EXPO_ACCESS_TOKEN
-// only matters if you enable enhanced push security in your Expo account.
-const expo = new Expo({ accessToken: process.env.EXPO_ACCESS_TOKEN });
-
-/** Don't notify for trivial movement — noise costs trust. */
-const MIN_DROP_PERCENT = 3;
-const MIN_DROP_CENTS = 100;
-
-/** At most one alert per tracked product per user per this window. */
-const NOTIFY_COOLDOWN_HOURS = 12;
-
-export interface DropNotification {
-  productId: string;
-  previousPrice: number;
-  newPrice: number;
-}
-
-/**
- * Notify everyone tracking a product that its price dropped.
- * Returns how many notifications were actually sent.
- */
-export async function notifyPriceDrop({
-  productId,
-  previousPrice,
-  newPrice,
-}: DropNotification): Promise<number> {
-  const product = await prisma.product.findUnique({ where: { id: productId } });
-  if (!product) return 0;
-
-  const dropCents = previousPrice - newPrice;
-  const dropPercent = Math.round((dropCents / previousPrice) * 100);
-
-  const trackers = await prisma.trackedProduct.findMany({
-    where: { productId },
-    include: {
-      user: {
-        include: {
-          pushTokens: true,
-          wallet: { select: { tier: true, tierExpiresAt: true } },
-        },
-      },
-    },
-  });
-
-  const cooldownCutoff = new Date(
-    Date.now() - NOTIFY_COOLDOWN_HOURS * 60 * 60 * 1000,
-  );
-
-  const messages: ExpoPushMessage[] = [];
-  const notifiedTrackedIds: string[] = [];
-
-  for (const tracked of trackers) {
-    if (tracked.user.pushTokens.length === 0) continue;
-
-    // Already told this user about this product recently.
-    if (tracked.lastNotifiedAt && tracked.lastNotifiedAt > cooldownCutoff) continue;
-
-    const tier: Tier = tracked.user.wallet
-      ? effectiveTier(tracked.user.wallet)
-      : "free";
-
-    // Ultimate's custom threshold replaces the default rule entirely: they
-    // asked to hear about $X, not about "any meaningful drop".
-    const hasThreshold =
-      tracked.customThreshold !== null && TIER_LIMITS[tier].customThresholds;
-
-    if (hasThreshold) {
-      if (newPrice > tracked.customThreshold!) continue;
-    } else if (dropPercent < MIN_DROP_PERCENT && dropCents < MIN_DROP_CENTS) {
-      continue;
-    }
-
-    const body = hasThreshold
-      ? `Now ${formatCents(newPrice)} — below your ${formatCents(tracked.customThreshold!)} alert.`
-      : `Down ${dropPercent}% to ${formatCents(newPrice)} (was ${formatCents(previousPrice)}).`;
-
-    for (const { token } of tracked.user.pushTokens) {
-      if (!Expo.isExpoPushToken(token)) continue;
-
-      messages.push({
-        to: token,
-        sound: "default",
-        title: truncate(product.title, 60),
-        body,
-        // Consumed by the app to deep-link straight to the product.
-        data: { productId: product.id, type: "price_drop" },
-        // Must match the channel the app creates, or Android silently drops it.
-        channelId: "price-drops",
-      });
-    }
-
-    notifiedTrackedIds.push(tracked.id);
-  }
-
-  if (messages.length === 0) return 0;
-
-  const tickets = await send(messages);
-  await pruneDeadTokens(messages, tickets);
-
-  // Stamp the cooldown only for users we actually messaged.
-  if (notifiedTrackedIds.length > 0) {
-    await prisma.trackedProduct.updateMany({
-      where: { id: { in: notifiedTrackedIds } },
-      data: { lastNotifiedAt: new Date() },
-    });
-  }
-
-  return messages.length;
-}
-
-/** Chunked send. Expo caps a request at 100 messages. */
-async function send(messages: ExpoPushMessage[]): Promise<ExpoPushTicket[]> {
-  const tickets: ExpoPushTicket[] = [];
-
-  for (const chunk of expo.chunkPushNotifications(messages)) {
-    try {
-      tickets.push(...(await expo.sendPushNotificationsAsync(chunk)));
-    } catch (err) {
-      console.error("[push] chunk failed:", err);
-      // Keep ticket indices aligned with messages so pruning can't blame the
-      // wrong token for a failure.
-      tickets.push(
-        ...chunk.map(
-          () => ({ status: "error", message: "chunk send failed" }) as ExpoPushTicket,
-        ),
-      );
-    }
-  }
-
-  return tickets;
-}
-
-/**
- * Delete tokens Expo tells us are dead. DeviceNotRegistered means the app was
- * uninstalled or the token was replaced — it will never succeed again.
- */
-async function pruneDeadTokens(
-  messages: ExpoPushMessage[],
-  tickets: ExpoPushTicket[],
-) {
-  const dead: string[] = [];
-
-  tickets.forEach((ticket, index) => {
-    if (ticket.status !== "error") return;
-
-    const message = messages[index];
-    const token = Array.isArray(message?.to) ? message.to[0] : message?.to;
-    if (!token) return;
-
-    if (ticket.details?.error === "DeviceNotRegistered") {
-      dead.push(token);
-    } else {
-      console.error(`[push] ${ticket.details?.error ?? "error"}: ${ticket.message}`);
-    }
-  });
-
-  if (dead.length === 0) return;
-
-  await prisma.pushToken.deleteMany({ where: { token: { in: dead } } });
-  console.log(`[push] pruned ${dead.length} dead token(s)`);
-}
-
-function formatCents(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
-}
-
-function truncate(text: string, max: number) {
-  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
-}
---- END sweep-backend/src/lib/push.ts ---
-
 ### FILE: sweep-backend/src/lib/scheduler.ts
 ### PURPOSE: In-process cron: price sweep every 15m, health sweep hourly. Fans price drops out to push.
 ### LINES: 108
@@ -3603,7 +4678,7 @@ export async function authRoutes(app: FastifyInstance) {
 
 ### FILE: sweep-backend/src/routes/products.ts
 ### PURPOSE: Track, untrack, list, detail + history, custom threshold, force refresh. All behind requireAuth, all tier-capped server-side.
-### LINES: 406
+### LINES: 645
 --- BEGIN sweep-backend/src/routes/products.ts ---
 // routes/products.ts
 //
@@ -3617,9 +4692,15 @@ import type { FastifyInstance } from "fastify";
 import { requireAuth } from "../lib/auth.js";
 import { recordCheck } from "../lib/health.js";
 import { prisma } from "../lib/prisma.js";
+import { consumeManualCheck, getManualCheckState } from "../lib/quota.js";
 import { checkProduct, upsertScrapedProduct } from "../lib/priceChecker.js";
 import { adapters } from "../lib/scrapers/index.js";
 import { normalizeProductUrl } from "../lib/scrapers/url.js";
+import {
+  isValidTimezone,
+  nextCheckAt,
+  normalizeCheckHours,
+} from "../lib/schedule.js";
 import { RETAILER_LABELS, isRetailer } from "../lib/scrapers/types.js";
 import { effectiveTier, historyCutoff, limitsFor } from "../lib/tiers.js";
 
@@ -3664,6 +4745,11 @@ export async function productRoutes(app: FastifyInstance) {
       url?: string;
       retailer?: string;
       retailerId?: string;
+      // Optional: set the user's check schedule in the same call, so confirming
+      // a product and choosing its times is one action rather than two that
+      // can half-fail.
+      checkHours?: unknown;
+      timezone?: unknown;
     };
 
     const wallet = await prisma.wallet.findUnique({ where: { userId } });
@@ -3771,6 +4857,28 @@ export async function productRoutes(app: FastifyInstance) {
       return reply.status(502).send({ error: "Couldn't resolve that product" });
     }
 
+    // Apply the schedule chosen in the confirm dialog, if one was sent.
+    if (body.checkHours !== undefined && limits.fixedCheckTimes) {
+      const normalized = normalizeCheckHours(body.checkHours, limits.checkTimesPerDay);
+      if (!normalized.ok) {
+        return reply
+          .status(400)
+          .send({ error: normalized.error, code: "INVALID_SCHEDULE" });
+      }
+      if (body.timezone !== undefined && !isValidTimezone(body.timezone)) {
+        return reply
+          .status(400)
+          .send({ error: "Unrecognised timezone", code: "INVALID_TIMEZONE" });
+      }
+      await prisma.wallet.update({
+        where: { userId },
+        data: {
+          checkHours: normalized.hours,
+          ...(body.timezone !== undefined ? { timezone: body.timezone as string } : {}),
+        },
+      });
+    }
+
     // Idempotent: tracking something twice is a no-op, not an error.
     const tracked = await prisma.trackedProduct.upsert({
       where: { userId_productId: { userId, productId: product.id } },
@@ -3787,6 +4895,175 @@ export async function productRoutes(app: FastifyInstance) {
         product: serializeProduct(tracked.product),
       },
     });
+  });
+
+  // ---- preview a pasted link, without tracking it ----
+  //
+  // Scrapes the product and returns what we found so the user can confirm it's
+  // the right item before committing a tracking slot to it. The result is
+  // written into the shared Product cache regardless — we paid for the scrape,
+  // and the next person to paste the same link gets it free.
+  app.post("/products/preview", { preHandler: requireAuth }, async (request, reply) => {
+    const userId = request.userId!;
+    const { url: rawUrl } = (request.body ?? {}) as { url?: string };
+
+    if (!rawUrl) {
+      return reply.status(400).send({ error: "Paste a product link first." });
+    }
+
+    const normalized = await normalizeProductUrl(String(rawUrl));
+    if (!normalized.ok) {
+      return reply.status(400).send(
+        normalized.reason === "unsupported"
+          ? {
+              error: `Sweep doesn't support ${normalized.detail} yet. Try Amazon, Walmart, Best Buy, Target or eBay.`,
+              code: "UNSUPPORTED_RETAILER",
+              host: normalized.detail,
+            }
+          : {
+              error: "That doesn't look like a product link.",
+              code: "INVALID_URL",
+            },
+      );
+    }
+
+    const { url, retailer } = normalized.value;
+
+    const existing = await prisma.product.findFirst({ where: { retailer, url } });
+    const isFresh =
+      existing?.lastCheckedAt &&
+      Date.now() - existing.lastCheckedAt.getTime() < 30 * 60 * 1000;
+
+    let product = existing;
+
+    if (!isFresh) {
+      const result = await adapters[retailer].scrapeProduct(url);
+
+      await recordCheck({
+        retailer,
+        status: result.status,
+        productId: existing?.id ?? null,
+        detail: result.status === "success" ? null : result.detail,
+        durationMs: result.durationMs,
+      });
+
+      if (result.status !== "success") {
+        return reply.status(502).send({
+          error:
+            result.status === "blocked"
+              ? `${RETAILER_LABELS[retailer]} is blocking price checks right now. Try again later.`
+              : `Couldn't read that ${RETAILER_LABELS[retailer]} page. Check the link and try again.`,
+          code: result.status === "blocked" ? "RETAILER_BLOCKED" : "SCRAPE_FAILED",
+          retailer,
+        });
+      }
+
+      product = await upsertScrapedProduct(result.data);
+    }
+
+    if (!product) {
+      return reply.status(502).send({ error: "Couldn't resolve that product" });
+    }
+
+    const wallet = await prisma.wallet.findUnique({ where: { userId } });
+    if (!wallet) return reply.status(404).send({ error: "No wallet for user" });
+
+    const limits = limitsFor(wallet);
+    const trackedCount = await prisma.trackedProduct.count({ where: { userId } });
+    const alreadyTracking = await prisma.trackedProduct.findUnique({
+      where: { userId_productId: { userId, productId: product.id } },
+    });
+
+    return {
+      product: serializeProduct(product),
+      alreadyTracking: Boolean(alreadyTracking),
+      // Everything the confirm dialog needs to decide what to show, so it
+      // doesn't have to guess the plan's rules client-side.
+      limits: {
+        maxTrackedProducts: limits.maxTrackedProducts,
+        used: trackedCount,
+        canTrack: alreadyTracking !== null || trackedCount < limits.maxTrackedProducts,
+        checkTimesPerDay: limits.checkTimesPerDay,
+        fixedCheckTimes: limits.fixedCheckTimes,
+        checkIntervalMinutes: limits.checkIntervalMinutes,
+      },
+      schedule: {
+        checkHours: wallet.checkHours,
+        timezone: wallet.timezone,
+        nextCheckAt: limits.fixedCheckTimes
+          ? nextCheckAt(wallet.checkHours, wallet.timezone)
+          : null,
+      },
+      tier: effectiveTier(wallet),
+    };
+  });
+
+  // ---- read / update the user's check schedule ----
+  app.get("/me/schedule", { preHandler: requireAuth }, async (request, reply) => {
+    const wallet = await prisma.wallet.findUnique({
+      where: { userId: request.userId! },
+    });
+    if (!wallet) return reply.status(404).send({ error: "No wallet for user" });
+
+    const limits = limitsFor(wallet);
+
+    return {
+      checkHours: wallet.checkHours,
+      timezone: wallet.timezone,
+      maxCheckTimes: limits.checkTimesPerDay,
+      fixedCheckTimes: limits.fixedCheckTimes,
+      checkIntervalMinutes: limits.checkIntervalMinutes,
+      nextCheckAt: limits.fixedCheckTimes
+        ? nextCheckAt(wallet.checkHours, wallet.timezone)
+        : null,
+      tier: effectiveTier(wallet),
+    };
+  });
+
+  app.put("/me/schedule", { preHandler: requireAuth }, async (request, reply) => {
+    const userId = request.userId!;
+    const { checkHours, timezone } = (request.body ?? {}) as {
+      checkHours?: unknown;
+      timezone?: unknown;
+    };
+
+    const wallet = await prisma.wallet.findUnique({ where: { userId } });
+    if (!wallet) return reply.status(404).send({ error: "No wallet for user" });
+
+    const limits = limitsFor(wallet);
+
+    // Paid tiers run on a rolling interval, so there are no fixed times to set.
+    if (!limits.fixedCheckTimes) {
+      return reply.status(400).send({
+        error: `Your plan checks every ${limits.checkIntervalMinutes} minutes automatically.`,
+        code: "SCHEDULE_NOT_APPLICABLE",
+      });
+    }
+
+    // The count cap is the load guarantee — enforced here, never client-side.
+    const normalized = normalizeCheckHours(checkHours, limits.checkTimesPerDay);
+    if (!normalized.ok) {
+      return reply.status(400).send({ error: normalized.error, code: "INVALID_SCHEDULE" });
+    }
+
+    if (timezone !== undefined && !isValidTimezone(timezone)) {
+      return reply.status(400).send({ error: "Unrecognised timezone", code: "INVALID_TIMEZONE" });
+    }
+
+    const updated = await prisma.wallet.update({
+      where: { userId },
+      data: {
+        checkHours: normalized.hours,
+        ...(timezone !== undefined ? { timezone: timezone as string } : {}),
+      },
+    });
+
+    return {
+      checkHours: updated.checkHours,
+      timezone: updated.timezone,
+      maxCheckTimes: limits.checkTimesPerDay,
+      nextCheckAt: nextCheckAt(updated.checkHours, updated.timezone),
+    };
   });
 
   // ---- stop tracking ----
@@ -3915,8 +5192,11 @@ export async function productRoutes(app: FastifyInstance) {
   );
 
   // ---- force a re-check ----
-  // Pull-to-refresh on a product. Rate-limited per product because the user
-  // pulling twice shouldn't cost two scrapes.
+  //
+  // "Check price now" in the app. Budget is per tier and enforced here:
+  //   free     — 10 a day
+  //   pro      — unlimited count, one every 30 minutes
+  //   ultimate — unlimited
   app.post<{ Params: { id: string } }>(
     "/products/:id/refresh",
     { preHandler: requireAuth },
@@ -3931,26 +5211,60 @@ export async function productRoutes(app: FastifyInstance) {
         return reply.status(404).send({ error: "Not tracking that product" });
       }
 
+      // If something already checked this product seconds ago — the scheduler,
+      // or another user tracking the same item — serve that instead of
+      // scraping again. Costs the user nothing from their budget, because they
+      // still get a fresh answer.
       const lastChecked = tracked.product.lastCheckedAt;
-      if (lastChecked && Date.now() - lastChecked.getTime() < 5 * 60 * 1000) {
-        return reply.status(429).send({
-          error: "Just checked — try again in a few minutes.",
-          code: "REFRESH_TOO_SOON",
-          lastCheckedAt: lastChecked,
-        });
+      if (lastChecked && Date.now() - lastChecked.getTime() < 60_000) {
+        return {
+          status: "fresh",
+          product: serializeProduct(tracked.product),
+          manualChecks: await getManualCheckState(userId),
+        };
       }
 
-      const outcome = await checkProduct(tracked.productId);
+      const outcome = await consumeManualCheck(userId);
+      if (!outcome) {
+        return reply.status(404).send({ error: "No wallet for user" });
+      }
+
+      if (!outcome.ok) {
+        const { state } = outcome;
+        return reply.status(429).send(
+          outcome.reason === "limit"
+            ? {
+                error: `You've used all ${state.limit} manual checks for today. They reset at midnight UTC.`,
+                code: "MANUAL_CHECK_LIMIT_REACHED",
+                manualChecks: state,
+              }
+            : {
+                error: `Your plan allows one manual check every ${state.cooldownMinutes} minutes.`,
+                code: "MANUAL_CHECK_COOLDOWN",
+                manualChecks: state,
+              },
+        );
+      }
+
+      const result = await checkProduct(tracked.productId);
       const product = await prisma.product.findUnique({
         where: { id: tracked.productId },
       });
 
       return {
-        status: outcome.status,
+        status: result.status,
         product: product ? serializeProduct(product) : null,
+        manualChecks: outcome.state,
       };
     },
   );
+
+  // ---- how many manual checks do I have left? ----
+  app.get("/products/manual-checks", { preHandler: requireAuth }, async (request, reply) => {
+    const state = await getManualCheckState(request.userId!);
+    if (!state) return reply.status(404).send({ error: "No wallet for user" });
+    return { manualChecks: state };
+  });
 }
 
 // ---- helpers ---------------------------------------------------------------
@@ -4015,7 +5329,7 @@ function priceStats(prices: number[], currentPrice: number | null) {
 
 ### FILE: sweep-backend/src/routes/search.ts
 ### PURPOSE: Compiled multi-site search, quota reads, rewarded-ad grant, retailer status board.
-### LINES: 231
+### LINES: 295
 --- BEGIN sweep-backend/src/routes/search.ts ---
 // routes/search.ts
 //
@@ -4038,7 +5352,9 @@ import {
   getUserQuota,
   grantRewardedSearch,
 } from "../lib/quota.js";
-import { searchAllRetailers } from "../lib/scrapers/index.js";
+import { pickHighlights } from "../lib/highlights.js";
+import { routeQuery, searchAllRetailers } from "../lib/scrapers/index.js";
+import { getSearchJob, startAmazonSearch } from "../lib/searchJobs.js";
 import {
   RETAILERS,
   RETAILER_LABELS,
@@ -4104,10 +5420,26 @@ export async function searchRoutes(app: FastifyInstance) {
       });
     }
 
+    // Skip retailers that plainly don't sell what's being searched for — no
+    // point asking a clothing site about earbuds. General stores are always
+    // included, and an unclassifiable query includes everyone.
+    const routing = routeQuery(keyword, only);
+
+    // Amazon is split out of the synchronous path: Bright Data's free tier can
+    // take up to ~3 minutes, and making the user stare at a spinner that long
+    // for four retailers that answered in 3 seconds is the wrong trade.
+    const requested = routing.retailers;
+    const fastRetailers = requested.filter((r) => r !== "amazon");
+    const wantsAmazon = requested.includes("amazon");
+
+    const amazonJobId = wantsAmazon
+      ? startAmazonSearch(keyword, RESULTS_PER_RETAILER)
+      : null;
+
     const outcomes = await searchAllRetailers(
       keyword,
       RESULTS_PER_RETAILER,
-      only,
+      fastRetailers,
     );
 
     // Search results are real scrape outcomes, so they feed health monitoring
@@ -4127,6 +5459,20 @@ export async function searchRoutes(app: FastifyInstance) {
     return {
       keyword,
       quota,
+      // The few results worth showing above the per-store columns. Computed
+      // here so "cheapest" means the same thing everywhere, and so Amazon
+      // arriving late can be folded into the same ranking client-side.
+      highlights: pickHighlights(outcomes.flatMap((o) => o.products)),
+      // What we decided the query was about, and who we skipped because of it.
+      // Sent so the UI can explain an absent store rather than leaving a hole.
+      categories: routing.categories,
+      skipped: routing.skipped.map((retailer) => ({
+        retailer,
+        label: RETAILER_LABELS[retailer],
+      })),
+      // Present when Amazon is still running. The client polls
+      // /search/amazon/:id and slots the results in when they arrive.
+      amazonJobId,
       results: outcomes.map((outcome) => ({
         retailer: outcome.retailer,
         label: RETAILER_LABELS[outcome.retailer],
@@ -4139,6 +5485,38 @@ export async function searchRoutes(app: FastifyInstance) {
       })),
     };
   });
+
+  // ---- poll the Amazon leg of a search ----
+  //
+  // Cheap and unmetered — the Bright Data call is already in flight, this just
+  // reads its state. Safe to poll every few seconds.
+  app.get<{ Params: { id: string } }>(
+    "/search/amazon/:id",
+    { preHandler: optionalAuth },
+    async (request, reply) => {
+      const job = getSearchJob(request.params.id);
+
+      if (!job) {
+        // Expired, or the server restarted. Not an error the user can act on,
+        // so say so plainly rather than 500ing.
+        return reply.status(404).send({
+          error: "That Amazon search expired. Run the search again.",
+          code: "SEARCH_JOB_NOT_FOUND",
+        });
+      }
+
+      return {
+        status: job.status,
+        retailer: "amazon",
+        label: RETAILER_LABELS.amazon,
+        products: job.products,
+        message: job.status === "pending" || job.status === "success"
+          ? null
+          : friendlyMessage(job.status),
+        elapsedMs: (job.finishedAt ?? Date.now()) - job.startedAt,
+      };
+    },
+  );
 
   // ---- how many searches do I have left? ----
   // Cheap, unmetered, and safe to poll — the Search screen calls this on focus
@@ -4342,7 +5720,7 @@ export async function notificationRoutes(app: FastifyInstance) {
 
 ### FILE: sweep-backend/src/test-scrapers.ts
 ### PURPOSE: Live smoke test of the self-written scrapers. Run when a retailer tile goes quiet. Costs nothing.
-### LINES: 70
+### LINES: 72
 --- BEGIN sweep-backend/src/test-scrapers.ts ---
 // src/test-scrapers.ts
 //
@@ -4356,9 +5734,10 @@ export async function notificationRoutes(app: FastifyInstance) {
 // Does NOT touch Amazon: that path costs Bright Data quota. Use test-amazon.ts.
 
 import "dotenv/config";
+import { searchAsos } from "./lib/scrapers/asos.js";
 import { searchBestBuy } from "./lib/scrapers/bestbuy.js";
+import { searchNewegg } from "./lib/scrapers/newegg.js";
 import { isEbayConfigured, searchEbay } from "./lib/scrapers/ebay.js";
-import { searchTarget } from "./lib/scrapers/target.js";
 import { scrapeWalmartProduct, searchWalmart } from "./lib/scrapers/walmart.js";
 import type { ScrapeResult, ScrapedProduct } from "./lib/scrapers/types.js";
 
@@ -4388,7 +5767,8 @@ async function main() {
 
   report("walmart", await searchWalmart(keyword, 3));
   report("bestbuy", await searchBestBuy(keyword, 3));
-  report("target", await searchTarget(keyword, 3));
+  report("newegg", await searchNewegg(keyword, 3));
+  report("asos", await searchAsos(keyword, 3));
 
   if (isEbayConfigured()) {
     report("ebay", await searchEbay(keyword, 3));
@@ -4418,7 +5798,7 @@ main().catch(console.error);
 
 ### FILE: sweep-backend/src/test-api.ts
 ### PURPOSE: End-to-end test of the tracking loop against a running server. 29 assertions.
-### LINES: 315
+### LINES: 327
 --- BEGIN sweep-backend/src/test-api.ts ---
 // src/test-api.ts
 //
@@ -4631,11 +6011,23 @@ async function main() {
     threshold.body,
   );
 
+  // A product checked seconds ago is served from the shared cache instead of
+  // being re-scraped, and costs nothing from the manual-check budget.
   const refresh = await call("POST", `/products/${productId}/refresh`);
   check(
-    "refresh is rate-limited right after tracking",
-    refresh.status === 429 && refresh.body?.code === "REFRESH_TOO_SOON",
-    refresh.body,
+    "refresh right after tracking is served fresh, not re-scraped",
+    refresh.status === 200 && refresh.body?.status === "fresh",
+    refresh.body?.status,
+  );
+  check(
+    "a fresh result doesn't spend a manual check",
+    refresh.body?.manualChecks?.used === 0,
+    refresh.body?.manualChecks,
+  );
+  check(
+    "free tier reports 10 manual checks a day",
+    refresh.body?.manualChecks?.limit === 10,
+    refresh.body?.manualChecks,
   );
 
   console.log("\n— track limit —");
@@ -4736,6 +6128,129 @@ main().catch((err) => {
   process.exitCode = 1;
 });
 --- END sweep-backend/src/test-api.ts ---
+
+### FILE: sweep-backend/src/test-notify.ts
+### PURPOSE: Force a price-drop notification without waiting for a real drop.
+### LINES: 117
+--- BEGIN sweep-backend/src/test-notify.ts ---
+// src/test-notify.ts
+//
+// Force a price-drop notification right now, without waiting for a scheduled
+// check or for a retailer to actually change its price.
+//
+//   npm run test:notify              # drop the first tracked product by $50
+//   npm run test:notify -- 25        # ...by $25 instead
+//
+// How it works: it raises the STORED price, then runs a real check. The live
+// price is unchanged, so the check reads as a genuine drop and goes down the
+// exact same path a real one would — including the noise floor, the per-user
+// cooldown, Ultimate thresholds, and dead-token pruning.
+//
+// Note this deliberately does NOT use the app's "Check price now" button:
+// that calls checkProduct() directly and never notifies, because you're already
+// looking at the screen when you press it.
+
+import "dotenv/config";
+import { prisma } from "./lib/prisma.js";
+import { checkProduct } from "./lib/priceChecker.js";
+import { notifyPriceDrop } from "./lib/push.js";
+
+const dropDollars = Number(process.argv[2] ?? 50);
+
+async function main() {
+  const tracked = await prisma.trackedProduct.findFirst({
+    include: { product: true, user: { include: { pushTokens: true } } },
+    orderBy: { addedAt: "desc" },
+  });
+
+  if (!tracked) {
+    console.log("Nothing is being tracked — add a product in the app first.");
+    return;
+  }
+
+  const { product, user } = tracked;
+  console.log(`User:    ${user.email}`);
+  console.log(`Product: ${product.title.slice(0, 56)}`);
+  console.log(`Devices: ${user.pushTokens.length}`);
+
+  if (user.pushTokens.length === 0) {
+    console.log(
+      "\n⚠️  No push tokens registered for this user. Open the app, go to " +
+        "Profile, and tap Enable price alerts first.",
+    );
+    return;
+  }
+
+  // This script clears the cooldown on every run so you can test repeatedly —
+  // which also means running it twice sends twice. Catch the accidental
+  // double-run rather than leaving you wondering why you got two buzzes.
+  if (
+    tracked.lastNotifiedAt &&
+    Date.now() - tracked.lastNotifiedAt.getTime() < 60_000
+  ) {
+    const seconds = Math.round((Date.now() - tracked.lastNotifiedAt.getTime()) / 1000);
+    console.log(
+      `\n⚠️  Already notified ${seconds}s ago. Running again would send a second ` +
+        `notification for the same product.\n    Re-run with --force if that's what you want.`,
+    );
+    if (!process.argv.includes("--force")) return;
+  }
+
+  const inflated = (product.currentPrice ?? 10000) + Math.round(dropDollars * 100);
+
+  await prisma.$transaction([
+    // Pretend the price used to be higher...
+    prisma.product.update({
+      where: { id: product.id },
+      data: { currentPrice: inflated },
+    }),
+    // ...and clear the cooldown so the alert isn't suppressed as a repeat.
+    prisma.trackedProduct.update({
+      where: { id: tracked.id },
+      data: { lastNotifiedAt: null },
+    }),
+  ]);
+
+  console.log(
+    `\nStored price bumped to $${(inflated / 100).toFixed(2)} — re-checking...`,
+  );
+
+  const outcome = await checkProduct(product.id);
+
+  if (outcome.status !== "success") {
+    console.log(`❌ Check failed (${outcome.status}). Can't test the drop path.`);
+    console.log(`   ${outcome.detail?.slice(0, 200)}`);
+    return;
+  }
+
+  const { previousPrice, newPrice } = outcome;
+  console.log(
+    `Check OK: $${((previousPrice ?? 0) / 100).toFixed(2)} → $${((newPrice ?? 0) / 100).toFixed(2)}`,
+  );
+
+  if (newPrice === null || previousPrice === null || newPrice >= previousPrice) {
+    console.log("No drop detected — nothing to notify about.");
+    return;
+  }
+
+  const sent = await notifyPriceDrop({
+    productId: product.id,
+    previousPrice,
+    newPrice,
+  });
+
+  console.log(
+    sent > 0
+      ? `\n✅ Sent to ${sent} device(s). Check your phone.`
+      : "\n⚠️  Nothing sent. Either the drop was under the noise floor " +
+        "(3% / $1), the cooldown is still active, or the token was pruned as dead.",
+  );
+}
+
+main()
+  .catch(console.error)
+  .finally(() => prisma.$disconnect());
+--- END sweep-backend/src/test-notify.ts ---
 
 ### FILE: sweep-backend/src/test-paste.ts
 ### PURPOSE: Paste-a-link flow with the messy URL shapes people actually paste. 10 assertions.
@@ -4984,7 +6499,7 @@ main().catch(console.error);
 
 ### FILE: sweep-backend/docs/INTEGRATIONS.md
 ### PURPOSE: How to obtain every outstanding credential, what each costs, and why Target is blocked.
-### LINES: 399
+### LINES: 408
 --- BEGIN sweep-backend/docs/INTEGRATIONS.md ---
 # Sweep — third-party setup
 
@@ -5184,7 +6699,16 @@ there's no way around it for Android.
    ```
    That's from `app.json` → `android.package`. A mismatch here fails silently
    at delivery time, which is a miserable thing to debug — copy it carefully.
-3. Download **`google-services.json`** and put it in `sweep-app/`.
+3. Download **`google-services.json`** into `sweep-app/`, **and point app.json
+   at it** — dropping the file in the folder does nothing on its own:
+   ```json
+   "android": {
+     "package": "com.anonymous.sweep",
+     "googleServicesFile": "./google-services.json"
+   }
+   ```
+   Skipping this line is what produces *"Unable to get Firebase Messaging
+   instance. Did you configure googleServicesFile path in app config?"*
 4. In Firebase: **Project Settings → Service accounts → Generate new private
    key**. This downloads a JSON file. Keep it out of git.
 5. Upload it to Expo:
@@ -5394,7 +6918,7 @@ The app side needs `EXPO_PUBLIC_API_URL` once the backend isn't on localhost.
 
 ### FILE: sweep-backend/package.json
 ### PURPOSE: Dependencies and scripts.
-### LINES: 41
+### LINES: 42
 --- BEGIN sweep-backend/package.json ---
 {
   "name": "sweep-backend",
@@ -5412,7 +6936,8 @@ The app side needs `EXPO_PUBLIC_API_URL` once the backend isn't on localhost.
     "test:amazon": "tsx src/test-amazon.ts",
     "test:amazon-search": "tsx src/test-amazon-search.ts",
     "test:api": "tsx src/test-api.ts",
-    "test:paste": "tsx src/test-paste.ts"
+    "test:paste": "tsx src/test-paste.ts",
+    "test:notify": "tsx src/test-notify.ts"
   },
   "keywords": [],
   "author": "",
@@ -5556,7 +7081,7 @@ export async function grantBonusSearch(userId: string) {
 
 ### FILE: sweep-app/app/_layout.tsx
 ### PURPOSE: Auth gate driven by onAuthStateChange, plus the user/wallet sync that covers email-confirm and restored-session paths.
-### LINES: 151
+### LINES: 190
 --- BEGIN sweep-app/app/_layout.tsx ---
 // app/_layout.tsx
 //
@@ -5703,8 +7228,47 @@ export default function RootLayout() {
       >
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="auth" />
-        <Stack.Screen name="product/[id]" options={{ headerShown: true }} />
-        <Stack.Screen name="profile" options={{ headerShown: true, presentation: "modal" }} />
+        {/*
+          Header styling lives here rather than only inside each screen. A
+          screen that returns a loading state before rendering its own
+          <Stack.Screen options> would otherwise flash the navigator defaults
+          for that first frame — a white bar titled "product/[id]". Screens
+          still override `title` once their data arrives.
+        */}
+        <Stack.Screen
+          name="product/[id]"
+          options={{
+            headerShown: true,
+            title: "",
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.textPrimary,
+            headerShadowVisible: false,
+            headerTitleStyle: { fontWeight: "800" },
+          }}
+        />
+        <Stack.Screen
+          name="budget"
+          options={{
+            headerShown: true,
+            title: "Budget",
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.textPrimary,
+            headerShadowVisible: false,
+            headerTitleStyle: { fontWeight: "800" },
+          }}
+        />
+        <Stack.Screen
+          name="profile"
+          options={{
+            headerShown: true,
+            presentation: "modal",
+            title: "Profile",
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.textPrimary,
+            headerShadowVisible: false,
+            headerTitleStyle: { fontWeight: "800" },
+          }}
+        />
       </Stack>
     </>
   );
@@ -5804,7 +7368,7 @@ export default function Auth() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Sweep</Text>
-      <Text style={styles.subtitle}>Track prices across every store</Text>
+      <Text style={styles.subtitle}>Your online shopping buddy</Text>
 
       <TextInput
         style={styles.input}
@@ -5838,8 +7402,8 @@ export default function Auth() {
         <Text style={styles.guestButtonText}>Continue as guest</Text>
       </Pressable>
       <Text style={styles.guestNote}>
-        Guests get one multi-store search a day. Tracking and price alerts need
-        an account.
+        Compare prices across Amazon, Walmart, Best Buy, eBay, Newegg and ASOS
+        in one search. Guests get one a day.
       </Text>
     </View>
   );
@@ -5903,25 +7467,31 @@ const styles = StyleSheet.create({
 
 ### FILE: sweep-app/app/(tabs)/_layout.tsx
 ### PURPOSE: Four tabs — Tracking, Search, Deals, Budget — with profile in the header.
-### LINES: 98
+### LINES: 102
 --- BEGIN sweep-app/app/(tabs)/_layout.tsx ---
 // app/(tabs)/_layout.tsx
 //
-// Four tabs for the core loop — Tracking, Search, Deals, Budget — with the
-// profile reachable from the header rather than spending a tab slot on it.
+// Four tabs: Home, Tracking, Search, Deals.
+//
+// Home is the landing screen and the way into everything that doesn't warrant
+// a permanent slot — budget, lists, plan, profile. The tab bar is reserved for
+// the screens you open repeatedly; anything else is a shortcut on Home.
+//
+// Icons are Ionicons (@expo/vector-icons), which ships with Expo as a font
+// rather than a native module, so it needs no rebuild. Outline when inactive,
+// filled when active.
 
 import { Link, Tabs } from "expo-router";
-import { type ColorValue, Pressable, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { type ColorValue, Pressable, StyleSheet, View } from "react-native";
 import { colors, spacing, type } from "@/constants/theme";
 
-/**
- * Text glyphs instead of an icon font. expo-symbols renders SF Symbols on iOS
- * but falls back to Material names on Android, and the starter template's
- * placeholder mapping pointed every tab at the same "code" icon. These read
- * correctly on both platforms with no asset pipeline.
- */
-function TabIcon({ glyph, color }: { glyph: string; color: ColorValue }) {
-  return <Text style={[styles.icon, { color }]}>{glyph}</Text>;
+type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
+
+function tabIcon(active: IoniconName, inactive: IoniconName) {
+  return ({ color, focused }: { color: ColorValue; focused: boolean }) => (
+    <Ionicons name={focused ? active : inactive} size={24} color={color as string} />
+  );
 }
 
 function ProfileButton() {
@@ -5929,7 +7499,7 @@ function ProfileButton() {
     <Link href="/profile" asChild>
       <Pressable hitSlop={12} style={({ pressed }) => pressed && styles.pressed}>
         <View style={styles.profileButton}>
-          <Text style={styles.profileGlyph}>👤</Text>
+          <Ionicons name="person" size={17} color={colors.textSecondary} />
         </View>
       </Pressable>
     </Link>
@@ -5960,29 +7530,29 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
+          title: "Home",
+          tabBarIcon: tabIcon("home", "home-outline"),
+        }}
+      />
+      <Tabs.Screen
+        name="tracking"
+        options={{
           title: "Tracking",
-          tabBarIcon: ({ color }) => <TabIcon glyph="📌" color={color} />,
+          tabBarIcon: tabIcon("bookmark", "bookmark-outline"),
         }}
       />
       <Tabs.Screen
         name="search"
         options={{
           title: "Search",
-          tabBarIcon: ({ color }) => <TabIcon glyph="🔍" color={color} />,
+          tabBarIcon: tabIcon("search", "search-outline"),
         }}
       />
       <Tabs.Screen
         name="deals"
         options={{
           title: "Deals",
-          tabBarIcon: ({ color }) => <TabIcon glyph="🔥" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="budget"
-        options={{
-          title: "Budget",
-          tabBarIcon: ({ color }) => <TabIcon glyph="💰" color={color} />,
+          tabBarIcon: tabIcon("flame", "flame-outline"),
         }}
       />
     </Tabs>
@@ -5990,7 +7560,6 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  icon: { fontSize: 20 },
   profileButton: {
     width: 32,
     height: 32,
@@ -6000,19 +7569,515 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: spacing.md,
   },
-  profileGlyph: { fontSize: 15 },
   pressed: { opacity: 0.6 },
 });
 --- END sweep-app/app/(tabs)/_layout.tsx ---
 
 ### FILE: sweep-app/app/(tabs)/index.tsx
-### PURPOSE: Tracking (home). Sorted by how good a deal each item is right now.
-### LINES: 247
+### PURPOSE: Home — search-led landing page, shortcuts, plan.
+### LINES: 491
 --- BEGIN sweep-app/app/(tabs)/index.tsx ---
 // app/(tabs)/index.tsx
 //
-// Tracking — the home tab. Everything the user is watching, cheapest-first by
-// how good a deal it is right now rather than by when it was added.
+// Home — the landing screen, and the app's pitch in one view.
+//
+// Deliberately led by SEARCH rather than by tracking. Price tracking is a
+// commodity — Keepa and CamelCamelCamel have done it for years — so opening on
+// a list of tracked items would frame Sweep as a worse version of something
+// free. Comparing every store in one query is the part they don't do, so it
+// gets the hero slot and tracking sits below it as a supporting feature.
+
+import { useCallback, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { Loading, Screen, SectionTitle } from "@/components/ui";
+import { colors, radius, spacing, type } from "@/constants/theme";
+import {
+  type TrackedProduct,
+  getNotificationStatus,
+  getQuota,
+  getTrackedProducts,
+} from "@/lib/api";
+import {
+  formatPrice,
+  percentOff,
+  pluralize,
+  retailerColor,
+  retailerLabel,
+} from "@/lib/format";
+
+type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
+
+const TIER_LABEL: Record<string, string> = {
+  free: "Free",
+  pro: "Pro",
+  ultimate: "Ultimate",
+};
+
+export default function HomeScreen() {
+  const router = useRouter();
+
+  const [tracked, setTracked] = useState<TrackedProduct[]>([]);
+  const [tier, setTier] = useState("free");
+  const [searchesLeft, setSearchesLeft] = useState<number | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
+  const [pushOn, setPushOn] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async () => {
+    // Every one of these is allowed to fail independently — Home should still
+    // render something useful if one endpoint is down.
+    const [products, quota, push] = await Promise.all([
+      getTrackedProducts().catch(() => null),
+      getQuota().catch(() => null),
+      getNotificationStatus().catch(() => null),
+    ]);
+
+    if (products) {
+      setTracked(products.tracked);
+    }
+    if (quota) {
+      setTier(quota.tier);
+      setSearchesLeft(quota.quota.remaining);
+      setIsGuest(quota.isGuest);
+    }
+    setPushOn(push?.registered ?? null);
+    setLoading(false);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
+
+  if (loading) return <Loading />;
+
+  // The single most useful fact on this screen: the best deal you're currently
+  // sitting on. If nothing's tracked, that space becomes the call to action.
+  const best = [...tracked]
+    .map((t) => ({ item: t, off: percentOff(t.product.price, t.product.listPrice) ?? 0 }))
+    .sort((a, b) => b.off - a.off)[0];
+
+  return (
+    <Screen>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />
+        }
+      >
+        {/* ---- who we are ---- */}
+        <View style={styles.brand}>
+          <Text style={styles.brandName}>Sweep</Text>
+          <Text style={styles.brandTagline}>Your online shopping buddy</Text>
+        </View>
+
+        {/* ---- the pitch: one search, every store ---- */}
+        <Pressable
+          style={({ pressed }) => [styles.searchHero, pressed && styles.pressed]}
+          onPress={() => router.push("/search")}
+        >
+          <View style={styles.searchHeroTop}>
+            <Ionicons name="search" size={20} color={colors.accent} />
+            <Text style={styles.searchHeroTitle}>What are you shopping for?</Text>
+          </View>
+          <Text style={styles.searchHeroBody}>
+            Search once and see Amazon, Walmart, Best Buy, eBay, Newegg and ASOS
+            side by side — so you know who's actually cheapest before you buy.
+          </Text>
+          <View style={styles.searchHeroFooter}>
+            <View style={styles.storeDots}>
+              {(["amazon", "walmart", "bestbuy", "ebay", "newegg", "asos"] as const).map((r) => (
+                <View
+                  key={r}
+                  style={[styles.storeDot, { backgroundColor: retailerColor(r) }]}
+                />
+              ))}
+            </View>
+            <Text style={styles.searchHeroMeta}>
+              {searchesLeft === null
+                ? "5 stores, one search"
+                : `${pluralize(searchesLeft, "search")} left today`}
+            </Text>
+          </View>
+        </Pressable>
+
+        {/* ---- what you're watching, kept secondary ---- */}
+        {best && best.item.product.price !== null ? (
+          <Pressable
+            style={({ pressed }) => [styles.watchCard, pressed && styles.pressed]}
+            onPress={() => router.push(`/product/${best.item.product.id}`)}
+          >
+            <View style={styles.watchLeft}>
+              <Text style={styles.watchLabel}>
+                {best.off >= 20 ? "BIGGEST DROP YOU'RE WATCHING" : "YOU'RE WATCHING"}
+              </Text>
+              <Text style={styles.watchTitle} numberOfLines={1}>
+                {best.item.product.title}
+              </Text>
+              <View style={styles.watchPriceRow}>
+                <Text style={styles.watchPrice}>
+                  {formatPrice(best.item.product.price)}
+                </Text>
+                {best.off > 0 && (
+                  <Text style={styles.watchOff}>{best.off}% off</Text>
+                )}
+                <Text style={styles.watchRetailer}>
+                  {retailerLabel(best.item.product.retailer)}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+          </Pressable>
+        ) : (
+          <Pressable
+            style={({ pressed }) => [styles.watchEmpty, pressed && styles.pressed]}
+            onPress={() => router.push("/tracking")}
+          >
+            <Ionicons name="pricetag-outline" size={18} color={colors.textSecondary} />
+            <Text style={styles.watchEmptyText}>
+              Found something? Paste its link to watch the price.
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </Pressable>
+        )}
+
+        {/* ---- things that need fixing ---- */}
+        {(pushOn === false || isGuest) && (
+          <View style={styles.section}>
+            <SectionTitle>Needs attention</SectionTitle>
+
+            {isGuest && (
+              <ActionCard
+                icon="person-add-outline"
+                tone="accent"
+                title="Create an account"
+                body="Guests get one search a day and can't track prices."
+                onPress={() => router.push("/auth")}
+              />
+            )}
+
+            {pushOn === false && !isGuest && (
+              <ActionCard
+                icon="notifications-off-outline"
+                tone="warning"
+                title="Price alerts are off"
+                body="You won't hear about a drop while it's still live."
+                onPress={() => router.push("/profile")}
+              />
+            )}
+          </View>
+        )}
+
+        {/* ---- everything that isn't a tab ---- */}
+        <View style={styles.section}>
+          <SectionTitle>Shortcuts</SectionTitle>
+          <View style={styles.shortcutGrid}>
+            <Shortcut
+              icon="wallet-outline"
+              label="Budget"
+              hint="Track spending"
+              onPress={() => router.push("/budget")}
+            />
+            <Shortcut icon="list-outline" label="Lists" hint="Gift & wishlists" soon />
+            <Shortcut icon="trophy-outline" label="Leaderboard" hint="XP & ranks" soon />
+            <Shortcut
+              icon="person-circle-outline"
+              label="Profile"
+              hint="Account & stores"
+              onPress={() => router.push("/profile")}
+            />
+          </View>
+        </View>
+
+        {/* ---- plan ---- */}
+        <Pressable
+          style={({ pressed }) => [styles.planCard, pressed && styles.pressed]}
+          onPress={() => router.push("/profile")}
+        >
+          <View style={styles.planLeft}>
+            <Text style={styles.planLabel}>YOUR PLAN</Text>
+            <Text style={styles.planTier}>{TIER_LABEL[tier] ?? "Free"}</Text>
+          </View>
+          {tier === "free" ? (
+            <View style={styles.upgradePill}>
+              <Text style={styles.upgradeText}>See upgrades</Text>
+            </View>
+          ) : (
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+          )}
+        </Pressable>
+      </ScrollView>
+    </Screen>
+  );
+}
+
+function ActionCard({
+  icon,
+  title,
+  body,
+  tone,
+  onPress,
+}: {
+  icon: IoniconName;
+  title: string;
+  body: string;
+  tone: "accent" | "warning";
+  onPress: () => void;
+}) {
+  const accentColor = tone === "warning" ? colors.warning : colors.accent;
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.actionCard,
+        { borderColor: accentColor },
+        pressed && styles.pressed,
+      ]}
+      onPress={onPress}
+    >
+      <Ionicons name={icon} size={20} color={accentColor} />
+      <View style={styles.actionText}>
+        <Text style={styles.actionTitle}>{title}</Text>
+        <Text style={styles.actionBody}>{body}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+    </Pressable>
+  );
+}
+
+function Shortcut({
+  icon,
+  label,
+  hint,
+  onPress,
+  soon,
+}: {
+  icon: IoniconName;
+  label: string;
+  hint: string;
+  onPress?: () => void;
+  soon?: boolean;
+}) {
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.shortcut,
+        soon && styles.shortcutSoon,
+        pressed && !soon && styles.pressed,
+      ]}
+      onPress={onPress}
+      disabled={soon}
+    >
+      <Ionicons
+        name={icon}
+        size={22}
+        color={soon ? colors.textTertiary : colors.accent}
+      />
+      <Text style={[styles.shortcutLabel, soon && styles.shortcutLabelSoon]}>{label}</Text>
+      <Text style={styles.shortcutHint}>{soon ? "Coming soon" : hint}</Text>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  content: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xxl },
+  pressed: { opacity: 0.75 },
+
+  brand: { gap: 1 },
+  brandName: {
+    color: colors.textPrimary,
+    fontSize: type.display.fontSize,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+  },
+  brandTagline: {
+    color: colors.accent,
+    fontSize: type.body.fontSize,
+    fontWeight: "600",
+  },
+
+  searchHero: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.accentMuted,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  searchHeroTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  searchHeroTitle: {
+    color: colors.textPrimary,
+    fontSize: type.heading.fontSize,
+    fontWeight: "800",
+    flex: 1,
+  },
+  searchHeroBody: {
+    color: colors.textSecondary,
+    fontSize: type.label.fontSize,
+    lineHeight: 19,
+  },
+  searchHeroFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: spacing.xs,
+  },
+  storeDots: { flexDirection: "row", gap: 5 },
+  storeDot: { width: 9, height: 9, borderRadius: radius.pill },
+  searchHeroMeta: {
+    color: colors.textTertiary,
+    fontSize: type.caption.fontSize,
+    fontWeight: "600",
+  },
+
+  watchCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    padding: spacing.md,
+  },
+  watchLeft: { flex: 1, gap: 2 },
+  watchLabel: {
+    color: colors.textTertiary,
+    fontSize: type.caption.fontSize,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  watchTitle: {
+    color: colors.textPrimary,
+    fontSize: type.body.fontSize,
+    fontWeight: "600",
+  },
+  watchPriceRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: spacing.sm,
+    marginTop: 1,
+  },
+  watchPrice: { color: colors.textPrimary, fontSize: 17, fontWeight: "800" },
+  watchOff: {
+    color: colors.success,
+    fontSize: type.caption.fontSize,
+    fontWeight: "800",
+  },
+  watchRetailer: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+
+  watchEmpty: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    borderStyle: "dashed",
+    padding: spacing.md,
+  },
+  watchEmptyText: {
+    color: colors.textSecondary,
+    fontSize: type.label.fontSize,
+    flex: 1,
+  },
+
+  section: { gap: spacing.xs },
+
+  actionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  actionText: { flex: 1, gap: 1 },
+  actionTitle: {
+    color: colors.textPrimary,
+    fontSize: type.body.fontSize,
+    fontWeight: "700",
+  },
+  actionBody: { color: colors.textSecondary, fontSize: type.caption.fontSize },
+
+  shortcutGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  shortcut: {
+    // Two per row, accounting for the gap between them.
+    width: "48%",
+    flexGrow: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    padding: spacing.md,
+    gap: 2,
+  },
+  shortcutSoon: { opacity: 0.55 },
+  shortcutLabel: {
+    color: colors.textPrimary,
+    fontSize: type.body.fontSize,
+    fontWeight: "700",
+    marginTop: spacing.xs,
+  },
+  shortcutLabelSoon: { color: colors.textSecondary },
+  shortcutHint: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+
+  planCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    padding: spacing.md,
+  },
+  planLeft: { gap: 2 },
+  planLabel: {
+    color: colors.textTertiary,
+    fontSize: type.caption.fontSize,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+  },
+  planTier: {
+    color: colors.textPrimary,
+    fontSize: type.heading.fontSize,
+    fontWeight: "800",
+  },
+  upgradePill: {
+    backgroundColor: colors.accentMuted,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+  },
+  upgradeText: {
+    color: colors.accent,
+    fontSize: type.caption.fontSize,
+    fontWeight: "800",
+  },
+});
+--- END sweep-app/app/(tabs)/index.tsx ---
+
+### FILE: sweep-app/app/(tabs)/tracking.tsx
+### PURPOSE: Everything being watched, best-deal first.
+### LINES: 247
+--- BEGIN sweep-app/app/(tabs)/tracking.tsx ---
+// app/(tabs)/tracking.tsx
+//
+// Everything the user is watching, sorted by how good a deal each one is right
+// now rather than by when it was added.
 
 import { useCallback, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
@@ -6256,11 +8321,11 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
 });
---- END sweep-app/app/(tabs)/index.tsx ---
+--- END sweep-app/app/(tabs)/tracking.tsx ---
 
 ### FILE: sweep-app/app/(tabs)/search.tsx
 ### PURPOSE: Compiled multi-site search, grouped by retailer, with the quota counter.
-### LINES: 320
+### LINES: 494
 --- BEGIN sweep-app/app/(tabs)/search.tsx ---
 // app/(tabs)/search.tsx
 //
@@ -6274,9 +8339,11 @@ const styles = StyleSheet.create({
 // genuinely scarce resource, and a user should never spend their last one
 // without knowing it was their last one.
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Linking,
+  ScrollView,
   SectionList,
   StyleSheet,
   Text,
@@ -6284,15 +8351,18 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
+import HighlightCard from "@/components/HighlightCard";
 import ProductCard from "@/components/ProductCard";
 import { Button, EmptyState, ErrorBanner, Loading, Screen } from "@/components/ui";
 import { colors, radius, spacing, type } from "@/constants/theme";
 import {
   ApiError,
+  type Highlight,
   type Quota,
   type RetailerResult,
   type SearchProduct,
   claimRewardedSearch,
+  getAmazonSearchResult,
   getQuota,
   search as runSearch,
 } from "@/lib/api";
@@ -6301,10 +8371,15 @@ import { pluralize, retailerColor } from "@/lib/format";
 interface Section {
   title: string;
   retailer: string;
-  status: RetailerResult["status"];
+  status: RetailerResult["status"] | "pending";
   message: string | null;
   data: SearchProduct[];
 }
+
+/** How often to ask whether Amazon has finished. */
+const AMAZON_POLL_MS = 4000;
+/** Give up after this. Bright Data's free tier can genuinely take ~3 minutes. */
+const AMAZON_MAX_WAIT_MS = 210_000;
 
 export default function SearchScreen() {
   const router = useRouter();
@@ -6316,6 +8391,13 @@ export default function SearchScreen() {
   const [isGuest, setIsGuest] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [amazonJobId, setAmazonJobId] = useState<string | null>(null);
+  const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const [skipped, setSkipped] = useState<{ retailer: string; label: string }[]>([]);
+
+  // Bumped on each new search so an in-flight poll from the previous one can
+  // tell it's stale and stop writing results into the current view.
+  const searchGeneration = useRef(0);
 
   // useFocusEffect, not useEffect: the quota changes while the user is on other
   // screens (it resets at midnight, and tracking flows can spend one), so the
@@ -6348,19 +8430,42 @@ export default function SearchScreen() {
     setSearching(true);
     setError(null);
     setNotice(null);
+    searchGeneration.current += 1;
+    setAmazonJobId(null);
+    setHighlights([]);
+    setSkipped([]);
 
     try {
       const response = await runSearch(trimmed);
       setQuota(response.quota);
+
+      const fast: Section[] = response.results.map((result) => ({
+        title: result.label,
+        retailer: result.retailer,
+        status: result.status,
+        message: result.message,
+        data: result.products,
+      }));
+
+      // Amazon goes last and starts as pending — it's fetched out-of-band
+      // because Bright Data's free tier can take minutes.
+      setHighlights(response.highlights);
+      setSkipped(response.skipped);
       setSections(
-        response.results.map((result) => ({
-          title: result.label,
-          retailer: result.retailer,
-          status: result.status,
-          message: result.message,
-          data: result.products,
-        })),
+        response.amazonJobId
+          ? [
+              ...fast,
+              {
+                title: "Amazon",
+                retailer: "amazon",
+                status: "pending",
+                message: null,
+                data: [],
+              },
+            ]
+          : fast,
       );
+      setAmazonJobId(response.amazonJobId);
     } catch (err) {
       const apiError = err as ApiError;
       setError(apiError.message);
@@ -6371,6 +8476,71 @@ export default function SearchScreen() {
       setSearching(false);
     }
   }
+
+  // Poll the Amazon leg until it lands, fails, or we give up. Runs as an
+  // effect so it's torn down on unmount and on every new search.
+  useEffect(() => {
+    if (!amazonJobId) return;
+
+    const generation = searchGeneration.current;
+    const startedAt = Date.now();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false;
+
+    function finish(status: Section["status"], products: SearchProduct[], message: string | null) {
+      // A stale poll must not overwrite results from a newer search.
+      if (stopped || searchGeneration.current !== generation) return;
+      setSections((current) =>
+        (current ?? []).map((section) =>
+          section.retailer === "amazon"
+            ? { ...section, status, data: products, message }
+            : section,
+        ),
+      );
+      setAmazonJobId(null);
+    }
+
+    async function poll() {
+      if (stopped || searchGeneration.current !== generation) return;
+
+      try {
+        const result = await getAmazonSearchResult(amazonJobId!);
+
+        if (result.status === "pending") {
+          if (Date.now() - startedAt > AMAZON_MAX_WAIT_MS) {
+            finish("failed", [], "Amazon took too long — try again later.");
+            return;
+          }
+          timer = setTimeout(poll, AMAZON_POLL_MS);
+          return;
+        }
+
+        finish(
+          result.status === "success" ? "success" : result.status,
+          result.products,
+          result.message,
+        );
+      } catch (err) {
+        const apiError = err as ApiError;
+        // A dropped job (server restart) or a network blip — either way there's
+        // nothing to keep waiting for.
+        finish(
+          "failed",
+          [],
+          apiError.code === "SEARCH_JOB_NOT_FOUND"
+            ? "Amazon results expired — search again."
+            : "Couldn't load Amazon results.",
+        );
+      }
+    }
+
+    timer = setTimeout(poll, AMAZON_POLL_MS);
+
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [amazonJobId]);
 
   async function onWatchAd() {
     try {
@@ -6459,14 +8629,56 @@ export default function SearchScreen() {
           keyExtractor={(item) => `${item.retailer}:${item.retailerId}`}
           contentContainerStyle={styles.list}
           stickySectionHeadersEnabled={false}
+          // Amazon's section is empty while pending, and its header is the only
+          // thing telling the user it's still coming.
+          renderSectionFooter={undefined}
           keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={
+            <>
+              {highlights.length > 0 && (
+                <View style={styles.highlightBlock}>
+                  <Text style={styles.highlightHeading}>Top picks</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.highlightRow}
+                  >
+                    {highlights.map((h) => (
+                      <HighlightCard
+                        key={`${h.kind}:${h.product.retailer}:${h.product.retailerId}`}
+                        highlight={h}
+                        onPress={() => Linking.openURL(h.product.url)}
+                      />
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+              {skipped.length > 0 && (
+                <Text style={styles.skippedNote}>
+                  Skipped {skipped.map((s) => s.label).join(", ")} — they don't sell
+                  this kind of thing.
+                </Text>
+              )}
+              {sections.length > 0 && (
+                <Text style={styles.byStoreHeading}>By store</Text>
+              )}
+            </>
+          }
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader}>
               <View
                 style={[styles.sectionDot, { backgroundColor: retailerColor(section.retailer) }]}
               />
               <Text style={styles.sectionTitle}>{section.title}</Text>
-              {section.status !== "success" && (
+              {section.status === "pending" && (
+                <View style={styles.pendingRow}>
+                  <ActivityIndicator size="small" color={colors.textSecondary} />
+                  <Text style={styles.sectionStatus}>
+                    still loading — can take up to 3 min
+                  </Text>
+                </View>
+              )}
+              {section.status !== "success" && section.status !== "pending" && (
                 <Text style={styles.sectionStatus}>{section.message}</Text>
               )}
               {section.status === "success" && section.data.length === 0 && (
@@ -6484,6 +8696,8 @@ export default function SearchScreen() {
                 imageUrl={item.imageUrl}
                 rating={item.rating}
                 ratingCount={item.ratingCount}
+                sellerRating={item.sellerRating}
+                sellerRatingCount={item.sellerRatingCount}
                 // Search is for comparing who's cheapest. Tracking happens by
                 // pasting a link on the Tracking tab, which costs no quota.
                 action={
@@ -6579,6 +8793,31 @@ const styles = StyleSheet.create({
     fontSize: type.caption.fontSize,
     flex: 1,
   },
+  pendingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    flex: 1,
+  },
+  highlightBlock: { gap: spacing.sm, marginTop: spacing.sm },
+  highlightHeading: {
+    color: colors.textPrimary,
+    fontSize: type.heading.fontSize,
+    fontWeight: "800",
+  },
+  highlightRow: { gap: spacing.sm, paddingRight: spacing.md, paddingBottom: 2 },
+  skippedNote: {
+    color: colors.textTertiary,
+    fontSize: type.caption.fontSize,
+    marginTop: spacing.md,
+    lineHeight: 15,
+  },
+  byStoreHeading: {
+    color: colors.textPrimary,
+    fontSize: type.heading.fontSize,
+    fontWeight: "800",
+    marginTop: spacing.lg,
+  },
   cardWrap: { marginBottom: spacing.sm },
   footerSpace: { height: spacing.xl },
 });
@@ -6595,6 +8834,7 @@ const styles = StyleSheet.create({
 // change log in sweep-backend/src/lib/scheduler.ts), so this becomes a real
 // screen once the feed endpoint lands.
 
+import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
 import { Screen } from "@/components/ui";
 import { colors, radius, spacing, type } from "@/constants/theme";
@@ -6603,7 +8843,7 @@ export default function DealsScreen() {
   return (
     <Screen>
       <View style={styles.container}>
-        <Text style={styles.glyph}>🔥</Text>
+        <Ionicons name="flame-outline" size={44} color={colors.textTertiary} />
         <Text style={styles.title}>Best Deals Found</Text>
         <Text style={styles.body}>
           When any tracked product drops well below its historical average, it
@@ -6626,7 +8866,6 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     gap: spacing.sm,
   },
-  glyph: { fontSize: 44 },
   title: { color: colors.textPrimary, fontSize: type.title.fontSize, fontWeight: "800" },
   body: {
     color: colors.textSecondary,
@@ -6645,16 +8884,17 @@ const styles = StyleSheet.create({
 });
 --- END sweep-app/app/(tabs)/deals.tsx ---
 
-### FILE: sweep-app/app/(tabs)/budget.tsx
-### PURPOSE: Budget tracker — placeholder, next pass.
+### FILE: sweep-app/app/budget.tsx
+### PURPOSE: Budget tracker — placeholder, reached from the Home shortcut.
 ### LINES: 58
---- BEGIN sweep-app/app/(tabs)/budget.tsx ---
+--- BEGIN sweep-app/app/budget.tsx ---
 // app/(tabs)/budget.tsx
 //
 // Budget tracker — manual expense logging, categorised, with a monthly view.
 // Scheduled for the next pass. The BudgetEntry model it writes to already
 // exists in the Prisma schema; what's missing is its endpoints and this screen.
 
+import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
 import { Screen } from "@/components/ui";
 import { colors, radius, spacing, type } from "@/constants/theme";
@@ -6663,7 +8903,7 @@ export default function BudgetScreen() {
   return (
     <Screen>
       <View style={styles.container}>
-        <Text style={styles.glyph}>💰</Text>
+        <Ionicons name="wallet-outline" size={44} color={colors.textTertiary} />
         <Text style={styles.title}>Budget Tracker</Text>
         <Text style={styles.body}>
           Log what you spend, sort it into categories, and see where the month
@@ -6685,7 +8925,6 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     gap: spacing.sm,
   },
-  glyph: { fontSize: 44 },
   title: { color: colors.textPrimary, fontSize: type.title.fontSize, fontWeight: "800" },
   body: {
     color: colors.textSecondary,
@@ -6707,7 +8946,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
 });
---- END sweep-app/app/(tabs)/budget.tsx ---
+--- END sweep-app/app/budget.tsx ---
 
 
 --------------------------------------------------------------------------------
@@ -6716,7 +8955,7 @@ const styles = StyleSheet.create({
 
 ### FILE: sweep-app/app/product/[id].tsx
 ### PURPOSE: Product detail: price, history chart, low/avg/high, and the buy-or-wait verdict.
-### LINES: 302
+### LINES: 321
 --- BEGIN sweep-app/app/product/[id].tsx ---
 // app/product/[id].tsx
 //
@@ -6740,7 +8979,9 @@ import { Button, ErrorBanner, Loading, Screen, SectionTitle, Stat } from "@/comp
 import { colors, radius, spacing, type } from "@/constants/theme";
 import {
   ApiError,
+  type ManualCheckState,
   type ProductDetail,
+  getManualChecks,
   getProductDetail,
   refreshProduct,
   trackProduct,
@@ -6764,6 +9005,7 @@ export default function ProductDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [manualChecks, setManualChecks] = useState<ManualCheckState | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -6772,6 +9014,13 @@ export default function ProductDetailScreen() {
       setError(null);
     } catch (err) {
       setError((err as ApiError).message);
+    }
+    // Separate call, and deliberately not fatal: the budget is a nicety on the
+    // button label, and failing to read it shouldn't blank the whole screen.
+    try {
+      setManualChecks((await getManualChecks()).manualChecks);
+    } catch {
+      // ignore
     }
   }, [id]);
 
@@ -6794,16 +9043,20 @@ export default function ProductDetailScreen() {
     setBusy(true);
     setNotice(null);
     try {
-      await refreshProduct(id);
+      const result = await refreshProduct(id);
+      setManualChecks(result.manualChecks);
       await load();
-      setNotice("Price checked just now.");
+      setNotice(
+        result.status === "fresh"
+          ? "Already up to date — checked moments ago."
+          : "Price checked just now.",
+      );
     } catch (err) {
       const apiError = err as ApiError;
-      setNotice(
-        apiError.code === "REFRESH_TOO_SOON"
-          ? "Already checked in the last few minutes."
-          : apiError.message,
-      );
+      // The server sends the remaining budget alongside the refusal, so the
+      // counter stays right even when the tap was rejected.
+      if (apiError.body?.manualChecks) setManualChecks(apiError.body.manualChecks);
+      setNotice(apiError.message);
     } finally {
       setBusy(false);
     }
@@ -6849,14 +9102,8 @@ export default function ProductDetailScreen() {
 
   return (
     <Screen>
-      <Stack.Screen
-        options={{
-          title: retailerLabel(product.retailer),
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.textPrimary,
-          headerShadowVisible: false,
-        }}
-      />
+      {/* Styling comes from the root layout; only the title is dynamic. */}
+      <Stack.Screen options={{ title: retailerLabel(product.retailer) }} />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -6935,7 +9182,12 @@ export default function ProductDetailScreen() {
         {notice && <Text style={styles.notice}>{notice}</Text>}
 
         <View style={styles.actions}>
-          <Button label="Check price now" onPress={onCheckNow} busy={busy} variant="secondary" />
+          <Button
+            label={manualCheckLabel(manualChecks)}
+            onPress={onCheckNow}
+            busy={busy}
+            variant="secondary"
+          />
           <Button
             label={`Open on ${retailerLabel(product.retailer)}`}
             onPress={() => Linking.openURL(product.url)}
@@ -6951,6 +9203,12 @@ export default function ProductDetailScreen() {
       </ScrollView>
     </Screen>
   );
+}
+
+/** Fold the remaining budget into the button so it isn't a surprise. */
+function manualCheckLabel(state: ManualCheckState | null) {
+  if (!state || state.remaining === null) return "Check price now";
+  return `Check price now (${state.remaining} left today)`;
 }
 
 const styles = StyleSheet.create({
@@ -7024,7 +9282,7 @@ const styles = StyleSheet.create({
 
 ### FILE: sweep-app/app/profile.tsx
 ### PURPOSE: Account, plan, live retailer status board, sign out.
-### LINES: 264
+### LINES: 255
 --- BEGIN sweep-app/app/profile.tsx ---
 // app/profile.tsx
 //
@@ -7034,7 +9292,7 @@ const styles = StyleSheet.create({
 
 import { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { Stack, useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Button, Loading, Screen, SectionTitle } from "@/components/ui";
 import { colors, radius, spacing, type } from "@/constants/theme";
 import { getNotificationStatus, getQuota, getRetailerStatus } from "@/lib/api";
@@ -7137,15 +9395,6 @@ export default function ProfileScreen() {
 
   return (
     <Screen>
-      <Stack.Screen
-        options={{
-          title: "Profile",
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.textPrimary,
-          headerShadowVisible: false,
-        }}
-      />
-
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.card}>
           <Text style={styles.label}>Account</Text>
@@ -7343,9 +9592,502 @@ const styles = StyleSheet.create({
   2.4  Components
 --------------------------------------------------------------------------------
 
+### FILE: sweep-app/components/TrackProductModal.tsx
+### PURPOSE: Confirm-before-track sheet with the check-time picker.
+### LINES: 370
+--- BEGIN sweep-app/components/TrackProductModal.tsx ---
+// components/TrackProductModal.tsx
+//
+// Confirm-before-track. A pasted link is scraped first and shown here, so the
+// user can check it's the right item — and pick when it gets checked — before
+// spending one of their tracking slots on it.
+
+import { useState } from "react";
+import {
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { Button } from "@/components/ui";
+import { colors, radius, spacing, type } from "@/constants/theme";
+import type { ProductPreview } from "@/lib/api";
+import {
+  formatPrice,
+  formatRating,
+  percentOff,
+  retailerColor,
+  retailerLabel,
+} from "@/lib/format";
+
+interface Props {
+  preview: ProductPreview | null;
+  busy?: boolean;
+  error?: string | null;
+  onCancel: () => void;
+  onConfirm: (checkHours: number[]) => void;
+}
+
+export default function TrackProductModal({
+  preview,
+  busy,
+  error,
+  onCancel,
+  onConfirm,
+}: Props) {
+  // Seeded from the account's current schedule, so the common case is just
+  // confirming rather than re-picking every time.
+  const [hours, setHours] = useState<number[]>(preview?.schedule.checkHours ?? [9, 21]);
+  const [seededFor, setSeededFor] = useState<string | null>(null);
+
+  // Re-seed when a different product is previewed.
+  if (preview && seededFor !== preview.product.id) {
+    setSeededFor(preview.product.id);
+    setHours(preview.schedule.checkHours);
+  }
+
+  if (!preview) return null;
+
+  const { product, limits, alreadyTracking } = preview;
+  const discount = percentOff(product.price, product.listPrice);
+  const ratingText = formatRating(product.rating, product.ratingCount);
+  const maxTimes = limits.checkTimesPerDay;
+
+  function toggleHour(hour: number) {
+    setHours((current) => {
+      if (current.includes(hour)) {
+        // Never let them empty it — a product with no check times is a product
+        // that silently never updates.
+        return current.length === 1 ? current : current.filter((h) => h !== hour);
+      }
+      if (current.length >= maxTimes) {
+        // At the cap, replace the oldest pick so tapping always does something
+        // rather than silently doing nothing.
+        return [...current.slice(1), hour].sort((a, b) => a - b);
+      }
+      return [...current, hour].sort((a, b) => a - b);
+    });
+  }
+
+  const canConfirm = limits.canTrack && !busy;
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onCancel}>
+      <View style={styles.backdrop}>
+        <View style={styles.sheet}>
+          <View style={styles.grabber} />
+
+          <ScrollView contentContainerStyle={styles.content}>
+            <Text style={styles.heading}>
+              {alreadyTracking ? "Already tracking this" : "Track this product?"}
+            </Text>
+
+            <View style={styles.productRow}>
+              {product.imageUrl ? (
+                <Image
+                  source={{ uri: product.imageUrl }}
+                  style={styles.image}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={[styles.image, styles.imageEmpty]} />
+              )}
+
+              <View style={styles.productInfo}>
+                <View style={styles.retailerRow}>
+                  <View
+                    style={[
+                      styles.retailerDot,
+                      { backgroundColor: retailerColor(product.retailer) },
+                    ]}
+                  />
+                  <Text style={styles.retailer}>{retailerLabel(product.retailer)}</Text>
+                  {ratingText && <Text style={styles.rating}>{ratingText}</Text>}
+                </View>
+
+                <Text style={styles.title} numberOfLines={3}>
+                  {product.title}
+                </Text>
+
+                <View style={styles.priceRow}>
+                  <Text style={styles.price}>{formatPrice(product.price)}</Text>
+                  {product.listPrice !== null && discount !== null && (
+                    <>
+                      <Text style={styles.listPrice}>{formatPrice(product.listPrice)}</Text>
+                      <View style={styles.discountPill}>
+                        <Text style={styles.discountText}>{discount}% off</Text>
+                      </View>
+                    </>
+                  )}
+                </View>
+              </View>
+            </View>
+
+            {limits.fixedCheckTimes ? (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>
+                  When should Sweep check the price?
+                </Text>
+                <Text style={styles.sectionHint}>
+                  Your plan checks {maxTimes} {maxTimes === 1 ? "time" : "times"} a
+                  day. Times are in your local timezone.
+                </Text>
+
+                <View style={styles.hourGrid}>
+                  {Array.from({ length: 24 }, (_, hour) => {
+                    const selected = hours.includes(hour);
+                    return (
+                      <Pressable
+                        key={hour}
+                        onPress={() => toggleHour(hour)}
+                        style={({ pressed }) => [
+                          styles.hourChip,
+                          selected && styles.hourChipSelected,
+                          pressed && styles.hourChipPressed,
+                        ]}
+                      >
+                        <Text
+                          style={[styles.hourText, selected && styles.hourTextSelected]}
+                        >
+                          {formatHourLabel(hour)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <Text style={styles.selectedSummary}>
+                  Checking at {hours.map(formatHourLabel).join(" and ")}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Check frequency</Text>
+                <Text style={styles.sectionHint}>
+                  Your plan checks automatically every{" "}
+                  {limits.checkIntervalMinutes >= 60
+                    ? `${limits.checkIntervalMinutes / 60} hour${limits.checkIntervalMinutes === 60 ? "" : "s"}`
+                    : `${limits.checkIntervalMinutes} minutes`}
+                  . Nothing to set.
+                </Text>
+              </View>
+            )}
+
+            <Text style={styles.slots}>
+              {limits.used} of {limits.maxTrackedProducts} tracking slots used
+            </Text>
+
+            {!limits.canTrack && (
+              <Text style={styles.blocked}>
+                You've filled every slot on your plan. Remove something you're
+                tracking to make room.
+              </Text>
+            )}
+
+            {error && <Text style={styles.error}>{error}</Text>}
+          </ScrollView>
+
+          <View style={styles.actions}>
+            <View style={styles.actionSlot}>
+              <Button
+                label="Cancel"
+                onPress={onCancel}
+                variant="secondary"
+                disabled={busy}
+              />
+            </View>
+            <View style={styles.actionSlot}>
+              <Button
+                label={alreadyTracking ? "Update times" : "Track it"}
+                onPress={() => onConfirm(hours)}
+                busy={busy}
+                disabled={!canConfirm}
+              />
+            </View>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/** 0 -> "12 AM", 13 -> "1 PM" */
+function formatHourLabel(hour: number) {
+  const suffix = hour < 12 ? "AM" : "PM";
+  const display = hour % 12 === 0 ? 12 : hour % 12;
+  return `${display} ${suffix}`;
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    maxHeight: "88%",
+    borderTopWidth: 1,
+    borderColor: colors.surfaceBorder,
+  },
+  grabber: {
+    alignSelf: "center",
+    width: 38,
+    height: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceBorder,
+    marginTop: spacing.sm,
+  },
+  content: { padding: spacing.md, gap: spacing.md },
+  heading: {
+    color: colors.textPrimary,
+    fontSize: type.title.fontSize,
+    fontWeight: "800",
+  },
+  productRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    padding: spacing.md,
+  },
+  image: {
+    width: 84,
+    height: 84,
+    borderRadius: radius.sm,
+    backgroundColor: "#FFFFFF",
+  },
+  imageEmpty: { backgroundColor: colors.surfaceRaised },
+  productInfo: { flex: 1, gap: 3 },
+  retailerRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  retailerDot: { width: 7, height: 7, borderRadius: radius.pill },
+  retailer: {
+    color: colors.textSecondary,
+    fontSize: type.caption.fontSize,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  rating: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+  title: {
+    color: colors.textPrimary,
+    fontSize: type.body.fontSize,
+    fontWeight: "600",
+    lineHeight: 19,
+  },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: spacing.xs,
+    marginTop: 2,
+    flexWrap: "wrap",
+  },
+  price: { color: colors.textPrimary, fontSize: 20, fontWeight: "900" },
+  listPrice: {
+    color: colors.textTertiary,
+    fontSize: type.label.fontSize,
+    textDecorationLine: "line-through",
+  },
+  discountPill: {
+    backgroundColor: colors.accentMuted,
+    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  discountText: {
+    color: colors.accent,
+    fontSize: type.caption.fontSize,
+    fontWeight: "800",
+  },
+  section: { gap: spacing.xs },
+  sectionTitle: {
+    color: colors.textPrimary,
+    fontSize: type.heading.fontSize,
+    fontWeight: "700",
+  },
+  sectionHint: {
+    color: colors.textSecondary,
+    fontSize: type.label.fontSize,
+    lineHeight: 18,
+  },
+  hourGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  hourChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    minWidth: 58,
+    alignItems: "center",
+  },
+  hourChipSelected: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  hourChipPressed: { opacity: 0.7 },
+  hourText: {
+    color: colors.textSecondary,
+    fontSize: type.caption.fontSize,
+    fontWeight: "700",
+  },
+  hourTextSelected: { color: colors.background },
+  selectedSummary: {
+    color: colors.accent,
+    fontSize: type.label.fontSize,
+    fontWeight: "700",
+    marginTop: spacing.xs,
+  },
+  slots: { color: colors.textTertiary, fontSize: type.label.fontSize },
+  blocked: {
+    color: colors.warning,
+    fontSize: type.label.fontSize,
+    lineHeight: 18,
+  },
+  error: { color: colors.danger, fontSize: type.label.fontSize },
+  actions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceBorder,
+  },
+  actionSlot: { flex: 1 },
+});
+--- END sweep-app/components/TrackProductModal.tsx ---
+
+### FILE: sweep-app/components/HighlightCard.tsx
+### PURPOSE: One top pick from a compiled search.
+### LINES: 111
+--- BEGIN sweep-app/components/HighlightCard.tsx ---
+// components/HighlightCard.tsx
+//
+// One "top pick" from a compiled search — cheapest, best reviewed, or biggest
+// drop. Sits above the per-store columns to answer the question most people
+// actually came with, instead of making them scan twenty rows.
+
+import { Ionicons } from "@expo/vector-icons";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { colors, radius, spacing, type } from "@/constants/theme";
+import type { Highlight } from "@/lib/api";
+import { formatPrice, retailerColor, retailerLabel } from "@/lib/format";
+
+type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
+
+const ICONS: Record<Highlight["kind"], IoniconName> = {
+  cheapest: "pricetag",
+  best_rated: "star",
+  biggest_discount: "trending-down",
+};
+
+export default function HighlightCard({
+  highlight,
+  onPress,
+}: {
+  highlight: Highlight;
+  onPress: () => void;
+}) {
+  const { product, label, reason, kind } = highlight;
+
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      onPress={onPress}
+    >
+      <View style={styles.badgeRow}>
+        <Ionicons name={ICONS[kind]} size={13} color={colors.accent} />
+        <Text style={styles.badge}>{label.toUpperCase()}</Text>
+      </View>
+
+      {product.imageUrl ? (
+        <Image source={{ uri: product.imageUrl }} style={styles.image} resizeMode="contain" />
+      ) : (
+        <View style={[styles.image, styles.imageEmpty]} />
+      )}
+
+      <Text style={styles.title} numberOfLines={2}>
+        {product.title}
+      </Text>
+
+      <Text style={styles.price}>{formatPrice(product.price)}</Text>
+      <Text style={styles.reason} numberOfLines={2}>
+        {reason}
+      </Text>
+
+      <View style={styles.storeRow}>
+        <View
+          style={[styles.storeDot, { backgroundColor: retailerColor(product.retailer) }]}
+        />
+        <Text style={styles.store}>{retailerLabel(product.retailer)}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    width: 176,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.accentMuted,
+    padding: spacing.sm,
+    gap: 4,
+  },
+  pressed: { opacity: 0.75 },
+  badgeRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  badge: {
+    color: colors.accent,
+    fontSize: type.caption.fontSize,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  image: {
+    width: "100%",
+    height: 88,
+    borderRadius: radius.sm,
+    backgroundColor: "#FFFFFF",
+    marginVertical: 2,
+  },
+  imageEmpty: { backgroundColor: colors.surfaceRaised },
+  title: {
+    color: colors.textPrimary,
+    fontSize: type.label.fontSize,
+    fontWeight: "600",
+    lineHeight: 17,
+  },
+  price: { color: colors.textPrimary, fontSize: 19, fontWeight: "900" },
+  reason: {
+    color: colors.textSecondary,
+    fontSize: type.caption.fontSize,
+    lineHeight: 14,
+  },
+  storeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 2,
+  },
+  storeDot: { width: 7, height: 7, borderRadius: radius.pill },
+  store: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+});
+--- END sweep-app/components/HighlightCard.tsx ---
+
 ### FILE: sweep-app/components/ProductCard.tsx
 ### PURPOSE: One product row, shared by tracking and search so prices can't render differently per screen.
-### LINES: 173
+### LINES: 191
 --- BEGIN sweep-app/components/ProductCard.tsx ---
 // components/ProductCard.tsx
 //
@@ -7358,6 +10100,7 @@ import { colors, radius, spacing, type } from "@/constants/theme";
 import {
   formatPrice,
   formatRating,
+  formatSellerRating,
   formatRelativeTime,
   percentOff,
   retailerColor,
@@ -7372,6 +10115,9 @@ interface Props {
   imageUrl: string | null;
   rating?: number | null;
   ratingCount?: number | null;
+  /** eBay only — seller feedback percentage, shown when no product rating exists. */
+  sellerRating?: number | null;
+  sellerRatingCount?: number | null;
   lastCheckedAt?: string | null;
   /** Rendered under the price — e.g. "12% below average". */
   note?: string | null;
@@ -7388,13 +10134,20 @@ export default function ProductCard({
   imageUrl,
   rating,
   ratingCount,
+  sellerRating,
+  sellerRatingCount,
   lastCheckedAt,
   note,
   onPress,
   action,
 }: Props) {
   const discount = percentOff(price, listPrice);
+  // Prefer a real product rating; fall back to seller feedback where that's
+  // all the retailer publishes.
   const ratingText = formatRating(rating ?? null, ratingCount ?? null);
+  const sellerText = ratingText
+    ? null
+    : formatSellerRating(sellerRating ?? null, sellerRatingCount ?? null);
 
   return (
     <Pressable
@@ -7417,6 +10170,7 @@ export default function ProductCard({
           <View style={[styles.retailerDot, { backgroundColor: retailerColor(retailer) }]} />
           <Text style={styles.retailer}>{retailerLabel(retailer)}</Text>
           {ratingText && <Text style={styles.rating}>{ratingText}</Text>}
+          {sellerText && <Text style={styles.sellerRating}>{sellerText}</Text>}
         </View>
 
         <Text style={styles.title} numberOfLines={2}>
@@ -7485,6 +10239,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   rating: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+  // Visually distinct from a star rating, because it isn't one.
+  sellerRating: {
+    color: colors.textTertiary,
+    fontSize: type.caption.fontSize,
+    fontStyle: "italic",
+  },
   title: {
     color: colors.textPrimary,
     fontSize: type.body.fontSize,
@@ -7744,20 +10504,31 @@ const styles = StyleSheet.create({
 
 ### FILE: sweep-app/components/AddByLink.tsx
 ### PURPOSE: Paste a product link to track it. The primary way to add something — costs no search quota.
-### LINES: 145
+### LINES: 201
 --- BEGIN sweep-app/components/AddByLink.tsx ---
 // components/AddByLink.tsx
 //
 // Paste a product link to start tracking it. This is the primary way to add
 // something — it costs no search quota, and it's what you actually have in
 // hand after hitting Share on a retailer's app.
+//
+// Pasting doesn't track immediately: it scrapes the product and shows a
+// confirm sheet first, so the user can check it's the right item and choose
+// when it gets checked before spending a tracking slot.
 
 import { useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import TrackProductModal from "@/components/TrackProductModal";
 import { Button } from "@/components/ui";
 import { colors, radius, spacing, type } from "@/constants/theme";
-import { ApiError, type TrackedProduct, trackProduct } from "@/lib/api";
+import {
+  ApiError,
+  type ProductPreview,
+  type TrackedProduct,
+  previewProduct,
+  trackProduct,
+} from "@/lib/api";
 
 interface Props {
   onTracked: (tracked: TrackedProduct) => void;
@@ -7771,6 +10542,10 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [preview, setPreview] = useState<ProductPreview | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+
   async function onPasteFromClipboard() {
     const text = await Clipboard.getStringAsync();
     if (text) {
@@ -7779,7 +10554,8 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
     }
   }
 
-  async function onAdd() {
+  /** Step 1 — scrape the link and show what we found. Nothing is tracked yet. */
+  async function onLookUp() {
     const value = link.trim();
     if (!value || busy) return;
 
@@ -7787,21 +10563,44 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
     setError(null);
 
     try {
-      const { tracked } = await trackProduct({ url: value });
-      setLink("");
-      onTracked(tracked);
+      setPreview(await previewProduct(value));
     } catch (err) {
       const apiError = err as ApiError;
       // The server distinguishes "not a link", "store we don't support", and
-      // "couldn't read the page" — surfacing which one matters, because the
-      // user's next action is different for each.
-      setError(
-        apiError.code === "SCRAPE_FAILED" || apiError.code === "RETAILER_BLOCKED"
-          ? `${apiError.message} (${apiError.body?.retailer ?? "store"})`
-          : apiError.message,
-      );
+      // "couldn't read the page" — which one matters, because the user's next
+      // action is different for each.
+      setError(apiError.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** Step 2 — the user confirmed, so commit it along with their chosen times. */
+  async function onConfirm(checkHours: number[]) {
+    if (!preview) return;
+
+    setConfirming(true);
+    setModalError(null);
+
+    try {
+      const { tracked } = await trackProduct(
+        {
+          retailer: preview.product.retailer,
+          retailerId: preview.product.retailerId,
+        },
+        {
+          checkHours,
+          // The device's own zone, so "9 AM" means 9 AM where they are.
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+      );
+      setPreview(null);
+      setLink("");
+      onTracked(tracked);
+    } catch (err) {
+      setModalError((err as ApiError).message);
+    } finally {
+      setConfirming(false);
     }
   }
 
@@ -7827,24 +10626,41 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
             setLink(text);
             if (error) setError(null);
           }}
-          onSubmitEditing={onAdd}
+          onSubmitEditing={onLookUp}
           returnKeyType="done"
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="url"
           multiline={false}
         />
-        <Button label="Track" onPress={onAdd} busy={busy} disabled={!link.trim()} compact />
+        <Button
+          label="Look up"
+          onPress={onLookUp}
+          busy={busy}
+          disabled={!link.trim()}
+          compact
+        />
       </View>
 
       <View style={styles.metaRow}>
         <Pressable onPress={onPasteFromClipboard} hitSlop={8}>
           <Text style={styles.pasteLink}>Paste from clipboard</Text>
         </Pressable>
-        <Text style={styles.hint}>Amazon · Walmart · Best Buy · Target · eBay</Text>
+        <Text style={styles.hint}>Amazon · Walmart · Best Buy · eBay · Newegg · ASOS</Text>
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}
+
+      <TrackProductModal
+        preview={preview}
+        busy={confirming}
+        error={modalError}
+        onCancel={() => {
+          setPreview(null);
+          setModalError(null);
+        }}
+        onConfirm={onConfirm}
+      />
     </View>
   );
 }
@@ -8136,7 +10952,7 @@ const styles = StyleSheet.create({
 
 ### FILE: sweep-app/lib/api.ts
 ### PURPOSE: The only place the app calls the backend. Attaches the Supabase token and device id.
-### LINES: 266
+### LINES: 367
 --- BEGIN sweep-app/lib/api.ts ---
 // lib/api.ts
 //
@@ -8259,6 +11075,9 @@ export interface SearchProduct {
   availability: string | null;
   rating: number | null;
   ratingCount: number | null;
+  /** eBay only — seller feedback %, since eBay publishes no product rating. */
+  sellerRating: number | null;
+  sellerRatingCount: number | null;
 }
 
 export interface TrackedProduct {
@@ -8286,10 +11105,38 @@ export interface RetailerResult {
   products: SearchProduct[];
 }
 
+export interface Highlight {
+  kind: "cheapest" | "best_rated" | "biggest_discount";
+  label: string;
+  reason: string;
+  product: SearchProduct;
+}
+
 export interface SearchResponse {
   keyword: string;
   quota: Quota;
+  /** The few results worth showing above the per-store columns. */
+  highlights: Highlight[];
+  /** What the server decided the query was about. */
+  categories: string[];
+  /** Stores deliberately not searched, because they don't sell this kind of thing. */
+  skipped: { retailer: string; label: string }[];
+  /**
+   * Set when Amazon is still running. Bright Data's free tier can take up to
+   * ~3 minutes, so Amazon is fetched out-of-band and polled separately rather
+   * than holding up the four retailers that answer in seconds.
+   */
+  amazonJobId: string | null;
   results: RetailerResult[];
+}
+
+export interface AmazonJobResult {
+  status: "pending" | "success" | "failed" | "blocked";
+  retailer: string;
+  label: string;
+  products: SearchProduct[];
+  message: string | null;
+  elapsedMs: number;
 }
 
 export interface PricePoint {
@@ -8329,6 +11176,10 @@ export function search(keyword: string, retailers?: string[]) {
   return request<SearchResponse>(`/search?${params}`);
 }
 
+export function getAmazonSearchResult(jobId: string) {
+  return request<AmazonJobResult>(`/search/amazon/${jobId}`);
+}
+
 export function claimRewardedSearch() {
   return request<{ quota: Quota }>("/search/rewarded", { method: "POST" });
 }
@@ -8341,13 +11192,64 @@ export function getTrackedProducts() {
   }>("/products");
 }
 
+export interface TrackLimits {
+  maxTrackedProducts: number;
+  used: number;
+  canTrack: boolean;
+  checkTimesPerDay: number;
+  fixedCheckTimes: boolean;
+  checkIntervalMinutes: number;
+}
+
+export interface ProductPreview {
+  product: Product;
+  alreadyTracking: boolean;
+  limits: TrackLimits;
+  schedule: {
+    checkHours: number[];
+    timezone: string;
+    nextCheckAt: string | null;
+  };
+  tier: string;
+}
+
+/** Scrape a pasted link and show what we found, without committing to track it. */
+export function previewProduct(url: string) {
+  return request<ProductPreview>("/products/preview", {
+    method: "POST",
+    body: { url },
+  });
+}
+
 export function trackProduct(
   target: { url: string } | { retailer: string; retailerId: string },
+  schedule?: { checkHours: number[]; timezone: string },
 ) {
   return request<{ tracked: TrackedProduct }>("/products/track", {
     method: "POST",
-    body: target,
+    body: { ...target, ...(schedule ?? {}) },
   });
+}
+
+export interface Schedule {
+  checkHours: number[];
+  timezone: string;
+  maxCheckTimes: number;
+  fixedCheckTimes: boolean;
+  checkIntervalMinutes: number;
+  nextCheckAt: string | null;
+  tier: string;
+}
+
+export function getSchedule() {
+  return request<Schedule>("/me/schedule");
+}
+
+export function updateSchedule(checkHours: number[], timezone: string) {
+  return request<Omit<Schedule, "fixedCheckTimes" | "checkIntervalMinutes" | "tier">>(
+    "/me/schedule",
+    { method: "PUT", body: { checkHours, timezone } },
+  );
 }
 
 export function untrackProduct(trackedId: string) {
@@ -8360,11 +11262,26 @@ export function getProductDetail(productId: string) {
   return request<ProductDetail>(`/products/${productId}`);
 }
 
+export interface ManualCheckState {
+  used: number;
+  /** Null when the tier has no daily cap (Pro/Ultimate). */
+  limit: number | null;
+  remaining: number | null;
+  cooldownMinutes: number | null;
+  availableAt: string | null;
+  resetsAt: string;
+}
+
 export function refreshProduct(productId: string) {
-  return request<{ status: string; product: Product | null }>(
-    `/products/${productId}/refresh`,
-    { method: "POST" },
-  );
+  return request<{
+    status: string;
+    product: Product | null;
+    manualChecks: ManualCheckState | null;
+  }>(`/products/${productId}/refresh`, { method: "POST" });
+}
+
+export function getManualChecks() {
+  return request<{ manualChecks: ManualCheckState }>("/products/manual-checks");
 }
 
 export function setCustomThreshold(trackedId: string, cents: number | null) {
@@ -8408,7 +11325,7 @@ export function getRetailerStatus() {
 
 ### FILE: sweep-app/lib/format.ts
 ### PURPOSE: Shared formatting — prices, dates, retailer names — so screens can't drift apart.
-### LINES: 86
+### LINES: 112
 --- BEGIN sweep-app/lib/format.ts ---
 // lib/format.ts
 //
@@ -8418,14 +11335,21 @@ export function getRetailerStatus() {
 
 import { colors } from "@/constants/theme";
 
-export type Retailer = "amazon" | "walmart" | "target" | "bestbuy" | "ebay";
+export type Retailer =
+  | "amazon"
+  | "walmart"
+  | "bestbuy"
+  | "ebay"
+  | "newegg"
+  | "asos";
 
 export const RETAILER_LABELS: Record<Retailer, string> = {
   amazon: "Amazon",
   walmart: "Walmart",
-  target: "Target",
   bestbuy: "Best Buy",
   ebay: "eBay",
+  newegg: "Newegg",
+  asos: "ASOS",
 };
 
 export function retailerLabel(retailer: string) {
@@ -8492,9 +11416,28 @@ export function formatRating(rating: number | null, count: number | null) {
   if (rating === null) return null;
   const stars = rating.toFixed(1);
   if (!count) return `${stars}★`;
-  const compact =
-    count >= 1000 ? `${(count / 1000).toFixed(count >= 10000 ? 0 : 1)}k` : String(count);
-  return `${stars}★ (${compact})`;
+  return `${stars}★ (${compactCount(count)})`;
+}
+
+/**
+ * eBay has no product ratings — only seller feedback. Rendered with an explicit
+ * "seller" label so nobody reads 99.3% as a 5-star score, or compares it
+ * against Walmart's 4.4★ as though they measured the same thing.
+ */
+export function formatSellerRating(
+  percentage: number | null,
+  count: number | null,
+) {
+  if (percentage === null) return null;
+  const pct = `${percentage % 1 === 0 ? percentage : percentage.toFixed(1)}% seller`;
+  return count ? `${pct} (${compactCount(count)})` : pct;
+}
+
+function compactCount(count: number) {
+  if (count >= 1000) {
+    return `${(count / 1000).toFixed(count >= 10000 ? 0 : 1)}k`;
+  }
+  return String(count);
 }
 --- END sweep-app/lib/format.ts ---
 
@@ -8732,7 +11675,7 @@ export async function isGuestMode(): Promise<boolean> {
 
 ### FILE: sweep-app/constants/theme.ts
 ### PURPOSE: Colour, spacing, radius, type. Coral accent on neutral dark.
-### LINES: 65
+### LINES: 68
 --- BEGIN sweep-app/constants/theme.ts ---
 // constants/theme.ts
 //
@@ -8769,9 +11712,12 @@ export const colors = {
   retailers: {
     amazon: "#FF9900",
     walmart: "#0071DC",
-    target: "#CC0000",
     bestbuy: "#FFE000",
     ebay: "#E53238",
+    newegg: "#E87F1E",
+    // ASOS brands in black, which is invisible on a dark background — use a
+    // near-white so the store dot still reads.
+    asos: "#EDEDED",
   },
 } as const;
 
@@ -8808,13 +11754,14 @@ export const type = {
 
 ### FILE: sweep-app/package.json
 ### PURPOSE: Dependencies and Expo scripts.
-### LINES: 40
+### LINES: 41
 --- BEGIN sweep-app/package.json ---
 {
   "name": "sweep",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@supabase/supabase-js": "^2.112.2",
     "expo": "~57.0.12",
@@ -8854,7 +11801,7 @@ export const type = {
 
 ### FILE: sweep-app/app.json
 ### PURPOSE: Expo config.
-### LINES: 59
+### LINES: 60
 --- BEGIN sweep-app/app.json ---
 {
   "expo": {
@@ -8877,7 +11824,8 @@ export const type = {
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.sweep"
+      "package": "com.anonymous.sweep",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",

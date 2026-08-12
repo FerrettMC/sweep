@@ -87,7 +87,7 @@ export default function Auth() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Sweep</Text>
-      <Text style={styles.subtitle}>Track prices across every store</Text>
+      <Text style={styles.subtitle}>Your online shopping buddy</Text>
 
       <TextInput
         style={styles.input}
@@ -121,8 +121,8 @@ export default function Auth() {
         <Text style={styles.guestButtonText}>Continue as guest</Text>
       </Pressable>
       <Text style={styles.guestNote}>
-        Guests get one multi-store search a day. Tracking and price alerts need
-        an account.
+        Compare prices across Amazon, Walmart, Best Buy, eBay, Newegg and ASOS
+        in one search. Guests get one a day.
       </Text>
     </View>
   );

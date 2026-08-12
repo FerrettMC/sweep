@@ -7,6 +7,8 @@ import Fastify from "fastify";
 import { getHealthReport } from "./lib/health.js";
 import { startScheduler } from "./lib/scheduler.js";
 import { authRoutes } from "./routes/auth.js";
+import { dealRoutes } from "./routes/deals.js";
+import { leaderboardRoutes } from "./routes/leaderboard.js";
 import { notificationRoutes } from "./routes/notifications.js";
 import { productRoutes } from "./routes/products.js";
 import { searchRoutes } from "./routes/search.js";
@@ -21,6 +23,8 @@ const app = Fastify({
 Sentry.setupFastifyErrorHandler(app);
 
 app.register(authRoutes);
+app.register(dealRoutes);
+app.register(leaderboardRoutes);
 app.register(notificationRoutes);
 app.register(productRoutes);
 app.register(searchRoutes);

@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "sweep",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.sweep"
@@ -19,7 +19,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.sweep"
+      "package": "com.anonymous.sweep",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -33,7 +34,7 @@
         {
           "image": "./assets/images/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#0D0D0D"
         }
       ],
       [
@@ -54,6 +55,11 @@
         "projectId": "0c93ce69-8df8-4b08-9547-fe6751e0a666"
       }
     },
-    "owner": "benju-studioss-team"
+    "owner": "benju-studioss-team",
+    "androidStatusBar": {
+      "backgroundColor": "#0D0D0D",
+      "barStyle": "light-content"
+    },
+    "backgroundColor": "#0D0D0D"
   }
 }

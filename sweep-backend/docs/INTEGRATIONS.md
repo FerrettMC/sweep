@@ -18,7 +18,7 @@ app. So you can add these one at a time, in any order.
 | eBay Buy API     | eBay prices                 | ⬜ Needs keys            |
 | SMTP (Resend)    | Scraper-failure alerts      | ✅ Configured            |
 | Sentry           | Error tracking              | ✅ Configured            |
-| AdMob            | Rewarded + interstitial ads | ⬜ Needs IDs             |
+| AdMob            | Rewarded + interstitial ads | ⛔ Parked — Kotlin clash |
 | Expo Push        | Price-drop notifications    | ⬜ Code done, needs EAS  |
 
 ---
@@ -94,7 +94,7 @@ Its one limitation: it delivers **only to the address you signed up to Resend
 with**. Fine for alerts to yourself, useless for emailing users later.
 
 **To send from your own domain:** add it at <https://resend.com/domains>, add
-the DNS records it gives you, wait for the status to read *Verified*, then set
+the DNS records it gives you, wait for the status to read _Verified_, then set
 `SMTP_FROM=alerts@yourdomain.com`. Re-run the curl above to confirm it shows
 `status='verified'` before changing `.env` — that's faster than debugging a 550.
 
@@ -150,16 +150,16 @@ only you can do. Roughly 20 minutes, and Android-only is fine to start.
 
 ### What's already done
 
-| Piece | Where | Status |
-| --- | --- | --- |
-| `PushToken` table | `prisma/schema.prisma` | ✅ pushed to Supabase |
-| Register / unregister / status endpoints | `src/routes/notifications.ts` | ✅ tested |
-| Send + dead-token pruning | `src/lib/push.ts` | ✅ tested against Expo |
-| Fires on price drops | `src/lib/scheduler.ts` | ✅ wired |
-| Permission + token registration | `sweep-app/lib/notifications.ts` | ✅ |
-| Tap notification → open product | `sweep-app/app/_layout.tsx` | ✅ |
-| Enable/disable UI | `sweep-app/app/profile.tsx` | ✅ |
-| `expo-notifications` plugin + icon | `sweep-app/app.json` | ✅ |
+| Piece                                    | Where                            | Status                 |
+| ---------------------------------------- | -------------------------------- | ---------------------- |
+| `PushToken` table                        | `prisma/schema.prisma`           | ✅ pushed to Supabase  |
+| Register / unregister / status endpoints | `src/routes/notifications.ts`    | ✅ tested              |
+| Send + dead-token pruning                | `src/lib/push.ts`                | ✅ tested against Expo |
+| Fires on price drops                     | `src/lib/scheduler.ts`           | ✅ wired               |
+| Permission + token registration          | `sweep-app/lib/notifications.ts` | ✅                     |
+| Tap notification → open product          | `sweep-app/app/_layout.tsx`      | ✅                     |
+| Enable/disable UI                        | `sweep-app/app/profile.tsx`      | ✅                     |
+| `expo-notifications` plugin + icon       | `sweep-app/app.json`             | ✅                     |
 
 Until you finish the steps below, the app degrades cleanly: the Profile screen
 shows "Price alerts: Off" and, if you tap Enable, tells you the EAS project id
@@ -196,7 +196,16 @@ there's no way around it for Android.
    ```
    That's from `app.json` → `android.package`. A mismatch here fails silently
    at delivery time, which is a miserable thing to debug — copy it carefully.
-3. Download **`google-services.json`** and put it in `sweep-app/`.
+3. Download **`google-services.json`** into `sweep-app/`, **and point app.json
+   at it** — dropping the file in the folder does nothing on its own:
+   ```json
+   "android": {
+     "package": "com.anonymous.sweep",
+     "googleServicesFile": "./google-services.json"
+   }
+   ```
+   Skipping this line is what produces _"Unable to get Firebase Messaging
+   instance. Did you configure googleServicesFile path in app config?"_
 4. In Firebase: **Project Settings → Service accounts → Generate new private
    key**. This downloads a JSON file. Keep it out of git.
 5. Upload it to Expo:
@@ -273,31 +282,76 @@ on platform.
 
 ---
 
-## 5. AdMob — free to set up, needs a rebuild
+## 5. AdMob — ⛔ BLOCKED on a toolchain conflict, parked
 
-⚠️ **There is a live security hole here until you do step 5.** The
-`POST /search/rewarded` endpoint currently trusts the client's word that an ad
-was watched. Anyone can call it directly and mint free searches. Fine for
-development, not fine at launch.
+**Don't reinstall the package until you've dealt with the Kotlin mismatch
+below.** It fails the Android build immediately.
 
-1. Sign up at <https://admob.google.com>.
-2. Create an app. If it isn't on a store yet, choose "No" when asked whether
-   it's published, and you'll still get an **App ID**
-   (`ca-app-pub-XXXX~YYYY`).
-3. Create two ad units:
-   - **Rewarded** → the "+1 extra search" mechanic
-   - **Interstitial** → action-count triggered, capped per session
-4. Install: `npx expo install react-native-google-mobile-ads`, then add the
-   plugin config with your App IDs to `app.json` and rebuild Android.
-   Use Google's public test unit IDs while developing — using your real ones
-   against your own device is a fast way to get the account flagged.
-5. **Wire server-side verification (SSV).** In AdMob, set the SSV callback URL
-   for the rewarded unit to a new endpoint on the backend. Move the granting
-   logic out of `POST /search/rewarded` and into that callback, so a reward is
-   only granted when Google says the ad actually played.
+### What happened
 
-Margins, for reference: a rewarded view earns roughly $0.015–$0.03 (US eCPM),
-while the extra search's marginal cost is its Amazon leg at ~$0.0007–$0.0015.
+`react-native-google-mobile-ads@16.4.0` pulls in `play-services-ads:25.4.0`,
+which Google compiled with **Kotlin 2.3.0** metadata. Expo SDK 57 / RN 0.86
+compiles with **Kotlin 2.1.0**, so the build dies at
+`:react-native-google-mobile-ads:compileDebugKotlin` with dozens of:
+
+```
+e: play-services-ads-25.4.0-api.jar!/META-INF/....kotlin_module
+   Module was compiled with an incompatible version of Kotlin.
+   The binary version of its metadata is 2.3.0, expected version is 2.1.0.
+```
+
+Nothing to do with our integration — the ads SDK is simply newer than the
+toolchain can read.
+
+### Two ways out, when you come back to it
+
+1. **Pin an older ads SDK** (least disruptive). `react-native-google-mobile-ads`
+   lets you override the native dependency version; a `play-services-ads` 24.x
+   release built against Kotlin ≤ 2.1 should compile as-is.
+2. **Raise the project's Kotlin version** with `expo-build-properties`
+   (`android.kotlinVersion`). Cleaner long-term, but it changes the toolchain
+   for every native module in the app, so expect to retest the whole build.
+
+Also worth simply waiting — Expo bumping its Kotlin baseline would resolve this
+with no work on your side.
+
+### What survived
+
+**The backend half is done, tested, and has no native dependency:**
+
+| Piece | Where | Status |
+| --- | --- | --- |
+| SSV signature verification | `src/lib/admobSsv.ts` | ✅ 7/7 crypto tests |
+| `GET /ads/admob/ssv` callback | `src/routes/search.ts` | ✅ |
+| Replay protection | `AdReward.transactionId` unique | ✅ pushed |
+| Production lockout of the client path | `POST /search/rewarded` | ✅ 403 verified |
+
+Verified: a correctly signed callback is accepted, while a tampered `user_id`,
+a forged signature, a missing signature and an unknown `key_id` are all
+rejected. With `NODE_ENV=production` the client reward endpoint returns 403
+`SSV_REQUIRED` even for a fully authenticated user — so **the "anyone can mint
+free searches" hole is already closed**, ads or no ads.
+
+`sweep-app/lib/ads.ts` is a stub with the real module's exact API. Re-enabling
+is: reinstall the package, restore the real implementation, add the config
+plugin back to `app.json`. Nothing else in the app changes.
+
+Until then the "+1 search" flow still works in development via the dev-only
+endpoint, so the mechanic is testable.
+
+### Remaining account setup, for whenever ads resume
+
+1. Sign up at <https://admob.google.com>, add the app (choose "not published
+   yet" — you still get an App ID), create a **Rewarded** and an
+   **Interstitial** unit.
+2. Set the rewarded unit's server-side verification URL to
+   `https://<deployed-backend>/ads/admob/ssv`. This needs a **public** URL, so
+   it has to wait for a deploy — `localhost` won't work.
+3. Put the app IDs in `app.json` and the unit IDs in
+   `EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID` / `EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID`.
+
+**Never point real ad units at your own device.** Viewing or tapping your own
+live ads is invalid traffic and gets AdMob accounts suspended.
 
 ---
 

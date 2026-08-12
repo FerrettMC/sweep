@@ -129,6 +129,8 @@ export interface TrackedProduct {
   addedAt: string;
   customThreshold: number | null;
   lastNotifiedAt?: string | null;
+  /** Price when this user started watching, in cents. */
+  priceAtTracking: number | null;
   product: Product;
 }
 
@@ -149,9 +151,22 @@ export interface RetailerResult {
   products: SearchProduct[];
 }
 
+export interface Highlight {
+  kind: "cheapest" | "best_rated" | "biggest_discount";
+  label: string;
+  reason: string;
+  product: SearchProduct;
+}
+
 export interface SearchResponse {
   keyword: string;
   quota: Quota;
+  /** The few results worth showing above the per-store columns. */
+  highlights: Highlight[];
+  /** What the server decided the query was about. */
+  categories: string[];
+  /** Stores deliberately not searched, because they don't sell this kind of thing. */
+  skipped: { retailer: string; label: string }[];
   /**
    * Set when Amazon is still running. Bright Data's free tier can take up to
    * ~3 minutes, so Amazon is fetched out-of-band and polled separately rather
@@ -254,19 +269,24 @@ export function previewProduct(url: string) {
 
 export function trackProduct(
   target: { url: string } | { retailer: string; retailerId: string },
-  schedule?: { checkHours: number[]; timezone: string },
+  /** Only the timezone is sent now — check times aren't user-chosen. */
+  options?: { timezone: string },
 ) {
   return request<{ tracked: TrackedProduct }>("/products/track", {
     method: "POST",
-    body: { ...target, ...(schedule ?? {}) },
+    body: { ...target, ...(options ?? {}) },
   });
 }
 
 export interface Schedule {
   checkHours: number[];
+  /** Minute offset for interval tiers: "every 2 hours at :35". */
+  checkMinute: number;
   timezone: string;
   maxCheckTimes: number;
+  maxCheckMinute: number;
   fixedCheckTimes: boolean;
+  canSetCheckMinute: boolean;
   checkIntervalMinutes: number;
   nextCheckAt: string | null;
   tier: string;
@@ -276,11 +296,18 @@ export function getSchedule() {
   return request<Schedule>("/me/schedule");
 }
 
-export function updateSchedule(checkHours: number[], timezone: string) {
-  return request<Omit<Schedule, "fixedCheckTimes" | "checkIntervalMinutes" | "tier">>(
-    "/me/schedule",
-    { method: "PUT", body: { checkHours, timezone } },
-  );
+export function updateSchedule(
+  timezone: string,
+  options: { checkHours?: number[]; checkMinute?: number },
+) {
+  return request<{
+    checkHours: number[];
+    checkMinute: number;
+    timezone: string;
+    maxCheckTimes: number;
+    maxCheckMinute: number;
+    nextCheckAt: string | null;
+  }>("/me/schedule", { method: "PUT", body: { timezone, ...options } });
 }
 
 export function untrackProduct(trackedId: string) {
@@ -293,11 +320,26 @@ export function getProductDetail(productId: string) {
   return request<ProductDetail>(`/products/${productId}`);
 }
 
+export interface ManualCheckState {
+  used: number;
+  /** Null when the tier has no daily cap (Pro/Ultimate). */
+  limit: number | null;
+  remaining: number | null;
+  cooldownMinutes: number | null;
+  availableAt: string | null;
+  resetsAt: string;
+}
+
 export function refreshProduct(productId: string) {
-  return request<{ status: string; product: Product | null }>(
-    `/products/${productId}/refresh`,
-    { method: "POST" },
-  );
+  return request<{
+    status: string;
+    product: Product | null;
+    manualChecks: ManualCheckState | null;
+  }>(`/products/${productId}/refresh`, { method: "POST" });
+}
+
+export function getManualChecks() {
+  return request<{ manualChecks: ManualCheckState }>("/products/manual-checks");
 }
 
 export function setCustomThreshold(trackedId: string, cents: number | null) {
@@ -325,6 +367,135 @@ export function getNotificationStatus() {
   return request<{ registered: boolean; devices: number }>(
     "/notifications/status",
   );
+}
+
+// ---- plans ----
+
+export interface PlanFeature {
+  label: string;
+  group: "tracking" | "search" | "budget" | "lists" | "extras";
+  included: boolean;
+}
+
+export interface Plan {
+  tier: string;
+  name: string;
+  tagline: string;
+  pricing: {
+    monthly: number | null;
+    yearly: number | null;
+    yearlySavingPercent: number | null;
+  };
+  features: PlanFeature[];
+  highlighted: boolean;
+}
+
+export function getPlans() {
+  return request<{
+    plans: Plan[];
+    groupLabels: Record<string, string>;
+    currentTier: string | null;
+  }>("/plans");
+}
+
+// ---- deals feed ----
+
+export interface Deal {
+  id: string;
+  percentBelowAverage: number;
+  previousPrice: number;
+  newPrice: number;
+  averagePrice: number;
+  foundAt: string;
+  /** Username of whoever tracked it first. Null if that account is gone. */
+  finder: string | null;
+  foundByMe: boolean;
+  isTracking: boolean;
+  product: {
+    id: string;
+    retailer: string;
+    retailerId: string;
+    title: string;
+    imageUrl: string | null;
+    url: string;
+    currentPrice: number | null;
+  };
+}
+
+export function getDeals() {
+  return request<{ deals: Deal[]; isGuest: boolean }>("/deals");
+}
+
+// ---- XP + leaderboard ----
+
+export interface LeaderboardEntry {
+  rank: number;
+  name: string;
+  xp: number;
+  level: number;
+  title: string;
+  isMe: boolean;
+}
+
+export interface LeaderboardMe {
+  rank: number;
+  name: string;
+  xp: number;
+  hasUsername: boolean;
+  offList: boolean;
+  level: number;
+  currentLevelXp: number;
+  nextLevelXp: number;
+  progress: number;
+  title: string;
+}
+
+export function getLeaderboard() {
+  return request<{ entries: LeaderboardEntry[]; me: LeaderboardMe | null }>(
+    "/leaderboard",
+  );
+}
+
+export interface Badge {
+  id: string;
+  label: string;
+  description: string;
+  icon: string;
+  tier: "bronze" | "silver" | "gold";
+  earned: boolean;
+  progress: number;
+  progressLabel: string;
+}
+
+export interface XpEntry {
+  id: string;
+  xp: number;
+  reason: string;
+  detail: string | null;
+  productTitle: string | null;
+  at: string;
+}
+
+export function getMyXp() {
+  return request<{
+    username: string | null;
+    name: string;
+    xp: number;
+    level: number;
+    currentLevelXp: number;
+    nextLevelXp: number;
+    progress: number;
+    title: string;
+    badges: Badge[];
+    history: XpEntry[];
+  }>("/me/xp");
+}
+
+export function setUsername(username: string) {
+  return request<{ username: string }>("/me/username", {
+    method: "PUT",
+    body: { username },
+  });
 }
 
 export function getRetailerStatus() {

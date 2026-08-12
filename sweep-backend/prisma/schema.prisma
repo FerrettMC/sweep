@@ -11,6 +11,9 @@ datasource db {
 model User {
   id           String   @id
   email        String   @unique
+  // Public display name on the leaderboard. Null until the user picks one, in
+  // which case they show as an anonymous "Sweeper #abcd" — a leaderboard must
+  // never expose email addresses.
   username     String?  @unique
   createdAt    DateTime @default(now())
 
@@ -20,6 +23,7 @@ model User {
   budgetEntries     BudgetEntry[]
   promoRedemptions  PromoCodeRedemption[]
   pushTokens        PushToken[]
+  dealsFound        Deal[]   @relation("DealFinder")
 }
 
 // One row per device a user has granted notification permission on. A user can
@@ -53,7 +57,17 @@ model Wallet {
   // Free tier picks 2 — that's what bounds scraping load predictably instead of
   // it scaling with signups. Pro/Ultimate ignore this and use a rolling
   // interval instead.
+  // Manual "Check price now" budget. Free gets a daily count, Pro a cooldown
+  // between checks, Ultimate neither — see TIER_LIMITS.
+  manualChecksToday Int       @default(0)
+  manualChecksResetAt DateTime @default(now())
+  lastManualCheckAt DateTime?
+
   checkHours        Int[]     @default([9, 21])
+  // Minute offset for the interval tiers, anchored to local midnight.
+  // Pro (every 2h) with 35 => 00:35, 02:35, 04:35…
+  // Ultimate (every 30m) with 5 => 00:05, 00:35, 01:05…
+  checkMinute       Int       @default(0)
   // IANA zone, so "9am" means 9am where the user is, and survives DST. Stored
   // rather than an offset because an offset goes stale twice a year.
   timezone          String    @default("UTC")
@@ -88,6 +102,7 @@ model Product {
   priceHistory  PriceHistory[]
   trackedBy     TrackedProduct[]
   scrapeChecks  ScrapeCheck[]
+  deals         Deal[]
 
   @@unique([retailer, retailerId])
   @@index([retailer])
@@ -110,9 +125,14 @@ model PriceHistory {
 // (custom threshold, notification state) live here, not on Product.
 model TrackedProduct {
   id              String    @id @default(uuid())
-  customThreshold Int?      // cents — only notify below this (Ultimate feature)
+  customThreshold Int?      // cents — only notify below this (Pro and above)
   addedAt         DateTime  @default(now())
   lastNotifiedAt  DateTime?
+  // What it cost when this user started watching, in cents. Stored rather than
+  // derived: the shared Product row is updated in place, and PriceHistory only
+  // records CHANGES — so a product that never moved has no history point at
+  // the moment this user started, and "since you started" would be unanswerable.
+  priceAtTracking Int?
 
   user      User    @relation(fields: [userId], references: [id])
   userId    String
@@ -164,6 +184,44 @@ model GuestQuota {
   createdAt         DateTime @default(now())
 }
 
+// One row per verified rewarded-ad completion. Exists purely to stop replays:
+// AdMob can retry a callback, and without a uniqueness check on transactionId
+// the same ad view could be redeemed repeatedly for free searches.
+model AdReward {
+  id            String   @id @default(uuid())
+  transactionId String   @unique
+  userId        String
+  amount        Int      @default(1)
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+}
+
+// A price drop good enough to show the whole app. Written by the scheduler
+// when a tracked item falls far enough below its own historical average.
+//
+// `finderUserId` is whoever tracked the product FIRST — with the shared cache,
+// many people watch the same item, and the one who spotted it before everyone
+// else is the one worth crediting.
+model Deal {
+  id                  String   @id @default(uuid())
+  previousPrice       Int      // cents
+  newPrice            Int      // cents
+  percentBelowAverage Int
+  averagePrice        Int      // cents, what "normal" was at the time
+  createdAt           DateTime @default(now())
+
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+
+  // Nullable so a deal survives its finder deleting their account.
+  finder       User?   @relation("DealFinder", fields: [finderUserId], references: [id], onDelete: SetNull)
+  finderUserId String?
+
+  @@index([createdAt])
+  @@index([productId, createdAt])
+}
+
 model BudgetEntry {
   id          String   @id @default(uuid())
   amount      Int      // cents
@@ -178,16 +236,26 @@ model BudgetEntry {
   @@index([userId, spentAt])
 }
 
+// XP ledger. Every award is a row, so a user's total is reconstructible and
+// an anti-farming cooldown is just a query against recent rows rather than
+// extra state to keep in sync.
 model Transaction {
   id        String   @id @default(uuid())
   xpChange  Int
-  reason    String   // "deal_found" | "search_used" | etc.
+  reason    String   // "deal_found" | "first_track" | "milestone"
+  // Which product earned it, when applicable. Drives the per-product cooldown
+  // that stops someone farming XP off one item bouncing in price.
+  productId String?
+  // Human-readable detail for the activity feed ("32% below average").
+  detail    String?
   createdAt DateTime @default(now())
 
   user   User   @relation(fields: [userId], references: [id])
   userId String
 
   @@index([userId])
+  @@index([userId, productId, createdAt])
+  @@index([createdAt])
 }
 
 // Promo codes YOU create and share (e.g. while creating content) — one

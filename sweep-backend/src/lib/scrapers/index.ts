@@ -7,8 +7,10 @@
 import { scrapeAmazonProduct, searchAmazonProducts } from "./amazon.js";
 import { bestBuyProductUrl, scrapeBestBuyProduct, searchBestBuy } from "./bestbuy.js";
 import { ebayProductUrl, scrapeEbayProduct, searchEbay } from "./ebay.js";
-import { scrapeTargetProduct, searchTarget, targetProductUrl } from "./target.js";
+import { asosProductUrl, scrapeAsosProduct, searchAsos } from "./asos.js";
+import { neweggProductUrl, scrapeNeweggProduct, searchNewegg } from "./newegg.js";
 import { scrapeWalmartProduct, searchWalmart, walmartProductUrl } from "./walmart.js";
+import { type Category, classifyQuery } from "../categories.js";
 import {
   RETAILERS,
   type Retailer,
@@ -37,6 +39,14 @@ interface RetailerAdapter {
   concurrency: number;
   /** Minimum gap between consecutive requests, for retailers that need pacing. */
   minIntervalMs?: number;
+  /**
+   * What this retailer actually sells. `null` means a general store that
+   * carries everything and is therefore always worth asking.
+   *
+   * Specialists are skipped when the query clearly isn't about their
+   * categories — no point asking a clothing site about earbuds.
+   */
+  categories: Category[] | null;
 }
 
 export const adapters: Record<Retailer, RetailerAdapter> = {
@@ -48,6 +58,7 @@ export const adapters: Record<Retailer, RetailerAdapter> = {
     metered: true,
     // Bright Data absorbs Amazon's blocking, but each call costs quota.
     concurrency: 1,
+    categories: null,
   },
   walmart: {
     search: searchWalmart,
@@ -56,14 +67,25 @@ export const adapters: Record<Retailer, RetailerAdapter> = {
     matchesUrl: (url) => /(^|\.)walmart\.com$/i.test(hostOf(url)),
     metered: false,
     concurrency: 3,
+    categories: null,
   },
-  target: {
-    search: searchTarget,
-    scrapeProduct: scrapeTargetProduct,
-    productUrl: targetProductUrl,
-    matchesUrl: (url) => /(^|\.)target\.com$/i.test(hostOf(url)),
+  newegg: {
+    search: searchNewegg,
+    scrapeProduct: scrapeNeweggProduct,
+    productUrl: neweggProductUrl,
+    matchesUrl: (url) => /(^|\.)newegg\.com$/i.test(hostOf(url)),
     metered: false,
     concurrency: 2,
+    categories: ["electronics"],
+  },
+  asos: {
+    search: searchAsos,
+    scrapeProduct: scrapeAsosProduct,
+    productUrl: asosProductUrl,
+    matchesUrl: (url) => /(^|\.)asos\.com$/i.test(hostOf(url)),
+    metered: false,
+    concurrency: 2,
+    categories: ["clothing"],
   },
   bestbuy: {
     search: searchBestBuy,
@@ -74,6 +96,7 @@ export const adapters: Record<Retailer, RetailerAdapter> = {
     // Each refresh is a full search-page fetch — pace them.
     concurrency: 1,
     minIntervalMs: 3000,
+    categories: ["electronics"],
   },
   ebay: {
     search: searchEbay,
@@ -83,6 +106,7 @@ export const adapters: Record<Retailer, RetailerAdapter> = {
     metered: false,
     // Official API with a generous quota.
     concurrency: 3,
+    categories: null,
   },
 };
 
@@ -139,6 +163,54 @@ export async function searchAllRetailers(
       }
     }),
   );
+}
+
+export interface RetailerRouting {
+  retailers: Retailer[];
+  /** Specialists deliberately left out, so the UI can explain the absence. */
+  skipped: Retailer[];
+  categories: Category[];
+}
+
+/**
+ * Decide which retailers are worth asking about a query.
+ *
+ * General stores (Amazon, Walmart, eBay) are always included — they sell
+ * everything, so skipping them can only lose results. Specialists are included
+ * when the query matches what they sell.
+ *
+ * When the classifier has no idea, EVERY retailer is included. That's the
+ * deliberate choice: a wasted call on a specialist costs a few seconds, while
+ * wrongly skipping one shows the user an absence they can't explain.
+ */
+export function routeQuery(query: string, only?: Retailer[]): RetailerRouting {
+  const candidates = only?.length ? only : [...RETAILERS];
+  const { categories, confident } = classifyQuery(query);
+
+  if (!confident) {
+    return { retailers: candidates, skipped: [], categories: [] };
+  }
+
+  const retailers: Retailer[] = [];
+  const skipped: Retailer[] = [];
+
+  for (const retailer of candidates) {
+    const serves = adapters[retailer].categories;
+    // A general store has no category restriction.
+    if (serves === null || serves.some((c) => categories.includes(c))) {
+      retailers.push(retailer);
+    } else {
+      skipped.push(retailer);
+    }
+  }
+
+  // Never return nothing. If a filter somehow excluded everything, fall back to
+  // asking everyone rather than showing an empty search.
+  if (retailers.length === 0) {
+    return { retailers: candidates, skipped: [], categories };
+  }
+
+  return { retailers, skipped, categories };
 }
 
 /** Which retailer does this pasted url belong to? Null if we don't support it. */

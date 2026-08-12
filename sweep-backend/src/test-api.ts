@@ -209,11 +209,23 @@ async function main() {
     threshold.body,
   );
 
+  // A product checked seconds ago is served from the shared cache instead of
+  // being re-scraped, and costs nothing from the manual-check budget.
   const refresh = await call("POST", `/products/${productId}/refresh`);
   check(
-    "refresh is rate-limited right after tracking",
-    refresh.status === 429 && refresh.body?.code === "REFRESH_TOO_SOON",
-    refresh.body,
+    "refresh right after tracking is served fresh, not re-scraped",
+    refresh.status === 200 && refresh.body?.status === "fresh",
+    refresh.body?.status,
+  );
+  check(
+    "a fresh result doesn't spend a manual check",
+    refresh.body?.manualChecks?.used === 0,
+    refresh.body?.manualChecks,
+  );
+  check(
+    "free tier reports 5 manual checks a day",
+    refresh.body?.manualChecks?.limit === 5,
+    refresh.body?.manualChecks,
   );
 
   console.log("\n— track limit —");

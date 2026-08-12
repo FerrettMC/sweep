@@ -10,9 +10,10 @@
 // Does NOT touch Amazon: that path costs Bright Data quota. Use test-amazon.ts.
 
 import "dotenv/config";
+import { searchAsos } from "./lib/scrapers/asos.js";
 import { searchBestBuy } from "./lib/scrapers/bestbuy.js";
+import { searchNewegg } from "./lib/scrapers/newegg.js";
 import { isEbayConfigured, searchEbay } from "./lib/scrapers/ebay.js";
-import { searchTarget } from "./lib/scrapers/target.js";
 import { scrapeWalmartProduct, searchWalmart } from "./lib/scrapers/walmart.js";
 import type { ScrapeResult, ScrapedProduct } from "./lib/scrapers/types.js";
 
@@ -42,7 +43,8 @@ async function main() {
 
   report("walmart", await searchWalmart(keyword, 3));
   report("bestbuy", await searchBestBuy(keyword, 3));
-  report("target", await searchTarget(keyword, 3));
+  report("newegg", await searchNewegg(keyword, 3));
+  report("asos", await searchAsos(keyword, 3));
 
   if (isEbayConfigured()) {
     report("ebay", await searchEbay(keyword, 3));

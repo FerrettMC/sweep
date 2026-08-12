@@ -4,7 +4,6 @@
 // user can check it's the right item — and pick when it gets checked — before
 // spending one of their tracking slots on it.
 
-import { useState } from "react";
 import {
   Image,
   Modal,
@@ -30,7 +29,7 @@ interface Props {
   busy?: boolean;
   error?: string | null;
   onCancel: () => void;
-  onConfirm: (checkHours: number[]) => void;
+  onConfirm: () => void;
 }
 
 export default function TrackProductModal({
@@ -40,39 +39,11 @@ export default function TrackProductModal({
   onCancel,
   onConfirm,
 }: Props) {
-  // Seeded from the account's current schedule, so the common case is just
-  // confirming rather than re-picking every time.
-  const [hours, setHours] = useState<number[]>(preview?.schedule.checkHours ?? [9, 21]);
-  const [seededFor, setSeededFor] = useState<string | null>(null);
-
-  // Re-seed when a different product is previewed.
-  if (preview && seededFor !== preview.product.id) {
-    setSeededFor(preview.product.id);
-    setHours(preview.schedule.checkHours);
-  }
-
   if (!preview) return null;
 
   const { product, limits, alreadyTracking } = preview;
   const discount = percentOff(product.price, product.listPrice);
   const ratingText = formatRating(product.rating, product.ratingCount);
-  const maxTimes = limits.checkTimesPerDay;
-
-  function toggleHour(hour: number) {
-    setHours((current) => {
-      if (current.includes(hour)) {
-        // Never let them empty it — a product with no check times is a product
-        // that silently never updates.
-        return current.length === 1 ? current : current.filter((h) => h !== hour);
-      }
-      if (current.length >= maxTimes) {
-        // At the cap, replace the oldest pick so tapping always does something
-        // rather than silently doing nothing.
-        return [...current.slice(1), hour].sort((a, b) => a - b);
-      }
-      return [...current, hour].sort((a, b) => a - b);
-    });
-  }
 
   const canConfirm = limits.canTrack && !busy;
 
@@ -128,55 +99,18 @@ export default function TrackProductModal({
               </View>
             </View>
 
-            {limits.fixedCheckTimes ? (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>
-                  When should Sweep check the price?
-                </Text>
-                <Text style={styles.sectionHint}>
-                  Your plan checks {maxTimes} {maxTimes === 1 ? "time" : "times"} a
-                  day. Times are in your local timezone.
-                </Text>
-
-                <View style={styles.hourGrid}>
-                  {Array.from({ length: 24 }, (_, hour) => {
-                    const selected = hours.includes(hour);
-                    return (
-                      <Pressable
-                        key={hour}
-                        onPress={() => toggleHour(hour)}
-                        style={({ pressed }) => [
-                          styles.hourChip,
-                          selected && styles.hourChipSelected,
-                          pressed && styles.hourChipPressed,
-                        ]}
-                      >
-                        <Text
-                          style={[styles.hourText, selected && styles.hourTextSelected]}
-                        >
-                          {formatHourLabel(hour)}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-
-                <Text style={styles.selectedSummary}>
-                  Checking at {hours.map(formatHourLabel).join(" and ")}
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Check frequency</Text>
-                <Text style={styles.sectionHint}>
-                  Your plan checks automatically every{" "}
-                  {limits.checkIntervalMinutes >= 60
-                    ? `${limits.checkIntervalMinutes / 60} hour${limits.checkIntervalMinutes === 60 ? "" : "s"}`
-                    : `${limits.checkIntervalMinutes} minutes`}
-                  . Nothing to set.
-                </Text>
-              </View>
-            )}
+            {/* No time picking. It was more configuration than value — people
+                want to know it's watched, not to schedule it. */}
+            <View style={styles.scheduleNote}>
+              <Text style={styles.scheduleText}>
+                {limits.fixedCheckTimes
+                  ? `Checked ${limits.checkTimesPerDay}× a day`
+                  : limits.checkIntervalMinutes >= 60
+                    ? `Checked every ${limits.checkIntervalMinutes / 60} hours`
+                    : `Checked every ${limits.checkIntervalMinutes} minutes`}
+                . You'll get an alert the moment the price drops.
+              </Text>
+            </View>
 
             <Text style={styles.slots}>
               {limits.used} of {limits.maxTrackedProducts} tracking slots used
@@ -204,7 +138,7 @@ export default function TrackProductModal({
             <View style={styles.actionSlot}>
               <Button
                 label={alreadyTracking ? "Update times" : "Track it"}
-                onPress={() => onConfirm(hours)}
+                onPress={onConfirm}
                 busy={busy}
                 disabled={!canConfirm}
               />
@@ -214,13 +148,6 @@ export default function TrackProductModal({
       </View>
     </Modal>
   );
-}
-
-/** 0 -> "12 AM", 13 -> "1 PM" */
-function formatHourLabel(hour: number) {
-  const suffix = hour < 12 ? "AM" : "PM";
-  const display = hour % 12 === 0 ? 12 : hour % 12;
-  return `${display} ${suffix}`;
 }
 
 const styles = StyleSheet.create({
@@ -351,6 +278,18 @@ const styles = StyleSheet.create({
     fontSize: type.label.fontSize,
     fontWeight: "700",
     marginTop: spacing.xs,
+  },
+  scheduleNote: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    padding: spacing.md,
+  },
+  scheduleText: {
+    color: colors.textSecondary,
+    fontSize: type.label.fontSize,
+    lineHeight: 19,
   },
   slots: { color: colors.textTertiary, fontSize: type.label.fontSize },
   blocked: {
