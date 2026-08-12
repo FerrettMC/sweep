@@ -3,13 +3,24 @@
 // Paste a product link to start tracking it. This is the primary way to add
 // something — it costs no search quota, and it's what you actually have in
 // hand after hitting Share on a retailer's app.
+//
+// Pasting doesn't track immediately: it scrapes the product and shows a
+// confirm sheet first, so the user can check it's the right item and choose
+// when it gets checked before spending a tracking slot.
 
 import { useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import TrackProductModal from "@/components/TrackProductModal";
 import { Button } from "@/components/ui";
 import { colors, radius, spacing, type } from "@/constants/theme";
-import { ApiError, type TrackedProduct, trackProduct } from "@/lib/api";
+import {
+  ApiError,
+  type ProductPreview,
+  type TrackedProduct,
+  previewProduct,
+  trackProduct,
+} from "@/lib/api";
 
 interface Props {
   onTracked: (tracked: TrackedProduct) => void;
@@ -23,6 +34,10 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [preview, setPreview] = useState<ProductPreview | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+
   async function onPasteFromClipboard() {
     const text = await Clipboard.getStringAsync();
     if (text) {
@@ -31,7 +46,8 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
     }
   }
 
-  async function onAdd() {
+  /** Step 1 — scrape the link and show what we found. Nothing is tracked yet. */
+  async function onLookUp() {
     const value = link.trim();
     if (!value || busy) return;
 
@@ -39,21 +55,44 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
     setError(null);
 
     try {
-      const { tracked } = await trackProduct({ url: value });
-      setLink("");
-      onTracked(tracked);
+      setPreview(await previewProduct(value));
     } catch (err) {
       const apiError = err as ApiError;
       // The server distinguishes "not a link", "store we don't support", and
-      // "couldn't read the page" — surfacing which one matters, because the
-      // user's next action is different for each.
-      setError(
-        apiError.code === "SCRAPE_FAILED" || apiError.code === "RETAILER_BLOCKED"
-          ? `${apiError.message} (${apiError.body?.retailer ?? "store"})`
-          : apiError.message,
-      );
+      // "couldn't read the page" — which one matters, because the user's next
+      // action is different for each.
+      setError(apiError.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** Step 2 — the user confirmed, so commit it along with their chosen times. */
+  async function onConfirm(checkHours: number[]) {
+    if (!preview) return;
+
+    setConfirming(true);
+    setModalError(null);
+
+    try {
+      const { tracked } = await trackProduct(
+        {
+          retailer: preview.product.retailer,
+          retailerId: preview.product.retailerId,
+        },
+        {
+          checkHours,
+          // The device's own zone, so "9 AM" means 9 AM where they are.
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+      );
+      setPreview(null);
+      setLink("");
+      onTracked(tracked);
+    } catch (err) {
+      setModalError((err as ApiError).message);
+    } finally {
+      setConfirming(false);
     }
   }
 
@@ -79,14 +118,20 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
             setLink(text);
             if (error) setError(null);
           }}
-          onSubmitEditing={onAdd}
+          onSubmitEditing={onLookUp}
           returnKeyType="done"
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="url"
           multiline={false}
         />
-        <Button label="Track" onPress={onAdd} busy={busy} disabled={!link.trim()} compact />
+        <Button
+          label="Look up"
+          onPress={onLookUp}
+          busy={busy}
+          disabled={!link.trim()}
+          compact
+        />
       </View>
 
       <View style={styles.metaRow}>
@@ -97,6 +142,17 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}
+
+      <TrackProductModal
+        preview={preview}
+        busy={confirming}
+        error={modalError}
+        onCancel={() => {
+          setPreview(null);
+          setModalError(null);
+        }}
+        onConfirm={onConfirm}
+      />
     </View>
   );
 }

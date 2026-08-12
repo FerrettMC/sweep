@@ -193,13 +193,22 @@ export default function TrackProductModal({
           </ScrollView>
 
           <View style={styles.actions}>
-            <Button label="Cancel" onPress={onCancel} variant="secondary" disabled={busy} />
-            <Button
-              label={alreadyTracking ? "Update times" : "Track it"}
-              onPress={() => onConfirm(hours)}
-              busy={busy}
-              disabled={!canConfirm}
-            />
+            <View style={styles.actionSlot}>
+              <Button
+                label="Cancel"
+                onPress={onCancel}
+                variant="secondary"
+                disabled={busy}
+              />
+            </View>
+            <View style={styles.actionSlot}>
+              <Button
+                label={alreadyTracking ? "Update times" : "Track it"}
+                onPress={() => onConfirm(hours)}
+                busy={busy}
+                disabled={!canConfirm}
+              />
+            </View>
           </View>
         </View>
       </View>
@@ -357,4 +366,5 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.surfaceBorder,
   },
+  actionSlot: { flex: 1 },
 });
