@@ -13,6 +13,7 @@ import { verifySsvCallback } from "../lib/admobSsv.js";
 import { optionalAuth, requireAuth } from "../lib/auth.js";
 import { recordCheck } from "../lib/health.js";
 import { pickHighlights } from "../lib/highlights.js";
+import { cacheSearchResults } from "../lib/priceChecker.js";
 import { prisma } from "../lib/prisma.js";
 import {
   consumeGuestSearch,
@@ -123,6 +124,10 @@ export async function searchRoutes(app: FastifyInstance) {
         }),
       ),
     );
+
+    // Keep what we just scraped. Adding one of these to a list or tracking it
+    // then needs no scrape at all — see cacheSearchResults.
+    await cacheSearchResults(outcomes.flatMap((o) => o.products));
 
     return {
       keyword,

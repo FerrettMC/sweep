@@ -12,12 +12,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Loading, Screen } from "@/components/ui";
-import { colors, radius, spacing, type } from "@/constants/theme";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 import { type Plan, type PlanFeature, getPlans } from "@/lib/api";
 
 type Billing = "monthly" | "yearly";
 
 export default function PlansScreen() {
+  const styles = useThemedStyles(makeStyles);
   const [plans, setPlans] = useState<Plan[] | null>(null);
   const [groupLabels, setGroupLabels] = useState<Record<string, string>>({});
   const [currentTier, setCurrentTier] = useState<string | null>(null);
@@ -44,8 +46,8 @@ export default function PlansScreen() {
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.intro}>
-          Sweep is free forever. Paid plans check prices more often and lift the
-          limits.
+          Sweep is free forever. Each paid plan is the one below it with the
+          limits raised — here's exactly what moves.
         </Text>
 
         {/* Billing toggle */}
@@ -72,13 +74,14 @@ export default function PlansScreen() {
           ))}
         </View>
 
-        {plans.map((plan) => (
+        {plans.map((plan, index) => (
           <PlanCard
             key={plan.tier}
             plan={plan}
             billing={billing}
             groupLabels={groupLabels}
             isCurrent={plan.tier === currentTier}
+            previousName={index > 0 ? plans[index - 1].name : null}
           />
         ))}
 
@@ -95,16 +98,25 @@ function PlanCard({
   billing,
   groupLabels,
   isCurrent,
+  previousName,
 }: {
   plan: Plan;
   billing: Billing;
   groupLabels: Record<string, string>;
   isCurrent: boolean;
+  /** Name of the tier below, so the card can say what it builds on. */
+  previousName: string | null;
 }) {
-  const [expanded, setExpanded] = useState(plan.highlighted);
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  // Starts collapsed on every plan now. The upgrade rows above carry the
+  // pitch, so opening the full list is a deliberate "show me everything"
+  // rather than the default state of the screen.
+  const [expanded, setExpanded] = useState(false);
 
   const price = billing === "monthly" ? plan.pricing.monthly : plan.pricing.yearly;
   const isFree = price === 0;
+  const perMonth = plan.pricing.yearlyPerMonth;
 
   // Group features so the card reads as sections rather than 20 loose lines.
   const groups = plan.features.reduce<Record<string, PlanFeature[]>>((acc, feature) => {
@@ -120,32 +132,96 @@ function PlanCard({
         isCurrent && styles.cardCurrent,
       ]}
     >
-      {plan.highlighted && !isCurrent && (
-        <View style={styles.ribbon}>
-          <Text style={styles.ribbonText}>MOST POPULAR</Text>
-        </View>
-      )}
-      {isCurrent && (
+      {/*
+        Being on a plan is more useful to know than what we'd like to sell you,
+        so "your plan" wins the slot when both apply.
+      */}
+      {isCurrent ? (
         <View style={[styles.ribbon, styles.ribbonCurrent]}>
-          <Text style={styles.ribbonText}>YOUR PLAN</Text>
+          <Text style={[styles.ribbonText, styles.ribbonTextCurrent]}>YOUR PLAN</Text>
+        </View>
+      ) : plan.badge ? (
+        <View style={[styles.ribbon, !plan.highlighted && styles.ribbonSecondary]}>
+          <Text
+            style={[styles.ribbonText, !plan.highlighted && styles.ribbonTextSecondary]}
+          >
+            {plan.badge}
+          </Text>
+        </View>
+      ) : null}
+
+      {/* Name and price share a row so the numbers below start higher up. */}
+      <View style={styles.headRow}>
+        <View style={styles.headText}>
+          <Text style={styles.planName}>{plan.name}</Text>
+          <Text style={styles.planTagline}>{plan.tagline}</Text>
+        </View>
+        <View style={styles.priceColumn}>
+          <View style={styles.priceBlock}>
+            <Text style={styles.price}>{isFree ? "Free" : `$${price}`}</Text>
+            {!isFree && (
+              <Text style={styles.priceUnit}>
+                /{billing === "monthly" ? "mo" : "yr"}
+              </Text>
+            )}
+          </View>
+          {/*
+            A yearly figure is hard to weigh against a monthly one in your
+            head, which is the exact comparison someone makes when they flip
+            this toggle. Doing the division for them is the whole point.
+          */}
+          {billing === "yearly" && perMonth !== null && (
+            <Text style={styles.priceEquiv}>${perMonth}/mo</Text>
+          )}
+        </View>
+      </View>
+
+      {/*
+        The dials, up front. This is the whole point of the card: on a paid
+        plan every row is a number that gets better, shown against the one it
+        replaces, so the value of paying is legible at a glance instead of
+        being reconstructed by comparing two long lists.
+      */}
+      {plan.upgrades.length > 0 && (
+        <View style={styles.upgrades}>
+          <Text style={styles.sectionLabel}>
+            {isFree ? "WHAT YOU GET" : `EVERYTHING IN ${previousName?.toUpperCase()}, PLUS`}
+          </Text>
+          {plan.upgrades.map((upgrade) => (
+            <View key={upgrade.label} style={styles.upgradeRow}>
+              <Text style={styles.upgradeLabel}>{upgrade.label}</Text>
+              <View style={styles.upgradeValues}>
+                {upgrade.from !== null && (
+                  <>
+                    <Text style={styles.upgradeFrom}>{upgrade.from}</Text>
+                    <Ionicons
+                      name="arrow-forward"
+                      size={11}
+                      color={colors.textTertiary}
+                    />
+                  </>
+                )}
+                <Text style={styles.upgradeTo}>{upgrade.to}</Text>
+              </View>
+            </View>
+          ))}
         </View>
       )}
 
-      <Text style={styles.planName}>{plan.name}</Text>
-      <Text style={styles.planTagline}>{plan.tagline}</Text>
-
-      <View style={styles.priceRow}>
-        <Text style={styles.price}>{isFree ? "Free" : `$${price}`}</Text>
-        {!isFree && (
-          <Text style={styles.priceUnit}>
-            /{billing === "monthly" ? "month" : "year"}
-          </Text>
-        )}
-      </View>
+      {plan.unlocks.length > 0 && (
+        <View style={styles.unlocks}>
+          {plan.unlocks.map((unlock) => (
+            <View key={unlock} style={styles.unlockRow}>
+              <Ionicons name="add-circle" size={14} color={colors.accent} />
+              <Text style={styles.unlockText}>{unlock}</Text>
+            </View>
+          ))}
+        </View>
+      )}
 
       <Pressable onPress={() => setExpanded((v) => !v)} style={styles.expandRow}>
         <Text style={styles.expandText}>
-          {expanded ? "Hide" : "See"} what's included
+          {expanded ? "Hide full list" : `See all ${plan.features.length} features`}
         </Text>
         <Ionicons
           name={expanded ? "chevron-up" : "chevron-down"}
@@ -186,106 +262,161 @@ function PlanCard({
   );
 }
 
-const styles = StyleSheet.create({
-  content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xxl },
-  intro: {
-    color: colors.textSecondary,
-    fontSize: type.body.fontSize,
-    lineHeight: 21,
-  },
-  toggle: {
-    flexDirection: "row",
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: 3,
-  },
-  toggleOption: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 9,
-    borderRadius: radius.sm,
-  },
-  toggleOptionOn: { backgroundColor: colors.accent },
-  toggleText: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    fontWeight: "800",
-  },
-  toggleTextOn: { color: colors.background },
-  toggleSave: { color: colors.success, fontSize: type.caption.fontSize, fontWeight: "800" },
-  toggleSaveOn: { color: colors.background },
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xxl },
+    intro: {
+      color: colors.textSecondary,
+      fontSize: type.body.fontSize,
+      lineHeight: 21,
+    },
+    toggle: {
+      flexDirection: "row",
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      padding: 3,
+    },
+    toggleOption: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      paddingVertical: 9,
+      borderRadius: radius.sm,
+    },
+    toggleOptionOn: { backgroundColor: colors.accent },
+    toggleText: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      fontWeight: "800",
+    },
+    toggleTextOn: { color: colors.background },
+    toggleSave: { color: colors.success, fontSize: type.caption.fontSize, fontWeight: "800" },
+    toggleSaveOn: { color: colors.background },
 
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.md,
-    gap: 2,
-  },
-  cardHighlighted: { borderColor: colors.accent },
-  cardCurrent: { borderColor: colors.success },
-  ribbon: {
-    alignSelf: "flex-start",
-    backgroundColor: colors.accentMuted,
-    borderRadius: radius.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginBottom: spacing.xs,
-  },
-  ribbonCurrent: { backgroundColor: "#1E3A28" },
-  ribbonText: {
-    color: colors.accent,
-    fontSize: type.caption.fontSize,
-    fontWeight: "900",
-    letterSpacing: 0.6,
-  },
-  planName: {
-    color: colors.textPrimary,
-    fontSize: type.title.fontSize,
-    fontWeight: "900",
-  },
-  planTagline: { color: colors.textSecondary, fontSize: type.label.fontSize },
-  priceRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 4,
-    marginTop: spacing.sm,
-  },
-  price: { color: colors.textPrimary, fontSize: 30, fontWeight: "900" },
-  priceUnit: { color: colors.textTertiary, fontSize: type.label.fontSize },
-  expandRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    marginTop: spacing.sm,
-  },
-  expandText: { color: colors.accent, fontSize: type.label.fontSize, fontWeight: "700" },
-  features: { gap: spacing.md, marginTop: spacing.md },
-  group: { gap: 5 },
-  groupLabel: {
-    color: colors.textTertiary,
-    fontSize: type.caption.fontSize,
-    fontWeight: "900",
-    letterSpacing: 0.6,
-  },
-  featureRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.xs },
-  featureText: {
-    flex: 1,
-    color: colors.textPrimary,
-    fontSize: type.label.fontSize,
-    lineHeight: 18,
-  },
-  featureTextOff: { color: colors.textTertiary },
-  footnote: {
-    color: colors.textTertiary,
-    fontSize: type.caption.fontSize,
-    textAlign: "center",
-    fontStyle: "italic",
-  },
-});
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      padding: spacing.md,
+      gap: 2,
+    },
+    cardHighlighted: { borderColor: colors.accent },
+    cardCurrent: { borderColor: colors.success },
+    ribbon: {
+      alignSelf: "flex-start",
+      backgroundColor: colors.accentMuted,
+      borderRadius: radius.sm,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      marginBottom: spacing.xs,
+    },
+    ribbonCurrent: { backgroundColor: colors.successMuted },
+    // Ultimate earns a badge but not the visual push — Pro keeps the accent so
+    // the card we actually recommend still wins the eye.
+    ribbonSecondary: { backgroundColor: colors.surfaceRaised },
+    ribbonText: {
+      color: colors.accent,
+      fontSize: type.caption.fontSize,
+      fontWeight: "900",
+      letterSpacing: 0.6,
+    },
+    ribbonTextSecondary: { color: colors.textSecondary },
+    ribbonTextCurrent: { color: colors.success },
+    headRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
+    headText: { flex: 1, gap: 1 },
+    planName: {
+      color: colors.textPrimary,
+      fontSize: type.title.fontSize,
+      fontWeight: "900",
+    },
+    planTagline: { color: colors.textSecondary, fontSize: type.label.fontSize },
+    priceColumn: { alignItems: "flex-end" },
+    priceBlock: { flexDirection: "row", alignItems: "baseline", gap: 2 },
+    price: { color: colors.textPrimary, fontSize: 26, fontWeight: "900" },
+    priceUnit: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    priceEquiv: {
+      color: colors.success,
+      fontSize: type.caption.fontSize,
+      fontWeight: "700",
+      marginTop: 1,
+    },
+
+    upgrades: { marginTop: spacing.md, gap: 1 },
+    sectionLabel: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "900",
+      letterSpacing: 0.6,
+      marginBottom: 5,
+    },
+    upgradeRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: spacing.sm,
+      paddingVertical: 7,
+      borderTopWidth: 1,
+      borderTopColor: colors.surfaceBorder,
+    },
+    upgradeLabel: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      flexShrink: 1,
+    },
+    upgradeValues: { flexDirection: "row", alignItems: "center", gap: 5 },
+    // The old value stays visible but recedes — it's the reference point, not
+    // the offer. Struck through would read as "no longer available", which is
+    // the wrong meaning: it's what you have now.
+    upgradeFrom: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+    },
+    upgradeTo: {
+      color: colors.textPrimary,
+      fontSize: type.label.fontSize,
+      fontWeight: "800",
+    },
+
+    unlocks: { marginTop: spacing.sm, gap: 4 },
+    unlockRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+    unlockText: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: type.label.fontSize,
+    },
+
+    expandRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      marginTop: spacing.sm,
+    },
+    expandText: { color: colors.accent, fontSize: type.label.fontSize, fontWeight: "700" },
+    features: { gap: spacing.md, marginTop: spacing.md },
+    group: { gap: 5 },
+    groupLabel: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "900",
+      letterSpacing: 0.6,
+    },
+    featureRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.xs },
+    featureText: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: type.label.fontSize,
+      lineHeight: 18,
+    },
+    featureTextOff: { color: colors.textTertiary },
+    footnote: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      textAlign: "center",
+      fontStyle: "italic",
+    },
+  });

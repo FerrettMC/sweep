@@ -4,7 +4,7 @@
 // name goes through here — one source of truth, so two screens can't quietly
 // disagree about what "$0" or "just now" looks like.
 
-import { colors } from "@/constants/theme";
+import type { Palette } from "@/constants/theme";
 
 export type Retailer =
   | "amazon"
@@ -27,7 +27,14 @@ export function retailerLabel(retailer: string) {
   return RETAILER_LABELS[retailer as Retailer] ?? retailer;
 }
 
-export function retailerColor(retailer: string) {
+/**
+ * Brand colour for a store's dot.
+ *
+ * Takes the palette rather than importing one: two of these differ between
+ * themes (Best Buy's yellow vanishes on white, ASOS's black on near-black), so
+ * a fixed import would leave those dots invisible in one theme or the other.
+ */
+export function retailerColor(colors: Palette, retailer: string) {
   return colors.retailers[retailer as Retailer] ?? colors.textSecondary;
 }
 

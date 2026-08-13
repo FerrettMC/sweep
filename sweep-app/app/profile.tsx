@@ -6,10 +6,12 @@
 
 import { useCallback, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Button, Loading, Screen, SectionTitle } from "@/components/ui";
-import { colors, radius, spacing, type } from "@/constants/theme";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { APP_VERSION, SUPPORT_EMAIL, supportMailto } from "@/constants/support";
+import { type ThemeMode, useTheme, useThemedStyles } from "@/lib/theme";
 import UsernameSheet from "@/components/UsernameSheet";
 import {
   getMyXp,
@@ -33,12 +35,14 @@ interface RetailerStatus {
 }
 
 const TIER_BLURB: Record<string, string> = {
-  free: "3 products · 2 checks a day · 1 search a day",
-  pro: "20 products · hourly checks · 10 searches a day",
-  ultimate: "100 products · checks every 30 min · 100 searches a day",
+  free: "3 products · up to 2 checks a day · 1 search a day",
+  pro: "20 products · checked up to every 4h · 10 searches a day",
+  ultimate: "100 products · checked up to hourly · 100 searches a day",
 };
 
 export default function ProfileScreen() {
+  const { colors, mode, setMode } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
 
   const [email, setEmail] = useState<string | null>(null);
@@ -207,6 +211,38 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.section}>
+          <SectionTitle>Appearance</SectionTitle>
+          <Text style={styles.sectionBlurb}>
+            System follows your phone, so it switches when your phone does.
+          </Text>
+          <View style={styles.themeRow}>
+            {THEME_OPTIONS.map((option) => {
+              const selected = mode === option.mode;
+              return (
+                <Pressable
+                  key={option.mode}
+                  onPress={() => setMode(option.mode)}
+                  style={({ pressed }) => [
+                    styles.themeOption,
+                    selected && styles.themeOptionOn,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Ionicons
+                    name={option.icon}
+                    size={19}
+                    color={selected ? colors.accent : colors.textSecondary}
+                  />
+                  <Text style={[styles.themeLabel, selected && styles.themeLabelOn]}>
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.section}>
           <SectionTitle>Store status</SectionTitle>
           <Text style={styles.sectionBlurb}>
             Which stores Sweep can currently read prices from.
@@ -218,7 +254,7 @@ export default function ProfileScreen() {
                 style={[styles.statusRow, index > 0 && styles.statusRowDivided]}
               >
                 <View
-                  style={[styles.retailerDot, { backgroundColor: retailerColor(item.retailer) }]}
+                  style={[styles.retailerDot, { backgroundColor: retailerColor(colors, item.retailer) }]}
                 />
                 <Text style={styles.statusName}>{item.label}</Text>
                 <Text
@@ -234,6 +270,34 @@ export default function ProfileScreen() {
             {retailers === null && (
               <Text style={styles.sub}>Couldn't reach the server.</Text>
             )}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <SectionTitle>Help</SectionTitle>
+          <View style={styles.card}>
+            <Pressable
+              style={({ pressed }) => [styles.helpRow, pressed && styles.pressed]}
+              onPress={() =>
+                Linking.openURL(
+                  supportMailto({ subject: "Sweep support", tier }),
+                )
+              }
+            >
+              <Ionicons name="mail-outline" size={18} color={colors.accent} />
+              <View style={styles.helpText}>
+                <Text style={styles.helpTitle}>Email support</Text>
+                <Text style={styles.helpSub}>{SUPPORT_EMAIL}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+            </Pressable>
+            <View style={[styles.helpRow, styles.statusRowDivided]}>
+              <Ionicons name="information-circle-outline" size={18} color={colors.textTertiary} />
+              <View style={styles.helpText}>
+                <Text style={styles.helpTitle}>Version</Text>
+                <Text style={styles.helpSub}>Sweep {APP_VERSION}</Text>
+              </View>
+            </View>
           </View>
         </View>
 
@@ -256,90 +320,132 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xxl },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.md,
-    gap: spacing.xs,
-  },
-  label: {
-    color: colors.textTertiary,
-    fontSize: type.caption.fontSize,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  value: { color: colors.textPrimary, fontSize: type.body.fontSize, fontWeight: "600" },
-  sub: { color: colors.textSecondary, fontSize: type.label.fontSize },
-  planRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  tierPill: {
-    backgroundColor: colors.accentMuted,
-    borderRadius: radius.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  tierPillText: { color: colors.accent, fontSize: type.caption.fontSize, fontWeight: "900" },
-  section: { gap: spacing.xs },
-  sectionBlurb: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    marginBottom: spacing.xs,
-  },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.sm,
-  },
-  statusRowDivided: { borderTopWidth: 1, borderTopColor: colors.surfaceBorder },
-  retailerDot: { width: 8, height: 8, borderRadius: radius.pill },
-  statusName: { color: colors.textPrimary, fontSize: type.body.fontSize, flex: 1 },
-  statusValue: { fontSize: type.label.fontSize, fontWeight: "700" },
-  changeLink: {
-    color: colors.accent,
-    fontSize: type.label.fontSize,
-    fontWeight: "800",
-  },
-  pressed: { opacity: 0.75 },
-  identityRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: colors.accentMuted,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { color: colors.accent, fontSize: 20, fontWeight: "900" },
-  identityText: { flex: 1, gap: 1 },
-  identityName: {
-    color: colors.textPrimary,
-    fontSize: type.heading.fontSize,
-    fontWeight: "800",
-  },
-  identityEmail: { color: colors.textSecondary, fontSize: type.label.fontSize },
-  identityNote: {
-    color: colors.textTertiary,
-    fontSize: type.caption.fontSize,
-    lineHeight: 15,
-    marginTop: spacing.xs,
-  },
-  planRight: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  comparePlans: {
-    color: colors.accent,
-    fontSize: type.label.fontSize,
-    fontWeight: "700",
-    marginTop: spacing.xs,
-  },
-  pushNote: {
-    color: colors.warning,
-    fontSize: type.caption.fontSize,
-    lineHeight: 15,
-  },
-  pushAction: { marginTop: spacing.xs, alignSelf: "flex-start" },
-  actions: { marginTop: spacing.md },
-});
+const THEME_OPTIONS: {
+  mode: ThemeMode;
+  label: string;
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+}[] = [
+  { mode: "system", label: "System", icon: "phone-portrait-outline" },
+  { mode: "light", label: "Light", icon: "sunny-outline" },
+  { mode: "dark", label: "Dark", icon: "moon-outline" },
+];
+
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    themeRow: { flexDirection: "row", gap: spacing.sm },
+    themeOption: {
+      flex: 1,
+      alignItems: "center",
+      gap: 5,
+      paddingVertical: spacing.md,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      backgroundColor: colors.surface,
+    },
+    themeOptionOn: { borderColor: colors.accent, backgroundColor: colors.accentMuted },
+    themeLabel: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      fontWeight: "700",
+    },
+    themeLabelOn: { color: colors.accent },
+    helpRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      paddingVertical: spacing.sm,
+    },
+    helpText: { flex: 1, gap: 1 },
+    helpTitle: {
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+      fontWeight: "600",
+    },
+    helpSub: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xxl },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      padding: spacing.md,
+      gap: spacing.xs,
+    },
+    label: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "800",
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+    },
+    value: { color: colors.textPrimary, fontSize: type.body.fontSize, fontWeight: "600" },
+    sub: { color: colors.textSecondary, fontSize: type.label.fontSize },
+    planRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    tierPill: {
+      backgroundColor: colors.accentMuted,
+      borderRadius: radius.sm,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+    },
+    tierPillText: { color: colors.accent, fontSize: type.caption.fontSize, fontWeight: "900" },
+    section: { gap: spacing.xs },
+    sectionBlurb: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      marginBottom: spacing.xs,
+    },
+    statusRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      paddingVertical: spacing.sm,
+    },
+    statusRowDivided: { borderTopWidth: 1, borderTopColor: colors.surfaceBorder },
+    retailerDot: { width: 8, height: 8, borderRadius: radius.pill },
+    statusName: { color: colors.textPrimary, fontSize: type.body.fontSize, flex: 1 },
+    statusValue: { fontSize: type.label.fontSize, fontWeight: "700" },
+    changeLink: {
+      color: colors.accent,
+      fontSize: type.label.fontSize,
+      fontWeight: "800",
+    },
+    pressed: { opacity: 0.75 },
+    identityRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+    avatar: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      backgroundColor: colors.accentMuted,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    avatarText: { color: colors.accent, fontSize: 20, fontWeight: "900" },
+    identityText: { flex: 1, gap: 1 },
+    identityName: {
+      color: colors.textPrimary,
+      fontSize: type.heading.fontSize,
+      fontWeight: "800",
+    },
+    identityEmail: { color: colors.textSecondary, fontSize: type.label.fontSize },
+    identityNote: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      lineHeight: 15,
+      marginTop: spacing.xs,
+    },
+    planRight: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+    comparePlans: {
+      color: colors.accent,
+      fontSize: type.label.fontSize,
+      fontWeight: "700",
+      marginTop: spacing.xs,
+    },
+    pushNote: {
+      color: colors.warning,
+      fontSize: type.caption.fontSize,
+      lineHeight: 15,
+    },
+    pushAction: { marginTop: spacing.xs, alignSelf: "flex-start" },
+    actions: { marginTop: spacing.md },
+  });

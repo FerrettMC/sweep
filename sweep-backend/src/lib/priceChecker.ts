@@ -9,6 +9,7 @@ import { prisma } from "./prisma.js";
 import { adapters } from "./scrapers/index.js";
 import { type Retailer, type ScrapedProduct, isRetailer } from "./scrapers/types.js";
 import { recordCheck } from "./health.js";
+import { backoffMultiplier, effectiveIntervalMinutes } from "./backoff.js";
 import { isDueAtFixedTimes, isDueAtInterval } from "./schedule.js";
 import { TIER_LIMITS, type Tier } from "./tiers.js";
 
@@ -87,6 +88,12 @@ export async function checkProduct(productId: string): Promise<CheckOutcome> {
         ratingCount: scraped.ratingCount,
         lastCheckedAt: new Date(),
         lastStatus: "success",
+        // Any real movement resets the backoff immediately — the item is back
+        // at full check rate on the very next sweep.
+        unchangedChecks:
+          newPrice !== null && newPrice === previousPrice
+            ? { increment: 1 }
+            : 0,
       },
     });
 
@@ -115,7 +122,11 @@ export async function findDueProducts(limit = 200): Promise<string[]> {
     select: {
       productId: true,
       product: {
-        select: { lastCheckedAt: true, retailer: true },
+        select: {
+          lastCheckedAt: true,
+          retailer: true,
+          unchangedChecks: true,
+        },
       },
       user: {
         select: {
@@ -149,6 +160,10 @@ export async function findDueProducts(limit = 200): Promise<string[]> {
     const limits = TIER_LIMITS[tier];
     const last = row.product.lastCheckedAt;
 
+    // Adaptive backoff: a product that keeps coming back at the same price is
+    // checked progressively less often, up to a hard ceiling.
+    const multiplier = backoffMultiplier(row.product.unchangedChecks);
+
     let isDue: boolean;
     let overdueBy: number;
 
@@ -159,6 +174,20 @@ export async function findDueProducts(limit = 200): Promise<string[]> {
         wallet?.timezone ?? "UTC",
         nowDate,
       );
+
+      // Fixed-time tiers back off by skipping scheduled slots rather than by
+      // moving them, so "9am and 9pm" still means 9am and 9pm — a stable item
+      // just doesn't get checked at every one of them.
+      if (isDue && multiplier > 1 && last) {
+        const minGapMs =
+          effectiveIntervalMinutes(
+            limits.checkIntervalMinutes,
+            row.product.unchangedChecks,
+          ) *
+          60 *
+          1000;
+        if (now - last.getTime() < minGapMs) isDue = false;
+      }
       // Fixed-time checks don't have a meaningful "how late" — order them by
       // staleness so the longest-neglected go first.
       overdueBy = last ? now - last.getTime() : Number.MAX_SAFE_INTEGER;
@@ -168,7 +197,10 @@ export async function findDueProducts(limit = 200): Promise<string[]> {
       // after the last run" — which would drift a little later every day.
       isDue = isDueAtInterval(
         last,
-        limits.checkIntervalMinutes,
+        effectiveIntervalMinutes(
+          limits.checkIntervalMinutes,
+          row.product.unchangedChecks,
+        ),
         wallet?.checkMinute ?? 0,
         wallet?.timezone ?? "UTC",
         nowDate,
@@ -345,4 +377,69 @@ export async function upsertScrapedProduct(scraped: ScrapedProduct) {
   }
 
   return product;
+}
+
+/**
+ * Write search results into the shared Product cache.
+ *
+ * Search hands back fully-scraped products that we then threw away, which had
+ * two costs. The obvious one: adding a search result to a list re-scraped a
+ * page we'd just read. The sharper one: some retailers can't be re-read on
+ * demand at all. Best Buy's product pages don't load from datacenter IPs, so
+ * its scraper falls back to searching for the name in the url slug — and a
+ * long slug makes a bad query, so the item you were looking at a second ago
+ * comes back "couldn't reach it".
+ *
+ * Caching the results makes add-to-list and track resolve straight out of the
+ * database with no scrape at all, which is both more reliable and faster.
+ *
+ * Deliberately does NOT seed price history. History exists to chart products
+ * someone is tracking; writing a row for every result of every search would
+ * fill that table with items nobody ever looks at again.
+ */
+export async function cacheSearchResults(products: ScrapedProduct[]) {
+  await Promise.all(
+    products.map((scraped) =>
+      prisma.product
+        .upsert({
+          where: {
+            retailer_retailerId: {
+              retailer: scraped.retailer,
+              retailerId: scraped.retailerId,
+            },
+          },
+          create: {
+            retailer: scraped.retailer,
+            retailerId: scraped.retailerId,
+            url: scraped.url,
+            title: scraped.title,
+            imageUrl: scraped.imageUrl,
+            currentPrice: scraped.price,
+            listPrice: scraped.listPrice,
+            currency: scraped.currency,
+            availability: scraped.availability,
+            rating: scraped.rating,
+            ratingCount: scraped.ratingCount,
+            lastCheckedAt: new Date(),
+            lastStatus: "success",
+          },
+          update: {
+            // Refresh the url too: retailers change their slugs, and a stale
+            // one is exactly what breaks the scrapers that read them.
+            url: scraped.url,
+            title: scraped.title,
+            imageUrl: scraped.imageUrl,
+            currentPrice: scraped.price,
+            listPrice: scraped.listPrice,
+            availability: scraped.availability,
+            rating: scraped.rating,
+            ratingCount: scraped.ratingCount,
+            lastCheckedAt: new Date(),
+            lastStatus: "success",
+          },
+        })
+        // One bad row shouldn't fail a search that otherwise worked.
+        .catch(() => null),
+    ),
+  );
 }

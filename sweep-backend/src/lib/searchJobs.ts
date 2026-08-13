@@ -15,6 +15,7 @@
 // move to Postgres or Redis so a poll can't hit the wrong instance.
 
 import { recordCheck } from "./health.js";
+import { cacheSearchResults } from "./priceChecker.js";
 import { adapters } from "./scrapers/index.js";
 import type { ScrapedProduct } from "./scrapers/types.js";
 
@@ -72,6 +73,9 @@ async function run(job: SearchJob, limit: number) {
     if (result.status === "success") {
       job.status = "success";
       job.products = result.data;
+      // Cache here rather than in the polling route, so results are kept even
+      // if the client gives up waiting before Bright Data comes back.
+      await cacheSearchResults(result.data);
     } else {
       job.status = result.status;
       job.detail = result.detail;

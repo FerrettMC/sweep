@@ -16,8 +16,10 @@ import {
 } from "react-native";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import PriceChart from "@/components/PriceChart";
+import BudgetEntrySheet, { type EntryDraft } from "@/components/BudgetEntrySheet";
 import { Button, ErrorBanner, Loading, Screen, SectionTitle, Stat } from "@/components/ui";
-import { colors, radius, spacing, type } from "@/constants/theme";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 import {
   ApiError,
   type ManualCheckState,
@@ -27,6 +29,8 @@ import {
   refreshProduct,
   trackProduct,
   untrackProduct,
+  getBudget,
+  getBudgetPrefill,
 } from "@/lib/api";
 import {
   formatPrice,
@@ -38,6 +42,8 @@ import {
 } from "@/lib/format";
 
 export default function ProductDetailScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
@@ -46,6 +52,9 @@ export default function ProductDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [boughtDraft, setBoughtDraft] = useState<EntryDraft | null>(null);
+  const [budgetCategories, setBudgetCategories] = useState<string[]>([]);
+  const [canCustomCategories, setCanCustomCategories] = useState(false);
   const [manualChecks, setManualChecks] = useState<ManualCheckState | null>(null);
 
   const load = useCallback(async () => {
@@ -100,6 +109,37 @@ export default function ProductDetailScreen() {
       setNotice(apiError.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** Prefill comes from the server (price + a category guess); a failure just
+   *  opens the sheet with what this screen already knows. */
+  async function openBought() {
+    if (!detail) return;
+    const { product } = detail;
+    setBoughtDraft({
+      amount: product.price,
+      category: "Other",
+      description: product.title,
+      productId: product.id,
+      productTitle: product.title,
+    });
+    try {
+      const [prefill, budget] = await Promise.all([
+        getBudgetPrefill(product.id),
+        getBudget(),
+      ]);
+      setBudgetCategories(budget.availableCategories);
+      setCanCustomCategories(budget.limits.canUseCustomCategories);
+      setBoughtDraft({
+        amount: prefill.amount,
+        category: prefill.category,
+        description: prefill.description,
+        productId: product.id,
+        productTitle: product.title,
+      });
+    } catch {
+      // Keep the local draft.
     }
   }
 
@@ -166,7 +206,7 @@ export default function ProductDetailScreen() {
           )}
           <View style={styles.retailerRow}>
             <View
-              style={[styles.retailerDot, { backgroundColor: retailerColor(product.retailer) }]}
+              style={[styles.retailerDot, { backgroundColor: retailerColor(colors, product.retailer) }]}
             />
             <Text style={styles.retailerName}>{retailerLabel(product.retailer)}</Text>
             {ratingText && <Text style={styles.rating}>{ratingText}</Text>}
@@ -234,6 +274,16 @@ export default function ProductDetailScreen() {
             onPress={() => Linking.openURL(product.url)}
             variant="secondary"
           />
+          {/*
+            The other half of a shopping app: the point of watching a price is
+            eventually paying one. Sits here as well as on the tracking list
+            because this is the screen you're on when you decide.
+          */}
+          <Button
+            label="I bought this"
+            onPress={openBought}
+            variant="secondary"
+          />
           <Button
             label={detail.tracking ? "Stop tracking" : "Track this product"}
             onPress={onToggleTracking}
@@ -242,6 +292,14 @@ export default function ProductDetailScreen() {
           />
         </View>
       </ScrollView>
+
+      <BudgetEntrySheet
+        draft={boughtDraft}
+        categories={budgetCategories}
+        canUseCustomCategories={canCustomCategories}
+        onClose={() => setBoughtDraft(null)}
+        onSaved={() => setNotice("Added to your budget.")}
+      />
     </Screen>
   );
 }
@@ -252,70 +310,71 @@ function manualCheckLabel(state: ManualCheckState | null) {
   return `Check price now (${state.remaining} left today)`;
 }
 
-const styles = StyleSheet.create({
-  content: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xxl },
-  hero: { gap: spacing.xs },
-  image: {
-    width: "100%",
-    height: 180,
-    backgroundColor: "#FFFFFF",
-    borderRadius: radius.md,
-    marginBottom: spacing.sm,
-  },
-  retailerRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  retailerDot: { width: 8, height: 8, borderRadius: radius.pill },
-  retailerName: {
-    color: colors.textSecondary,
-    fontSize: type.caption.fontSize,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  rating: { color: colors.textTertiary, fontSize: type.caption.fontSize },
-  title: {
-    color: colors.textPrimary,
-    fontSize: type.title.fontSize,
-    fontWeight: "800",
-    lineHeight: 29,
-  },
-  priceRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: spacing.sm,
-    marginTop: spacing.xs,
-    flexWrap: "wrap",
-  },
-  price: { color: colors.textPrimary, fontSize: 32, fontWeight: "900" },
-  listPrice: {
-    color: colors.textTertiary,
-    fontSize: type.body.fontSize,
-    textDecorationLine: "line-through",
-  },
-  discountPill: {
-    backgroundColor: colors.accentMuted,
-    borderRadius: radius.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  discountText: { color: colors.accent, fontSize: type.caption.fontSize, fontWeight: "800" },
-  verdict: { fontSize: type.label.fontSize, fontWeight: "700", marginTop: spacing.xs },
-  verdictGood: { color: colors.success },
-  verdictBad: { color: colors.warning },
-  checked: { color: colors.textTertiary, fontSize: type.caption.fontSize, marginTop: 2 },
-  section: { gap: spacing.sm },
-  upsell: {
-    color: colors.textTertiary,
-    fontSize: type.caption.fontSize,
-    fontStyle: "italic",
-  },
-  statsRow: {
-    flexDirection: "row",
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.md,
-  },
-  notice: { color: colors.textSecondary, fontSize: type.label.fontSize, textAlign: "center" },
-  actions: { gap: spacing.sm },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    content: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xxl },
+    hero: { gap: spacing.xs },
+    image: {
+      width: "100%",
+      height: 180,
+      backgroundColor: "#FFFFFF",
+      borderRadius: radius.md,
+      marginBottom: spacing.sm,
+    },
+    retailerRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+    retailerDot: { width: 8, height: 8, borderRadius: radius.pill },
+    retailerName: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "800",
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+    },
+    rating: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    title: {
+      color: colors.textPrimary,
+      fontSize: type.title.fontSize,
+      fontWeight: "800",
+      lineHeight: 29,
+    },
+    priceRow: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      gap: spacing.sm,
+      marginTop: spacing.xs,
+      flexWrap: "wrap",
+    },
+    price: { color: colors.textPrimary, fontSize: 32, fontWeight: "900" },
+    listPrice: {
+      color: colors.textTertiary,
+      fontSize: type.body.fontSize,
+      textDecorationLine: "line-through",
+    },
+    discountPill: {
+      backgroundColor: colors.accentMuted,
+      borderRadius: radius.sm,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+    },
+    discountText: { color: colors.accent, fontSize: type.caption.fontSize, fontWeight: "800" },
+    verdict: { fontSize: type.label.fontSize, fontWeight: "700", marginTop: spacing.xs },
+    verdictGood: { color: colors.success },
+    verdictBad: { color: colors.warning },
+    checked: { color: colors.textTertiary, fontSize: type.caption.fontSize, marginTop: 2 },
+    section: { gap: spacing.sm },
+    upsell: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      fontStyle: "italic",
+    },
+    statsRow: {
+      flexDirection: "row",
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      padding: spacing.md,
+    },
+    notice: { color: colors.textSecondary, fontSize: type.label.fontSize, textAlign: "center" },
+    actions: { gap: spacing.sm },
+  });

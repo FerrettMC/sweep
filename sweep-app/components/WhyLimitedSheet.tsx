@@ -8,7 +8,8 @@
 // Being specific ("about a tenth of a cent") is what makes it believable.
 
 import { Button } from "@/components/ui";
-import { colors, radius, spacing, type } from "@/constants/theme";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { Modal, ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -23,6 +24,8 @@ export default function WhyLimitedSheet({
   onClose,
   onSeePlans,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <Modal
       visible={visible}
@@ -112,72 +115,73 @@ export default function WhyLimitedSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    maxHeight: "88%",
-    borderTopWidth: 1,
-    borderColor: colors.surfaceBorder,
-  },
-  grabber: {
-    alignSelf: "center",
-    width: 38,
-    height: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceBorder,
-    marginTop: spacing.sm,
-  },
-  content: { padding: spacing.md, gap: spacing.md },
-  heading: {
-    color: colors.textPrimary,
-    fontSize: type.title.fontSize,
-    fontWeight: "900",
-  },
-  subheading: {
-    color: colors.textPrimary,
-    fontSize: type.heading.fontSize,
-    fontWeight: "800",
-  },
-  body: {
-    color: colors.textSecondary,
-    fontSize: type.body.fontSize,
-    lineHeight: 21,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.md,
-    gap: spacing.md,
-  },
-  row: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
-  rowText: {
-    flex: 1,
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    lineHeight: 19,
-  },
-  bold: { color: colors.textPrimary, fontWeight: "800" },
-  bullets: { gap: spacing.xs },
-  bullet: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    lineHeight: 19,
-  },
-  actions: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.surfaceBorder,
-  },
-  action: { flex: 1 },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.scrim,
+      justifyContent: "flex-end",
+    },
+    sheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: radius.lg,
+      borderTopRightRadius: radius.lg,
+      maxHeight: "88%",
+      borderTopWidth: 1,
+      borderColor: colors.surfaceBorder,
+    },
+    grabber: {
+      alignSelf: "center",
+      width: 38,
+      height: 4,
+      borderRadius: radius.pill,
+      backgroundColor: colors.surfaceBorder,
+      marginTop: spacing.sm,
+    },
+    content: { padding: spacing.md, gap: spacing.md },
+    heading: {
+      color: colors.textPrimary,
+      fontSize: type.title.fontSize,
+      fontWeight: "900",
+    },
+    subheading: {
+      color: colors.textPrimary,
+      fontSize: type.heading.fontSize,
+      fontWeight: "800",
+    },
+    body: {
+      color: colors.textSecondary,
+      fontSize: type.body.fontSize,
+      lineHeight: 21,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      padding: spacing.md,
+      gap: spacing.md,
+    },
+    row: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
+    rowText: {
+      flex: 1,
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      lineHeight: 19,
+    },
+    bold: { color: colors.textPrimary, fontWeight: "800" },
+    bullets: { gap: spacing.xs },
+    bullet: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      lineHeight: 19,
+    },
+    actions: {
+      flexDirection: "row",
+      gap: spacing.sm,
+      padding: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: colors.surfaceBorder,
+    },
+    action: { flex: 1 },
+  });

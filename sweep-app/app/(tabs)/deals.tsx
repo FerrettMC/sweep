@@ -21,7 +21,8 @@ import {
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Button, EmptyState, Loading, Screen } from "@/components/ui";
-import { colors, radius, spacing, type } from "@/constants/theme";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 import { type Deal, getDeals } from "@/lib/api";
 import {
   formatPrice,
@@ -31,6 +32,8 @@ import {
 } from "@/lib/format";
 
 export default function DealsScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
 
   const [deals, setDeals] = useState<Deal[] | null>(null);
@@ -122,7 +125,7 @@ export default function DealsScreen() {
                   <View
                     style={[
                       styles.dot,
-                      { backgroundColor: retailerColor(item.product.retailer) },
+                      { backgroundColor: retailerColor(colors, item.product.retailer) },
                     ]}
                   />
                   <Text style={styles.store}>
@@ -188,94 +191,95 @@ export default function DealsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  list: { padding: spacing.md, gap: spacing.sm },
-  emptyList: { flexGrow: 1 },
-  intro: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    marginBottom: spacing.sm,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.md,
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  pressed: { opacity: 0.75 },
-  top: { flexDirection: "row", gap: spacing.md },
-  thumb: {
-    width: 64,
-    height: 64,
-    borderRadius: radius.sm,
-    backgroundColor: "#FFFFFF",
-  },
-  thumbEmpty: { backgroundColor: colors.surfaceRaised },
-  info: { flex: 1, gap: 3 },
-  storeRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  dot: { width: 7, height: 7, borderRadius: radius.pill },
-  store: {
-    color: colors.textSecondary,
-    fontSize: type.caption.fontSize,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  when: { color: colors.textTertiary, fontSize: type.caption.fontSize },
-  title: {
-    color: colors.textPrimary,
-    fontSize: type.body.fontSize,
-    fontWeight: "600",
-    lineHeight: 19,
-  },
-  priceRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: spacing.xs,
-    marginTop: 2,
-    flexWrap: "wrap",
-  },
-  price: { color: colors.success, fontSize: 18, fontWeight: "900" },
-  wasPrice: {
-    color: colors.textTertiary,
-    fontSize: type.label.fontSize,
-    textDecorationLine: "line-through",
-  },
-  offPill: {
-    backgroundColor: colors.accentMuted,
-    borderRadius: radius.sm,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  offText: {
-    color: colors.accent,
-    fontSize: type.caption.fontSize,
-    fontWeight: "800",
-  },
-  footer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.surfaceBorder,
-    paddingTop: spacing.sm,
-  },
-  finderRow: { flexDirection: "row", alignItems: "center", gap: 5, flex: 1 },
-  finder: { color: colors.textTertiary, fontSize: type.caption.fontSize },
-  finderMe: { color: colors.accent, fontWeight: "800" },
-  nowPrice: { color: colors.textTertiary, fontSize: type.caption.fontSize },
-  trackingPill: {
-    backgroundColor: colors.surfaceRaised,
-    borderRadius: radius.sm,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-  },
-  trackingText: {
-    color: colors.textSecondary,
-    fontSize: type.caption.fontSize,
-    fontWeight: "700",
-  },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    list: { padding: spacing.md, gap: spacing.sm },
+    emptyList: { flexGrow: 1 },
+    intro: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      marginBottom: spacing.sm,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      padding: spacing.md,
+      gap: spacing.sm,
+      marginBottom: spacing.sm,
+    },
+    pressed: { opacity: 0.75 },
+    top: { flexDirection: "row", gap: spacing.md },
+    thumb: {
+      width: 64,
+      height: 64,
+      borderRadius: radius.sm,
+      backgroundColor: "#FFFFFF",
+    },
+    thumbEmpty: { backgroundColor: colors.surfaceRaised },
+    info: { flex: 1, gap: 3 },
+    storeRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+    dot: { width: 7, height: 7, borderRadius: radius.pill },
+    store: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "800",
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    when: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    title: {
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+      fontWeight: "600",
+      lineHeight: 19,
+    },
+    priceRow: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      gap: spacing.xs,
+      marginTop: 2,
+      flexWrap: "wrap",
+    },
+    price: { color: colors.success, fontSize: 18, fontWeight: "900" },
+    wasPrice: {
+      color: colors.textTertiary,
+      fontSize: type.label.fontSize,
+      textDecorationLine: "line-through",
+    },
+    offPill: {
+      backgroundColor: colors.accentMuted,
+      borderRadius: radius.sm,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+    },
+    offText: {
+      color: colors.accent,
+      fontSize: type.caption.fontSize,
+      fontWeight: "800",
+    },
+    footer: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: colors.surfaceBorder,
+      paddingTop: spacing.sm,
+    },
+    finderRow: { flexDirection: "row", alignItems: "center", gap: 5, flex: 1 },
+    finder: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    finderMe: { color: colors.accent, fontWeight: "800" },
+    nowPrice: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    trackingPill: {
+      backgroundColor: colors.surfaceRaised,
+      borderRadius: radius.sm,
+      paddingHorizontal: 7,
+      paddingVertical: 3,
+    },
+    trackingText: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "700",
+    },
+  });

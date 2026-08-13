@@ -9,9 +9,14 @@ import { startScheduler } from "./lib/scheduler.js";
 import { authRoutes } from "./routes/auth.js";
 import { dealRoutes } from "./routes/deals.js";
 import { leaderboardRoutes } from "./routes/leaderboard.js";
+import { budgetRoutes } from "./routes/budget.js";
+import { listRoutes } from "./routes/lists.js";
+import { sharePageRoutes } from "./routes/sharePage.js";
 import { notificationRoutes } from "./routes/notifications.js";
 import { productRoutes } from "./routes/products.js";
+import { radarRoutes } from "./routes/radar.js";
 import { searchRoutes } from "./routes/search.js";
+import { sweepRoutes } from "./routes/sweep.js";
 
 const app = Fastify({
   logger: {
@@ -23,11 +28,16 @@ const app = Fastify({
 Sentry.setupFastifyErrorHandler(app);
 
 app.register(authRoutes);
+app.register(budgetRoutes);
 app.register(dealRoutes);
 app.register(leaderboardRoutes);
+app.register(listRoutes);
+app.register(sharePageRoutes);
 app.register(notificationRoutes);
 app.register(productRoutes);
+app.register(radarRoutes);
 app.register(searchRoutes);
+app.register(sweepRoutes);
 
 app.get("/health", async () => {
   return { status: "ok" };

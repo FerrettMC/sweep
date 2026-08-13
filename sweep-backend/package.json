@@ -16,7 +16,15 @@
     "test:api": "tsx src/test-api.ts",
     "test:paste": "tsx src/test-paste.ts",
     "test:notify": "tsx src/test-notify.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "cost-model": "tsx src/cost-model.ts",
+    "scale-model": "tsx src/scale-model.ts",
+    "test:lists": "tsx src/test-lists.ts",
+    "test:budget": "tsx src/test-budget.ts",
+    "test:verify-drop": "tsx src/test-verify-drop.ts",
+    "test:matching": "tsx src/test-matching.ts",
+    "test:sweep": "tsx src/test-sweep.ts",
+    "test:radar": "tsx src/test-radar.ts"
   },
   "keywords": [],
   "author": "",

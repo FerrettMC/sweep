@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import * as Notifications from "expo-notifications";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { colors } from "@/constants/theme";
+import { ThemeProvider, useTheme } from "@/lib/theme";
 import { syncUser } from "@/lib/api";
 import { isGuestMode } from "@/lib/guestMode";
 import {
@@ -19,7 +19,20 @@ import {
 } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
 
+/**
+ * The provider has to sit above anything calling useTheme, so the navigator is
+ * a separate component rather than this one.
+ */
 export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <RootNavigator />
+    </ThemeProvider>
+  );
+}
+
+function RootNavigator() {
+  const { colors, scheme } = useTheme();
   const router = useRouter();
   const segments = useSegments();
 
@@ -134,7 +147,7 @@ export default function RootLayout() {
 
   return (
     <>
-      <StatusBar style="light" />
+      <StatusBar style={scheme === "dark" ? "light" : "dark"} />
       <Stack
         screenOptions={{
           headerShown: false,
@@ -162,10 +175,32 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="radar"
+          options={{
+            headerShown: true,
+            title: "Deal Radar",
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.textPrimary,
+            headerShadowVisible: false,
+            headerTitleStyle: { fontWeight: "800" },
+          }}
+        />
+        <Stack.Screen
           name="budget"
           options={{
             headerShown: true,
             title: "Budget",
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.textPrimary,
+            headerShadowVisible: false,
+            headerTitleStyle: { fontWeight: "800" },
+          }}
+        />
+        <Stack.Screen
+          name="lists"
+          options={{
+            headerShown: true,
+            title: "Lists",
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.textPrimary,
             headerShadowVisible: false,

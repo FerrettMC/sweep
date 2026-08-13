@@ -10,11 +10,14 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Button } from "@/components/ui";
-import { colors, radius, spacing, type } from "@/constants/theme";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 import { setGuestMode } from "@/lib/guestMode";
 import { supabase } from "@/lib/supabase";
 
 export default function Auth() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -128,52 +131,53 @@ export default function Auth() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    justifyContent: "center",
-    padding: spacing.xl,
-    gap: spacing.sm,
-  },
-  title: {
-    color: colors.accent,
-    fontSize: 44,
-    fontWeight: "900",
-    textAlign: "center",
-  },
-  subtitle: {
-    color: colors.textSecondary,
-    fontSize: type.body.fontSize,
-    textAlign: "center",
-    marginBottom: spacing.lg,
-  },
-  input: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    color: colors.textPrimary,
-    fontSize: 16,
-  },
-  message: {
-    color: colors.danger,
-    fontSize: type.label.fontSize,
-    textAlign: "center",
-    paddingVertical: spacing.xs,
-  },
-  messageOk: { color: colors.success },
-  guestButton: { paddingVertical: spacing.sm, alignItems: "center" },
-  guestButtonText: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    textDecorationLine: "underline",
-  },
-  guestNote: {
-    color: colors.textTertiary,
-    fontSize: type.caption.fontSize,
-    textAlign: "center",
-    lineHeight: 15,
-  },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+      justifyContent: "center",
+      padding: spacing.xl,
+      gap: spacing.sm,
+    },
+    title: {
+      color: colors.accent,
+      fontSize: 44,
+      fontWeight: "900",
+      textAlign: "center",
+    },
+    subtitle: {
+      color: colors.textSecondary,
+      fontSize: type.body.fontSize,
+      textAlign: "center",
+      marginBottom: spacing.lg,
+    },
+    input: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      borderRadius: radius.md,
+      padding: spacing.md,
+      color: colors.textPrimary,
+      fontSize: 16,
+    },
+    message: {
+      color: colors.danger,
+      fontSize: type.label.fontSize,
+      textAlign: "center",
+      paddingVertical: spacing.xs,
+    },
+    messageOk: { color: colors.success },
+    guestButton: { paddingVertical: spacing.sm, alignItems: "center" },
+    guestButtonText: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      textDecorationLine: "underline",
+    },
+    guestNote: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      textAlign: "center",
+      lineHeight: 15,
+    },
+  });

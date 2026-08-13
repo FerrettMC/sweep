@@ -9,7 +9,8 @@
 
 import { Ionicons } from "@expo/vector-icons";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { colors, radius, spacing, type } from "@/constants/theme";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 import type { SearchProduct } from "@/lib/api";
 import { formatPrice, percentOff, retailerColor, retailerLabel } from "@/lib/format";
 
@@ -23,6 +24,8 @@ interface Props {
 }
 
 export default function CompareTray({ items, onOpen, onRemove, onClear, showHint }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   // Before the feature has ever been used, say what it does. A control nobody
   // understands may as well not exist.
   if (items.length === 0) {
@@ -102,7 +105,7 @@ export default function CompareTray({ items, onOpen, onRemove, onClear, showHint
               <View style={styles.info}>
                 <View style={styles.storeRow}>
                   <View
-                    style={[styles.dot, { backgroundColor: retailerColor(product.retailer) }]}
+                    style={[styles.dot, { backgroundColor: retailerColor(colors, product.retailer) }]}
                   />
                   <Text style={styles.store}>{retailerLabel(product.retailer)}</Text>
                   {off !== null && <Text style={styles.off}>{off}% off</Text>}
@@ -138,87 +141,88 @@ export default function CompareTray({ items, onOpen, onRemove, onClear, showHint
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { gap: spacing.xs, marginTop: spacing.sm },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  heading: {
-    color: colors.textPrimary,
-    fontSize: type.heading.fontSize,
-    fontWeight: "800",
-  },
-  clear: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    fontWeight: "700",
-  },
-  spread: { color: colors.accent, fontSize: type.caption.fontSize, fontWeight: "700" },
-  spreadMuted: {
-    color: colors.textTertiary,
-    fontSize: type.caption.fontSize,
-    fontWeight: "600",
-  },
-  hint: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    borderStyle: "dashed",
-    padding: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  hintText: {
-    flex: 1,
-    color: colors.textSecondary,
-    fontSize: type.caption.fontSize,
-    lineHeight: 16,
-  },
-  hintStrong: { color: colors.textPrimary, fontWeight: "800" },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.accentMuted,
-    marginTop: 2,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    padding: spacing.sm,
-  },
-  rowDivided: { borderTopWidth: 1, borderTopColor: colors.surfaceBorder },
-  pressed: { opacity: 0.7 },
-  thumb: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.sm,
-    backgroundColor: "#FFFFFF",
-  },
-  thumbEmpty: { backgroundColor: colors.surfaceRaised },
-  info: { flex: 1, gap: 1 },
-  storeRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  dot: { width: 6, height: 6, borderRadius: radius.pill },
-  store: {
-    color: colors.textSecondary,
-    fontSize: type.caption.fontSize,
-    fontWeight: "700",
-  },
-  off: { color: colors.success, fontSize: type.caption.fontSize, fontWeight: "700" },
-  title: { color: colors.textPrimary, fontSize: type.label.fontSize, fontWeight: "600" },
-  priceCol: { alignItems: "flex-end", gap: 1 },
-  price: { color: colors.textPrimary, fontSize: type.body.fontSize, fontWeight: "800" },
-  priceCheapest: { color: colors.success },
-  cheapestTag: {
-    color: colors.success,
-    fontSize: type.caption.fontSize,
-    fontWeight: "800",
-  },
-  delta: { color: colors.textTertiary, fontSize: type.caption.fontSize },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    wrap: { gap: spacing.xs, marginTop: spacing.sm },
+    headerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    heading: {
+      color: colors.textPrimary,
+      fontSize: type.heading.fontSize,
+      fontWeight: "800",
+    },
+    clear: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      fontWeight: "700",
+    },
+    spread: { color: colors.accent, fontSize: type.caption.fontSize, fontWeight: "700" },
+    spreadMuted: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "600",
+    },
+    hint: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: spacing.sm,
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      borderStyle: "dashed",
+      padding: spacing.sm,
+      marginTop: spacing.sm,
+    },
+    hintText: {
+      flex: 1,
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      lineHeight: 16,
+    },
+    hintStrong: { color: colors.textPrimary, fontWeight: "800" },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.accentMuted,
+      marginTop: 2,
+    },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      padding: spacing.sm,
+    },
+    rowDivided: { borderTopWidth: 1, borderTopColor: colors.surfaceBorder },
+    pressed: { opacity: 0.7 },
+    thumb: {
+      width: 40,
+      height: 40,
+      borderRadius: radius.sm,
+      backgroundColor: "#FFFFFF",
+    },
+    thumbEmpty: { backgroundColor: colors.surfaceRaised },
+    info: { flex: 1, gap: 1 },
+    storeRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+    dot: { width: 6, height: 6, borderRadius: radius.pill },
+    store: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "700",
+    },
+    off: { color: colors.success, fontSize: type.caption.fontSize, fontWeight: "700" },
+    title: { color: colors.textPrimary, fontSize: type.label.fontSize, fontWeight: "600" },
+    priceCol: { alignItems: "flex-end", gap: 1 },
+    price: { color: colors.textPrimary, fontSize: type.body.fontSize, fontWeight: "800" },
+    priceCheapest: { color: colors.success },
+    cheapestTag: {
+      color: colors.success,
+      fontSize: type.caption.fontSize,
+      fontWeight: "800",
+    },
+    delta: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+  });

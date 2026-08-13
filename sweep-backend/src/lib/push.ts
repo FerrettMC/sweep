@@ -185,3 +185,47 @@ function formatCents(cents: number) {
 function truncate(text: string, max: number) {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
+
+/**
+ * Tell someone their Deal Radar found something.
+ *
+ * Separate from notifyPriceDrop because the two say genuinely different things:
+ * a price drop is "the thing you're watching got cheaper", a radar hit is "the
+ * thing you were waiting for exists now, here". Sharing one function would mean
+ * one of them wording itself awkwardly forever.
+ */
+export async function notifyRadarMatch(input: {
+  userId: string;
+  keyword: string;
+  price: number;
+  retailerLabel: string;
+  title: string;
+  searchId: string;
+  targetPrice: number | null;
+}): Promise<number> {
+  const tokens = await prisma.pushToken.findMany({ where: { userId: input.userId } });
+  if (tokens.length === 0) return 0;
+
+  const body = input.targetPrice !== null
+    ? `${formatCents(input.price)} at ${input.retailerLabel} — under your ${formatCents(input.targetPrice)} target.`
+    : `${formatCents(input.price)} at ${input.retailerLabel} — the cheapest we've seen.`;
+
+  const messages: ExpoPushMessage[] = [];
+  for (const { token } of tokens) {
+    if (!Expo.isExpoPushToken(token)) continue;
+    messages.push({
+      to: token,
+      sound: "default",
+      title: `Radar: ${truncate(input.keyword, 40)}`,
+      body,
+      data: { searchId: input.searchId, type: "radar_match" },
+      channelId: "price-drops",
+    });
+  }
+
+  if (messages.length === 0) return 0;
+
+  const tickets = await send(messages);
+  await pruneDeadTokens(messages, tickets);
+  return messages.length;
+}

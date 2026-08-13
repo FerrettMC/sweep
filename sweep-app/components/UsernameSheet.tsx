@@ -7,7 +7,8 @@
 import { useState } from "react";
 import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import { Button } from "@/components/ui";
-import { colors, radius, spacing, type } from "@/constants/theme";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 import { ApiError, setUsername } from "@/lib/api";
 
 interface Props {
@@ -19,6 +20,8 @@ interface Props {
 }
 
 export default function UsernameSheet({ visible, current, onClose, onSaved }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [draft, setDraft] = useState(current ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -102,45 +105,46 @@ export default function UsernameSheet({ visible, current, onClose, onSaved }: Pr
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    padding: spacing.lg,
-  },
-  sheet: {
-    backgroundColor: colors.background,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.lg,
-    gap: spacing.sm,
-  },
-  heading: {
-    color: colors.textPrimary,
-    fontSize: type.title.fontSize,
-    fontWeight: "800",
-  },
-  body: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    lineHeight: 18,
-  },
-  input: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    color: colors.textPrimary,
-    fontSize: type.body.fontSize,
-    marginTop: spacing.xs,
-  },
-  rule: { color: colors.textTertiary, fontSize: type.caption.fontSize },
-  ruleBad: { color: colors.warning },
-  error: { color: colors.danger, fontSize: type.label.fontSize },
-  actions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
-  action: { flex: 1 },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.scrim,
+      justifyContent: "center",
+      padding: spacing.lg,
+    },
+    sheet: {
+      backgroundColor: colors.background,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      padding: spacing.lg,
+      gap: spacing.sm,
+    },
+    heading: {
+      color: colors.textPrimary,
+      fontSize: type.title.fontSize,
+      fontWeight: "800",
+    },
+    body: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      lineHeight: 18,
+    },
+    input: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 12,
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+      marginTop: spacing.xs,
+    },
+    rule: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    ruleBad: { color: colors.warning },
+    error: { color: colors.danger, fontSize: type.label.fontSize },
+    actions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
+    action: { flex: 1 },
+  });

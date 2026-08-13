@@ -13,7 +13,8 @@
 import { Link, Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { type ColorValue, Pressable, StyleSheet, View } from "react-native";
-import { colors, spacing, type } from "@/constants/theme";
+import { type Palette, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -24,6 +25,8 @@ function tabIcon(active: IoniconName, inactive: IoniconName) {
 }
 
 function ProfileButton() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <Link href="/profile" asChild>
       <Pressable hitSlop={12} style={({ pressed }) => pressed && styles.pressed}>
@@ -36,6 +39,7 @@ function ProfileButton() {
 }
 
 export default function TabLayout() {
+  const { colors } = useTheme();
   return (
     <Tabs
       screenOptions={{
@@ -91,15 +95,16 @@ export default function TabLayout() {
   );
 }
 
-const styles = StyleSheet.create({
-  profileButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceRaised,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: spacing.md,
-  },
-  pressed: { opacity: 0.6 },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    profileButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceRaised,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: spacing.md,
+    },
+    pressed: { opacity: 0.6 },
+  });

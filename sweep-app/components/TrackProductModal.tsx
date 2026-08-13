@@ -14,7 +14,8 @@ import {
   View,
 } from "react-native";
 import { Button } from "@/components/ui";
-import { colors, radius, spacing, type } from "@/constants/theme";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 import type { ProductPreview } from "@/lib/api";
 import {
   formatPrice,
@@ -39,6 +40,8 @@ export default function TrackProductModal({
   onCancel,
   onConfirm,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   if (!preview) return null;
 
   const { product, limits, alreadyTracking } = preview;
@@ -74,7 +77,7 @@ export default function TrackProductModal({
                   <View
                     style={[
                       styles.retailerDot,
-                      { backgroundColor: retailerColor(product.retailer) },
+                      { backgroundColor: retailerColor(colors, product.retailer) },
                     ]}
                   />
                   <Text style={styles.retailer}>{retailerLabel(product.retailer)}</Text>
@@ -104,11 +107,12 @@ export default function TrackProductModal({
             <View style={styles.scheduleNote}>
               <Text style={styles.scheduleText}>
                 {limits.fixedCheckTimes
-                  ? `Checked ${limits.checkTimesPerDay}× a day`
+                  ? `Checked up to ${limits.checkTimesPerDay}× a day`
                   : limits.checkIntervalMinutes >= 60
-                    ? `Checked every ${limits.checkIntervalMinutes / 60} hours`
-                    : `Checked every ${limits.checkIntervalMinutes} minutes`}
-                . You'll get an alert the moment the price drops.
+                    ? `Checked up to every ${limits.checkIntervalMinutes / 60} hours`
+                    : `Checked up to every ${limits.checkIntervalMinutes} minutes`}
+                , more often while the price is moving. You'll get an alert as
+                soon as it drops.
               </Text>
             </View>
 
@@ -150,160 +154,161 @@ export default function TrackProductModal({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    maxHeight: "88%",
-    borderTopWidth: 1,
-    borderColor: colors.surfaceBorder,
-  },
-  grabber: {
-    alignSelf: "center",
-    width: 38,
-    height: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceBorder,
-    marginTop: spacing.sm,
-  },
-  content: { padding: spacing.md, gap: spacing.md },
-  heading: {
-    color: colors.textPrimary,
-    fontSize: type.title.fontSize,
-    fontWeight: "800",
-  },
-  productRow: {
-    flexDirection: "row",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.md,
-  },
-  image: {
-    width: 84,
-    height: 84,
-    borderRadius: radius.sm,
-    backgroundColor: "#FFFFFF",
-  },
-  imageEmpty: { backgroundColor: colors.surfaceRaised },
-  productInfo: { flex: 1, gap: 3 },
-  retailerRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  retailerDot: { width: 7, height: 7, borderRadius: radius.pill },
-  retailer: {
-    color: colors.textSecondary,
-    fontSize: type.caption.fontSize,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  rating: { color: colors.textTertiary, fontSize: type.caption.fontSize },
-  title: {
-    color: colors.textPrimary,
-    fontSize: type.body.fontSize,
-    fontWeight: "600",
-    lineHeight: 19,
-  },
-  priceRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: spacing.xs,
-    marginTop: 2,
-    flexWrap: "wrap",
-  },
-  price: { color: colors.textPrimary, fontSize: 20, fontWeight: "900" },
-  listPrice: {
-    color: colors.textTertiary,
-    fontSize: type.label.fontSize,
-    textDecorationLine: "line-through",
-  },
-  discountPill: {
-    backgroundColor: colors.accentMuted,
-    borderRadius: radius.sm,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  discountText: {
-    color: colors.accent,
-    fontSize: type.caption.fontSize,
-    fontWeight: "800",
-  },
-  section: { gap: spacing.xs },
-  sectionTitle: {
-    color: colors.textPrimary,
-    fontSize: type.heading.fontSize,
-    fontWeight: "700",
-  },
-  sectionHint: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    lineHeight: 18,
-  },
-  hourGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.xs,
-    marginTop: spacing.xs,
-  },
-  hourChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    minWidth: 58,
-    alignItems: "center",
-  },
-  hourChipSelected: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  hourChipPressed: { opacity: 0.7 },
-  hourText: {
-    color: colors.textSecondary,
-    fontSize: type.caption.fontSize,
-    fontWeight: "700",
-  },
-  hourTextSelected: { color: colors.background },
-  selectedSummary: {
-    color: colors.accent,
-    fontSize: type.label.fontSize,
-    fontWeight: "700",
-    marginTop: spacing.xs,
-  },
-  scheduleNote: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.md,
-  },
-  scheduleText: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    lineHeight: 19,
-  },
-  slots: { color: colors.textTertiary, fontSize: type.label.fontSize },
-  blocked: {
-    color: colors.warning,
-    fontSize: type.label.fontSize,
-    lineHeight: 18,
-  },
-  error: { color: colors.danger, fontSize: type.label.fontSize },
-  actions: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.surfaceBorder,
-  },
-  actionSlot: { flex: 1 },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.scrim,
+      justifyContent: "flex-end",
+    },
+    sheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: radius.lg,
+      borderTopRightRadius: radius.lg,
+      maxHeight: "88%",
+      borderTopWidth: 1,
+      borderColor: colors.surfaceBorder,
+    },
+    grabber: {
+      alignSelf: "center",
+      width: 38,
+      height: 4,
+      borderRadius: radius.pill,
+      backgroundColor: colors.surfaceBorder,
+      marginTop: spacing.sm,
+    },
+    content: { padding: spacing.md, gap: spacing.md },
+    heading: {
+      color: colors.textPrimary,
+      fontSize: type.title.fontSize,
+      fontWeight: "800",
+    },
+    productRow: {
+      flexDirection: "row",
+      gap: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      padding: spacing.md,
+    },
+    image: {
+      width: 84,
+      height: 84,
+      borderRadius: radius.sm,
+      backgroundColor: "#FFFFFF",
+    },
+    imageEmpty: { backgroundColor: colors.surfaceRaised },
+    productInfo: { flex: 1, gap: 3 },
+    retailerRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+    retailerDot: { width: 7, height: 7, borderRadius: radius.pill },
+    retailer: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "800",
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    rating: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    title: {
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+      fontWeight: "600",
+      lineHeight: 19,
+    },
+    priceRow: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      gap: spacing.xs,
+      marginTop: 2,
+      flexWrap: "wrap",
+    },
+    price: { color: colors.textPrimary, fontSize: 20, fontWeight: "900" },
+    listPrice: {
+      color: colors.textTertiary,
+      fontSize: type.label.fontSize,
+      textDecorationLine: "line-through",
+    },
+    discountPill: {
+      backgroundColor: colors.accentMuted,
+      borderRadius: radius.sm,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+    },
+    discountText: {
+      color: colors.accent,
+      fontSize: type.caption.fontSize,
+      fontWeight: "800",
+    },
+    section: { gap: spacing.xs },
+    sectionTitle: {
+      color: colors.textPrimary,
+      fontSize: type.heading.fontSize,
+      fontWeight: "700",
+    },
+    sectionHint: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      lineHeight: 18,
+    },
+    hourGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.xs,
+      marginTop: spacing.xs,
+    },
+    hourChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      borderRadius: radius.sm,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      minWidth: 58,
+      alignItems: "center",
+    },
+    hourChipSelected: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    hourChipPressed: { opacity: 0.7 },
+    hourText: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "700",
+    },
+    hourTextSelected: { color: colors.background },
+    selectedSummary: {
+      color: colors.accent,
+      fontSize: type.label.fontSize,
+      fontWeight: "700",
+      marginTop: spacing.xs,
+    },
+    scheduleNote: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      padding: spacing.md,
+    },
+    scheduleText: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      lineHeight: 19,
+    },
+    slots: { color: colors.textTertiary, fontSize: type.label.fontSize },
+    blocked: {
+      color: colors.warning,
+      fontSize: type.label.fontSize,
+      lineHeight: 18,
+    },
+    error: { color: colors.danger, fontSize: type.label.fontSize },
+    actions: {
+      flexDirection: "row",
+      gap: spacing.sm,
+      padding: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: colors.surfaceBorder,
+    },
+    actionSlot: { flex: 1 },
+  });

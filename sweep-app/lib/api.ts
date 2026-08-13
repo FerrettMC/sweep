@@ -369,6 +369,84 @@ export function getNotificationStatus() {
   );
 }
 
+// ---- lists ----
+
+export interface ListItem {
+  id: string;
+  note: string | null;
+  claimed: boolean;
+  addedAt: string;
+  product: {
+    id: string;
+    retailer: string;
+    retailerId: string;
+    title: string;
+    imageUrl: string | null;
+    url: string;
+    price: number | null;
+    listPrice: number | null;
+  };
+}
+
+export interface GiftList {
+  id: string;
+  name: string;
+  description: string | null;
+  isPublic: boolean;
+  shareToken: string | null;
+  createdAt: string;
+  itemCount: number;
+  totalValue: number;
+  items: ListItem[];
+}
+
+export function getLists() {
+  return request<{
+    lists: GiftList[];
+    limits: { maxLists: number; maxItemsPerList: number; used: number };
+    tier: string;
+  }>("/lists");
+}
+
+export function createList(name: string, description?: string) {
+  return request<{ list: GiftList }>("/lists", {
+    method: "POST",
+    body: { name, description },
+  });
+}
+
+export function renameList(id: string, name: string) {
+  return request<{ ok: true }>(`/lists/${id}`, { method: "PATCH", body: { name } });
+}
+
+export function deleteList(id: string) {
+  return request<{ ok: true }>(`/lists/${id}`, { method: "DELETE" });
+}
+
+export function addListItem(
+  listId: string,
+  target: { url: string } | { retailer: string; retailerId: string },
+  note?: string,
+) {
+  return request<{ item: ListItem }>(`/lists/${listId}/items`, {
+    method: "POST",
+    body: { ...target, note },
+  });
+}
+
+export function removeListItem(listId: string, itemId: string) {
+  return request<{ ok: true }>(`/lists/${listId}/items/${itemId}`, {
+    method: "DELETE",
+  });
+}
+
+export function setListSharing(listId: string, enabled: boolean) {
+  return request<{ isPublic: boolean; shareToken: string | null }>(
+    `/lists/${listId}/share`,
+    { method: "POST", body: { enabled } },
+  );
+}
+
 // ---- plans ----
 
 export interface PlanFeature {
@@ -385,7 +463,15 @@ export interface Plan {
     monthly: number | null;
     yearly: number | null;
     yearlySavingPercent: number | null;
+    /** What the yearly price works out to per month. */
+    yearlyPerMonth: number | null;
   };
+  /** Short ribbon above the name, e.g. "MOST POPULAR". Null for Free. */
+  badge: string | null;
+  /** The handful of numbers that improve at this tier. `from` is null on Free. */
+  upgrades: { label: string; from: string | null; to: string }[];
+  /** Features that switch on at this tier and weren't available below it. */
+  unlocks: string[];
   features: PlanFeature[];
   highlighted: boolean;
 }
@@ -507,4 +593,235 @@ export function getRetailerStatus() {
       successRate: number | null;
     }[];
   }>("/search/retailers");
+}
+
+// ---- budget -----------------------------------------------------------------
+
+export interface BudgetEntry {
+  id: string;
+  amount: number;
+  category: string;
+  description: string | null;
+  spentAt: string;
+  /** Set when the entry was logged from a tracked product. */
+  product: {
+    id: string;
+    title: string;
+    retailer: string;
+    imageUrl: string | null;
+    url: string;
+  } | null;
+}
+
+export interface BudgetMonth {
+  month: string;
+  total: number;
+  /** The overall monthly budget, or null if none is set. */
+  budget: number | null;
+  entries: BudgetEntry[];
+  categories: { category: string; spent: number; limit: number | null }[];
+  limits: {
+    canSetCategoryLimits: boolean;
+    canUseCustomCategories: boolean;
+    canExport: boolean;
+    historyMonths: number | null;
+    earliestMonth: string | null;
+  };
+  availableCategories: string[];
+  tier: string;
+}
+
+export function getBudget(month?: string) {
+  return request<BudgetMonth>(`/budget${month ? `?month=${month}` : ""}`);
+}
+
+export function addBudgetEntry(entry: {
+  amount: number;
+  category: string;
+  description?: string | null;
+  spentAt?: string;
+  productId?: string;
+}) {
+  return request<{ entry: BudgetEntry }>("/budget", { method: "POST", body: entry });
+}
+
+export function updateBudgetEntry(
+  id: string,
+  changes: { amount?: number; category?: string; description?: string | null; spentAt?: string },
+) {
+  return request<{ ok: true }>(`/budget/${id}`, { method: "PATCH", body: changes });
+}
+
+export function deleteBudgetEntry(id: string) {
+  return request<{ ok: true }>(`/budget/${id}`, { method: "DELETE" });
+}
+
+/** `category: null` sets the overall monthly budget. `amount: null` clears it. */
+export function setBudgetLimit(category: string | null, amount: number | null) {
+  return request<{ ok: true; category: string | null; amount: number | null }>(
+    "/budget/limits",
+    { method: "PUT", body: { category, amount } },
+  );
+}
+
+/** What to prefill the "I bought this" sheet with for a tracked product. */
+export function getBudgetPrefill(productId: string) {
+  return request<{
+    productId: string;
+    amount: number | null;
+    category: string;
+    description: string;
+  }>(`/budget/prefill/${productId}`);
+}
+
+// ---- "Sweep this deal" -------------------------------------------------------
+
+export type SaleVerdict =
+  | "genuine-low"
+  | "good-price"
+  | "typical-price"
+  | "above-usual"
+  | "no-history";
+
+export interface SweepAlternative {
+  retailer: string;
+  retailerLabel: string;
+  title: string;
+  url: string;
+  imageUrl: string | null;
+  price: number;
+  /** "same" is a confident like-for-like; "similar" is explicitly not claimed. */
+  confidence: "same" | "similar";
+  savings: number;
+  caveats: string[];
+}
+
+export interface SweepResult {
+  product: {
+    id: string;
+    title: string;
+    retailer: string;
+    retailerLabel: string;
+    url: string;
+    imageUrl: string | null;
+    price: number;
+    listPrice: number | null;
+  };
+  sale: {
+    verdict: SaleVerdict;
+    headline: string;
+    detail: string;
+    claimedPercentOff: number | null;
+    realPercentBelowTypical: number | null;
+  };
+  history: {
+    points: number;
+    low: number | null;
+    high: number | null;
+    average: number | null;
+    firstSeen: string | null;
+  };
+  cheaperElsewhere: SweepAlternative[];
+  similar: SweepAlternative[];
+  unreachable: string[];
+  bestSaving: number;
+  headline: string;
+}
+
+export interface SweepQuota {
+  used: number;
+  limit: number;
+  remaining: number;
+  resetsAt: string;
+  available: boolean;
+}
+
+export function getSweepQuota() {
+  return request<{ quota: SweepQuota; tier: string }>("/sweep/quota");
+}
+
+export function sweepDeal(
+  target: { productId: string } | { url: string } | { retailer: string; retailerId: string },
+) {
+  return request<{ result: SweepResult; quota: SweepQuota; tier: string }>("/sweep", {
+    method: "POST",
+    body: target,
+  });
+}
+
+// ---- deal radar --------------------------------------------------------------
+
+export interface SavedSearch {
+  id: string;
+  keyword: string;
+  targetPrice: number | null;
+  createdAt: string;
+  lastCheckedAt: string | null;
+  lastBestPrice: number | null;
+  lastMatchAt: string | null;
+  nextCheckAt: string;
+  unchangedChecks: number;
+}
+
+export interface RadarMatch {
+  retailer: string;
+  retailerLabel: string;
+  title: string;
+  url: string;
+  imageUrl: string | null;
+  price: number;
+  listPrice: number | null;
+  rating: number | null;
+  ratingCount: number | null;
+}
+
+export interface RadarRefreshes {
+  used: number;
+  /** Null means unlimited. */
+  limit: number | null;
+  remaining: number | null;
+  resetsAt: string;
+}
+
+export function getRadar() {
+  return request<{
+    searches: SavedSearch[];
+    limits: {
+      maxSavedSearches: number;
+      used: number;
+      intervalMinutes: number;
+      /** False on free — radars only run when the user refreshes them. */
+      autoChecks: boolean;
+    };
+    refreshes: RadarRefreshes | null;
+    tier: string;
+  }>("/radar");
+}
+
+export function createRadar(keyword: string, targetPrice: number | null) {
+  return request<{ search: SavedSearch }>("/radar", {
+    method: "POST",
+    body: { keyword, targetPrice },
+  });
+}
+
+export function updateRadar(
+  id: string,
+  changes: { keyword?: string; targetPrice?: number | null },
+) {
+  return request<{ ok: true }>(`/radar/${id}`, { method: "PATCH", body: changes });
+}
+
+export function deleteRadar(id: string) {
+  return request<{ ok: true }>(`/radar/${id}`, { method: "DELETE" });
+}
+
+export function refreshRadar(id: string) {
+  return request<{
+    matches: RadarMatch[];
+    best: RadarMatch | null;
+    unreachable: string[];
+    isNewBest: boolean;
+    refreshes: RadarRefreshes | null;
+  }>(`/radar/${id}/refresh`, { method: "POST" });
 }

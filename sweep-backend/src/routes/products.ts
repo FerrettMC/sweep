@@ -8,8 +8,8 @@
 
 import type { FastifyInstance } from "fastify";
 import { requireAuth } from "../lib/auth.js";
-import { recordCheck } from "../lib/health.js";
-import { checkProduct, upsertScrapedProduct } from "../lib/priceChecker.js";
+import { checkProduct } from "../lib/priceChecker.js";
+import { resolveProduct } from "../lib/resolveProduct.js";
 import { prisma } from "../lib/prisma.js";
 import { consumeManualCheck, getManualCheckState } from "../lib/quota.js";
 import {
@@ -19,9 +19,6 @@ import {
   normalizeCheckHours,
   normalizeCheckMinute,
 } from "../lib/schedule.js";
-import { adapters } from "../lib/scrapers/index.js";
-import { RETAILER_LABELS, isRetailer } from "../lib/scrapers/types.js";
-import { normalizeProductUrl } from "../lib/scrapers/url.js";
 import {
   effectiveTier,
   historyCutoff,
@@ -104,102 +101,16 @@ export async function productRoutes(app: FastifyInstance) {
         });
       }
 
-      // Resolve what we're being asked to track.
-      let url: string;
-      let retailer: string | null;
-
-      if (body.url) {
-        // Handles missing schemes, share/short links, and tracking params — see
-        // lib/scrapers/url.ts for why each of those matters.
-        const normalized = await normalizeProductUrl(String(body.url));
-
-        if (!normalized.ok) {
-          return reply.status(400).send(
-            normalized.reason === "unsupported"
-              ? {
-                  error: `Sweep doesn't support ${normalized.detail} yet. Try Amazon, Walmart, Best Buy, Target or eBay.`,
-                  code: "UNSUPPORTED_RETAILER",
-                  host: normalized.detail,
-                }
-              : {
-                  error: "That doesn't look like a product link.",
-                  code: "INVALID_URL",
-                  detail: normalized.detail,
-                },
-          );
-        }
-
-        url = normalized.value.url;
-        retailer = normalized.value.retailer;
-      } else if (body.retailer && body.retailerId) {
-        if (!isRetailer(body.retailer)) {
-          return reply
-            .status(400)
-            .send({ error: `Unknown retailer: ${body.retailer}` });
-        }
-        retailer = body.retailer;
-        url = adapters[body.retailer].productUrl(String(body.retailerId));
-      } else {
-        return reply.status(400).send({
-          error: "Provide either a url, or a retailer and retailerId",
-        });
-      }
-
-      if (!isRetailer(retailer)) {
+      // Resolve what we're being asked to track. Same helper the list route
+      // uses — it knows to look up a stored url by (retailer, retailerId)
+      // rather than synthesizing one, which is what broke Best Buy.
+      const resolved = await resolveProduct(body);
+      if (!resolved.ok) {
         return reply
-          .status(400)
-          .send({ error: `Unknown retailer: ${retailer}` });
+          .status(resolved.status)
+          .send({ error: resolved.error, code: resolved.code });
       }
-
-      // If this product is already in the shared cache and was checked recently,
-      // reuse it rather than scraping again — that's the entire point of the
-      // shared cache, and it makes tracking a popular item free.
-      const existing = await prisma.product.findFirst({
-        where: { retailer, url },
-      });
-
-      const isFresh =
-        existing?.lastCheckedAt &&
-        Date.now() - existing.lastCheckedAt.getTime() < 30 * 60 * 1000;
-
-      let product = existing;
-
-      if (!isFresh) {
-        const result = await adapters[retailer].scrapeProduct(url);
-
-        // Tracking is a real scrape, so it feeds health monitoring like any
-        // other. Without this, a retailer that only fails on product pages
-        // stays invisible — which is exactly how Best Buy's rate limiting
-        // hid from the health board.
-        await recordCheck({
-          retailer,
-          status: result.status,
-          productId: existing?.id ?? null,
-          detail: result.status === "success" ? null : result.detail,
-          durationMs: result.durationMs,
-        });
-
-        if (result.status !== "success") {
-          return reply.status(502).send({
-            error:
-              result.status === "blocked"
-                ? `${RETAILER_LABELS[retailer]} is blocking price checks right now. Try again later.`
-                : `Couldn't read that ${RETAILER_LABELS[retailer]} page right now. Try again in a moment.`,
-            code:
-              result.status === "blocked"
-                ? "RETAILER_BLOCKED"
-                : "SCRAPE_FAILED",
-            retailer,
-          });
-        }
-        product = await upsertScrapedProduct(result.data);
-      }
-
-      if (!product) {
-        return reply
-          .status(502)
-          .send({ error: "Couldn't resolve that product" });
-      }
+      const product = resolved.product;
 
       // Apply the schedule chosen in the confirm dialog, if one was sent.
       if (body.checkHours !== undefined && limits.fixedCheckTimes) {
@@ -277,66 +188,13 @@ export async function productRoutes(app: FastifyInstance) {
         return reply.status(400).send({ error: "Paste a product link first." });
       }
 
-      const normalized = await normalizeProductUrl(String(rawUrl));
-      if (!normalized.ok) {
-        return reply.status(400).send(
-          normalized.reason === "unsupported"
-            ? {
-                error: `Sweep doesn't support ${normalized.detail} yet. Try Amazon, Walmart, Best Buy, Target or eBay.`,
-                code: "UNSUPPORTED_RETAILER",
-                host: normalized.detail,
-              }
-            : {
-                error: "That doesn't look like a product link.",
-                code: "INVALID_URL",
-              },
-        );
-      }
-
-      const { url, retailer } = normalized.value;
-
-      const existing = await prisma.product.findFirst({
-        where: { retailer, url },
-      });
-      const isFresh =
-        existing?.lastCheckedAt &&
-        Date.now() - existing.lastCheckedAt.getTime() < 30 * 60 * 1000;
-
-      let product = existing;
-
-      if (!isFresh) {
-        const result = await adapters[retailer].scrapeProduct(url);
-
-        await recordCheck({
-          retailer,
-          status: result.status,
-          productId: existing?.id ?? null,
-          detail: result.status === "success" ? null : result.detail,
-          durationMs: result.durationMs,
-        });
-
-        if (result.status !== "success") {
-          return reply.status(502).send({
-            error:
-              result.status === "blocked"
-                ? `${RETAILER_LABELS[retailer]} is blocking price checks right now. Try again later.`
-                : `Couldn't read that ${RETAILER_LABELS[retailer]} page. Check the link and try again.`,
-            code:
-              result.status === "blocked"
-                ? "RETAILER_BLOCKED"
-                : "SCRAPE_FAILED",
-            retailer,
-          });
-        }
-
-        product = await upsertScrapedProduct(result.data);
-      }
-
-      if (!product) {
+      const resolved = await resolveProduct({ url: rawUrl });
+      if (!resolved.ok) {
         return reply
-          .status(502)
-          .send({ error: "Couldn't resolve that product" });
+          .status(resolved.status)
+          .send({ error: resolved.error, code: resolved.code });
       }
+      const product = resolved.product;
 
       const wallet = await prisma.wallet.findUnique({ where: { userId } });
       if (!wallet)

@@ -6,7 +6,8 @@
 
 import { Ionicons } from "@expo/vector-icons";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { colors, radius, spacing, type } from "@/constants/theme";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 import type { Highlight } from "@/lib/api";
 import { formatPrice, retailerColor, retailerLabel } from "@/lib/format";
 
@@ -21,10 +22,18 @@ const ICONS: Record<Highlight["kind"], IoniconName> = {
 export default function HighlightCard({
   highlight,
   onPress,
+  starred,
+  onToggleStar,
+  onAddToList,
 }: {
   highlight: Highlight;
   onPress: () => void;
+  starred?: boolean;
+  onToggleStar?: () => void;
+  onAddToList?: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { product, label, reason, kind } = highlight;
 
   return (
@@ -54,58 +63,122 @@ export default function HighlightCard({
 
       <View style={styles.storeRow}>
         <View
-          style={[styles.storeDot, { backgroundColor: retailerColor(product.retailer) }]}
+          style={[styles.storeDot, { backgroundColor: retailerColor(colors, product.retailer) }]}
         />
         <Text style={styles.store}>{retailerLabel(product.retailer)}</Text>
       </View>
+
+      {/*
+        The same two actions the per-store rows offer. A top pick is the result
+        most people act on, so making them scroll down and find the same item
+        again in its store column just to compare or save it was busywork.
+      */}
+      {(onToggleStar || onAddToList) && (
+        <View style={styles.actions}>
+          {onToggleStar && (
+            <Pressable
+              onPress={onToggleStar}
+              hitSlop={6}
+              style={({ pressed }) => [
+                styles.button,
+                styles.compare,
+                starred && styles.compareOn,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name={starred ? "star" : "star-outline"}
+                size={12}
+                color={starred ? colors.background : colors.textSecondary}
+              />
+              <Text style={[styles.buttonLabel, starred && styles.buttonLabelOn]}>
+                {starred ? "Added" : "Compare"}
+              </Text>
+            </Pressable>
+          )}
+          {onAddToList && (
+            <Pressable
+              onPress={onAddToList}
+              hitSlop={6}
+              style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+            >
+              <Ionicons name="list-outline" size={13} color={colors.textSecondary} />
+              <Text style={styles.buttonLabel}>List</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    width: 176,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.accentMuted,
-    padding: spacing.sm,
-    gap: 4,
-  },
-  pressed: { opacity: 0.75 },
-  badgeRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  badge: {
-    color: colors.accent,
-    fontSize: type.caption.fontSize,
-    fontWeight: "900",
-    letterSpacing: 0.5,
-  },
-  image: {
-    width: "100%",
-    height: 88,
-    borderRadius: radius.sm,
-    backgroundColor: "#FFFFFF",
-    marginVertical: 2,
-  },
-  imageEmpty: { backgroundColor: colors.surfaceRaised },
-  title: {
-    color: colors.textPrimary,
-    fontSize: type.label.fontSize,
-    fontWeight: "600",
-    lineHeight: 17,
-  },
-  price: { color: colors.textPrimary, fontSize: 19, fontWeight: "900" },
-  reason: {
-    color: colors.textSecondary,
-    fontSize: type.caption.fontSize,
-    lineHeight: 14,
-  },
-  storeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    marginTop: 2,
-  },
-  storeDot: { width: 7, height: 7, borderRadius: radius.pill },
-  store: { color: colors.textTertiary, fontSize: type.caption.fontSize },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    card: {
+      width: 176,
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.accentMuted,
+      padding: spacing.sm,
+      gap: 4,
+    },
+    pressed: { opacity: 0.75 },
+    badgeRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+    badge: {
+      color: colors.accent,
+      fontSize: type.caption.fontSize,
+      fontWeight: "900",
+      letterSpacing: 0.5,
+    },
+    image: {
+      width: "100%",
+      height: 88,
+      borderRadius: radius.sm,
+      backgroundColor: "#FFFFFF",
+      marginVertical: 2,
+    },
+    imageEmpty: { backgroundColor: colors.surfaceRaised },
+    title: {
+      color: colors.textPrimary,
+      fontSize: type.label.fontSize,
+      fontWeight: "600",
+      lineHeight: 17,
+    },
+    price: { color: colors.textPrimary, fontSize: 19, fontWeight: "900" },
+    reason: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      lineHeight: 14,
+    },
+    storeRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      marginTop: 2,
+    },
+    storeDot: { width: 7, height: 7, borderRadius: radius.pill },
+    store: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    actions: { flexDirection: "row", gap: 5, marginTop: spacing.xs },
+    button: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 3,
+      paddingHorizontal: 7,
+      paddingVertical: 6,
+      borderRadius: radius.sm,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      backgroundColor: colors.surfaceRaised,
+    },
+    // Compare takes the slack so the pair fills the card's width evenly.
+    compare: { flex: 1 },
+    compareOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+    buttonLabel: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "800",
+    },
+    buttonLabelOn: { color: colors.background },
+  });

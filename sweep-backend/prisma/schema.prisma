@@ -21,9 +21,12 @@ model User {
   trackedProducts   TrackedProduct[]
   transactions      Transaction[]
   budgetEntries     BudgetEntry[]
+  budgetLimits      BudgetLimit[]
+  savedSearches     SavedSearch[]
   promoRedemptions  PromoCodeRedemption[]
   pushTokens        PushToken[]
   dealsFound        Deal[]   @relation("DealFinder")
+  lists             List[]
 }
 
 // One row per device a user has granted notification permission on. A user can
@@ -63,6 +66,18 @@ model Wallet {
   manualChecksResetAt DateTime @default(now())
   lastManualCheckAt DateTime?
 
+  // "Sweep this deal" — the cross-retailer verdict. Metered separately from
+  // search because one sweep fans out to every retailer AND re-reads history,
+  // so it costs more than a search and is priced to match.
+  sweepsUsedToday   Int       @default(0)
+  sweepsResetAt     DateTime  @default(now())
+
+  // Manual "check my radars now" budget. This is what makes the free tier's
+  // radar bounded: nothing runs unless someone taps, and they can only tap so
+  // many times a day.
+  radarRefreshesToday Int      @default(0)
+  radarRefreshesResetAt DateTime @default(now())
+
   checkHours        Int[]     @default([9, 21])
   // Minute offset for the interval tiers, anchored to local midnight.
   // Pro (every 2h) with 35 => 00:35, 02:35, 04:35…
@@ -97,12 +112,19 @@ model Product {
   // Outcome of the most recent check. Mirrors ScrapeCheck.status but kept here
   // so a stale/blocked product can be filtered without joining the log.
   lastStatus    String?   // "success" | "failed" | "blocked"
+  // Consecutive checks that came back at the same price. Drives adaptive
+  // backoff: an item that hasn't moved in weeks doesn't need checking as often
+  // as one that's actively changing. Lives on Product, not TrackedProduct,
+  // because checks are shared — if it's stable, it's stable for everyone.
+  unchangedChecks Int     @default(0)
   createdAt     DateTime  @default(now())
 
   priceHistory  PriceHistory[]
   trackedBy     TrackedProduct[]
   scrapeChecks  ScrapeCheck[]
   deals         Deal[]
+  listItems     ListItem[]
+  budgetEntries BudgetEntry[]
 
   @@unique([retailer, retailerId])
   @@index([retailer])
@@ -222,6 +244,47 @@ model Deal {
   @@index([productId, createdAt])
 }
 
+// A gift list or wishlist. Shareable by public link — that's the growth loop:
+// every shared list puts Sweep in front of someone who's never heard of it.
+model List {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  // Random, unguessable, and separate from the id so a list can be unshared by
+  // rotating it without breaking the list itself.
+  shareToken  String?  @unique
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  items ListItem[]
+
+  @@index([userId])
+}
+
+// A product on a list. Note this does NOT imply the product is price-tracked:
+// list items are capped separately precisely because every tracked item costs
+// real scraping, and a 100-item wishlist shouldn't quietly become 100 tracked
+// products.
+model ListItem {
+  id        String   @id @default(uuid())
+  note      String?
+  addedAt   DateTime @default(now())
+  // Marked off by the list owner, or by whoever they shared it with.
+  claimed   Boolean  @default(false)
+
+  list      List    @relation(fields: [listId], references: [id], onDelete: Cascade)
+  listId    String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+
+  @@unique([listId, productId])
+  @@index([listId])
+}
+
 model BudgetEntry {
   id          String   @id @default(uuid())
   amount      Int      // cents
@@ -233,7 +296,71 @@ model BudgetEntry {
   user   User   @relation(fields: [userId], references: [id])
   userId String
 
+  // Set when the entry came from "I bought this" on a tracked product, which
+  // is what makes this a shopping budget rather than a generic one: the row
+  // remembers the item, so spending can be traced back to a real product.
+  // SetNull rather than Cascade — deleting a cached product must never erase
+  // someone's spending record.
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productId String?
+
   @@index([userId, spentAt])
+}
+
+// A spending cap. An empty `category` is the overall monthly budget, which
+// every tier gets; a named category is a per-category cap, which is a paid
+// perk. The API speaks `null` for overall and converts at the edge.
+//
+// Empty string rather than NULL on purpose: Postgres treats NULLs as distinct
+// in a unique index, so `@@unique([userId, category])` would happily allow two
+// overall budgets per user. A sentinel makes the constraint actually hold.
+//
+// Deliberately not per-month rows: a budget is a standing intention, not a
+// value you re-enter every month. Changing it changes it going forward.
+// A standing "tell me when anything matches this" search.
+//
+// Tracking watches a URL you already found; a radar watches for something you
+// haven't. That's the gap it fills, and it's why the keyword matters more than
+// any particular listing.
+//
+// Deliberately stores the cheapest match we've already reported. Without it,
+// every run re-reports the same $179 listing forever and the alerts become
+// noise people turn off.
+model SavedSearch {
+  id          String   @id @default(uuid())
+  keyword     String
+  /** Cents. Null means "tell me about anything notable", not "never alert". */
+  targetPrice Int?
+  createdAt   DateTime @default(now())
+
+  lastCheckedAt DateTime?
+  nextCheckAt   DateTime  @default(now())
+  /** Feeds the same adaptive backoff that tracked products use. */
+  unchangedChecks Int @default(0)
+
+  /** Cheapest price we've already told this user about, so we don't repeat it. */
+  lastBestPrice Int?
+  lastMatchAt   DateTime?
+  lastNotifiedAt DateTime?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  @@index([userId])
+  @@index([nextCheckAt])
+}
+
+model BudgetLimit {
+  id        String   @id @default(uuid())
+  amount    Int      // cents
+  category  String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  @@unique([userId, category])
 }
 
 // XP ledger. Every award is a row, so a user's total is reconstructible and

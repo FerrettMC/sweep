@@ -143,6 +143,21 @@ the scheduler, health monitoring with email alerts (Resend), error tracking
 Firebase, and a rebuild. All the code is written and tested; see
 [INTEGRATIONS.md §4](sweep-backend/docs/INTEGRATIONS.md).
 
-**Next pass:** XP + leaderboard, the Best Deals Found feed, the budget tracker,
-shareable wishlists, and ads. The Deals and Budget tabs are placeholders today;
-their data models already exist in the schema.
+**Next pass:** the budget tracker and Lists/wishlists. Their tier limits and
+data models already exist; they need endpoints and screens.
+
+**Queued decisions**
+
+- *Raise search caps for paid tiers.* Bright Data billed per RECORD (4 results
+  = 4 credits); amazonscraperapi bills per REQUEST, so a 6-store compiled
+  search costs 1 credit instead of 4. Pro's 10/day and Ultimate's 100/day were
+  set under the old pricing and are now ~4× more conservative than they need
+  to be. Worth checking worst-case exposure before picking numbers: a cap
+  costs nothing until it's used, but the ceiling is what you'd pay if everyone
+  used it.
+- *AdMob is blocked* on a Kotlin version conflict — see docs/INTEGRATIONS.md §5.
+  Worth ~19% of revenue at scale, so not urgent but not free to skip.
+- *Deploy the backend.* Nothing works for anyone but you until it's hosted, and
+  AdMob's reward callback needs a public URL.
+- *Play Store paperwork*: privacy policy, Data Safety form (emails + push
+  tokens are collected), store listing.

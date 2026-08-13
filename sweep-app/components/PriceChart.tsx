@@ -9,7 +9,8 @@
 
 import { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { colors, radius, spacing, type } from "@/constants/theme";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 import { formatChartDate, formatPrice, formatPriceShort } from "@/lib/format";
 
 export interface PricePoint {
@@ -31,6 +32,8 @@ export default function PriceChart({
   height = 160,
   maxColumns = 32,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const chart = useMemo(
     () => buildChart(history, maxColumns),
     [history, maxColumns],
@@ -107,6 +110,7 @@ export default function PriceChart({
 }
 
 function Legend({ color, label }: { color: string; label: string }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.legendItem}>
       <View style={[styles.legendDot, { backgroundColor: color }]} />
@@ -149,66 +153,67 @@ function downsample(history: PricePoint[], maxColumns: number): PricePoint[] {
   return [...thinned, ...recent];
 }
 
-const styles = StyleSheet.create({
-  plot: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.sm,
-  },
-  axis: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    padding: spacing.sm,
-    justifyContent: "space-between",
-  },
-  axisLabel: { color: colors.textTertiary, fontSize: type.caption.fontSize },
-  columns: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 2,
-  },
-  columnSlot: { flex: 1, height: "100%", justifyContent: "flex-end" },
-  column: { width: "100%", borderRadius: 2, minHeight: 3 },
-  footer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: spacing.sm,
-  },
-  footerDate: { color: colors.textTertiary, fontSize: type.caption.fontSize },
-  legend: { flexDirection: "row", gap: spacing.md },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  legendDot: { width: 8, height: 8, borderRadius: radius.pill },
-  legendText: {
-    color: colors.textSecondary,
-    fontSize: type.caption.fontSize,
-    fontWeight: "600",
-  },
-  empty: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.lg,
-    gap: spacing.xs,
-  },
-  emptyTitle: {
-    color: colors.textSecondary,
-    fontSize: type.body.fontSize,
-    fontWeight: "700",
-  },
-  emptyBody: {
-    color: colors.textTertiary,
-    fontSize: type.label.fontSize,
-    textAlign: "center",
-    lineHeight: 17,
-  },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    plot: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      padding: spacing.sm,
+    },
+    axis: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      padding: spacing.sm,
+      justifyContent: "space-between",
+    },
+    axisLabel: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    columns: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "flex-end",
+      gap: 2,
+    },
+    columnSlot: { flex: 1, height: "100%", justifyContent: "flex-end" },
+    column: { width: "100%", borderRadius: 2, minHeight: 3 },
+    footer: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginTop: spacing.sm,
+    },
+    footerDate: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    legend: { flexDirection: "row", gap: spacing.md },
+    legendItem: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+    legendDot: { width: 8, height: 8, borderRadius: radius.pill },
+    legendText: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "600",
+    },
+    empty: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: spacing.lg,
+      gap: spacing.xs,
+    },
+    emptyTitle: {
+      color: colors.textSecondary,
+      fontSize: type.body.fontSize,
+      fontWeight: "700",
+    },
+    emptyBody: {
+      color: colors.textTertiary,
+      fontSize: type.label.fontSize,
+      textAlign: "center",
+      lineHeight: 17,
+    },
+  });

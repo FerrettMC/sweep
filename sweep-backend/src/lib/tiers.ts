@@ -55,12 +55,53 @@ export interface TierLimits {
   // back you can look, and what the app does with the data.
   /** How many months of spending history are readable. Null = everything. */
   budgetHistoryMonths: number | null;
-  /** Set spending limits per category and get warned when close. */
+  /**
+   * Set spending limits PER CATEGORY and get warned when close.
+   *
+   * The single overall monthly budget is not gated — every tier gets one. A
+   * budget tracker that can't hold a budget isn't a tracker, and gutting the
+   * free tier that far would make the whole feature read as bait. The paid
+   * step is slicing that budget up by category.
+   */
   budgetLimits: boolean;
   /** Define your own categories beyond the defaults. */
   customCategories: boolean;
   /** Export to CSV. */
   budgetExport: boolean;
+
+  /**
+   * "Sweep this deal" runs a day. Zero means the tier doesn't get it.
+   *
+   * The most expensive single action in the app: a full retailer fan-out plus
+   * history analysis for one product. Priced accordingly, and deliberately a
+   * small number — it's meant to be used on the purchase you're about to make,
+   * not on everything you glance at.
+   */
+  sweepsPerDay: number;
+
+  // ---- deal radar ----
+  //
+  // A standing search that watches every store for something you haven't found
+  // yet. The paid step here is deliberately about LABOUR, not capability: a
+  // free radar searches the same six stores with the same target price, the
+  // user just has to press refresh. Crippling what free users can look for
+  // would leave them holding a feature that exists and does nothing.
+  /** How many standing searches this tier may keep. */
+  maxSavedSearches: number;
+  /**
+   * How often Sweep re-runs them on its own. Zero means manual refresh only,
+   * which is what bounds the free tier's cost — it can't scale with signups
+   * because nothing happens unless someone opens the app.
+   */
+  savedSearchIntervalMinutes: number;
+  /**
+   * Manual "refresh my radars" runs a day. Null is unlimited.
+   *
+   * Free's whole radar allowance lives here: with no scheduled checks, this
+   * count IS its cost ceiling, and it can't run away with signups because
+   * every run needs a human to tap.
+   */
+  radarRefreshesPerDay: number | null;
 
   // ---- lists / wishlists ----
   //
@@ -94,6 +135,10 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     budgetLimits: false,
     customCategories: false,
     budgetExport: false,
+    sweepsPerDay: 0,
+    maxSavedSearches: 1,
+    savedSearchIntervalMinutes: 0,
+    radarRefreshesPerDay: 2,
 
     maxLists: 1,
     maxItemsPerList: 10,
@@ -101,12 +146,15 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
   },
   pro: {
     maxTrackedProducts: 20,
-    searchesPerDay: 10,
+    // Raised from 10. Under Bright Data a compiled search cost 4 credits (one
+    // per Amazon result); amazonscraperapi bills per request, so it's 1. The
+    // old cap was priced for the old billing.
+    searchesPerDay: 30,
     historyDays: 90,
-    // Every 2 hours, not hourly: 12 checks a day is plenty to catch a real
-    // drop, and it leaves Ultimate's 30 minutes as a genuine difference
-    // rather than a marginal one.
-    checkIntervalMinutes: 120,
+    // Every 4 hours. Six checks a day catches any real drop — price cuts last
+    // hours or days, not minutes — and it leaves a genuine 4× step up to
+    // Ultimate rather than a marginal one.
+    checkIntervalMinutes: 240,
     fixedCheckTimes: false,
     checkTimesPerDay: 0,
     canSetCheckMinute: true,
@@ -120,6 +168,10 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     budgetLimits: true,
     customCategories: true,
     budgetExport: true,
+    sweepsPerDay: 1,
+    maxSavedSearches: 5,
+    savedSearchIntervalMinutes: 12 * 60,
+    radarRefreshesPerDay: 20,
 
     maxLists: 5,
     maxItemsPerList: 30,
@@ -127,9 +179,15 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
   },
   ultimate: {
     maxTrackedProducts: 100,
-    searchesPerDay: 100,
+    // Effectively unlimited for a human — nobody runs 200 searches a day — but
+    // still a number. "Unlimited" is the one knob that scales with signups
+    // rather than with bounded usage, which is the trap worth avoiding.
+    searchesPerDay: 200,
     historyDays: null,
-    checkIntervalMinutes: 30,
+    // Hourly rather than every 30 minutes. Halves the Amazon bill for the
+    // tier that was consuming half the entire budget, for a difference nobody
+    // can act on — you can't buy something twice as fast.
+    checkIntervalMinutes: 60,
     fixedCheckTimes: false,
     checkTimesPerDay: 0,
     canSetCheckMinute: true,
@@ -146,6 +204,12 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     budgetLimits: true,
     customCategories: true,
     budgetExport: true,
+    sweepsPerDay: 3,
+    maxSavedSearches: 15,
+    savedSearchIntervalMinutes: 6 * 60,
+    // Bounded by a human tapping a button rather than by signups, same as
+    // Ultimate's manual price checks.
+    radarRefreshesPerDay: null,
 
     maxLists: 20,
     maxItemsPerList: 100,

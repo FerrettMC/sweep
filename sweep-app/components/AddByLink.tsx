@@ -13,7 +13,8 @@ import * as Clipboard from "expo-clipboard";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import TrackProductModal from "@/components/TrackProductModal";
 import { Button } from "@/components/ui";
-import { colors, radius, spacing, type } from "@/constants/theme";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 import {
   ApiError,
   type ProductPreview,
@@ -30,6 +31,8 @@ interface Props {
 }
 
 export default function AddByLink({ onTracked, disabled, disabledReason }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [link, setLink] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -155,45 +158,46 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-    gap: spacing.xs,
-  },
-  row: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
-  input: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 11,
-    color: colors.textPrimary,
-    fontSize: type.body.fontSize,
-  },
-  metaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  pasteLink: {
-    color: colors.accent,
-    fontSize: type.caption.fontSize,
-    fontWeight: "700",
-  },
-  hint: { color: colors.textTertiary, fontSize: type.caption.fontSize },
-  limitText: {
-    color: colors.warning,
-    fontSize: type.label.fontSize,
-    textAlign: "center",
-    paddingVertical: spacing.sm,
-  },
-  error: {
-    color: colors.danger,
-    fontSize: type.caption.fontSize,
-    lineHeight: 15,
-  },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    wrap: {
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.xs,
+      gap: spacing.xs,
+    },
+    row: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
+    input: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 11,
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+    },
+    metaRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    pasteLink: {
+      color: colors.accent,
+      fontSize: type.caption.fontSize,
+      fontWeight: "700",
+    },
+    hint: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    limitText: {
+      color: colors.warning,
+      fontSize: type.label.fontSize,
+      textAlign: "center",
+      paddingVertical: spacing.sm,
+    },
+    error: {
+      color: colors.danger,
+      fontSize: type.caption.fontSize,
+      lineHeight: 15,
+    },
+  });

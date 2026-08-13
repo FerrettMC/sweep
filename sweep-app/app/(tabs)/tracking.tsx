@@ -4,6 +4,10 @@
 // now rather than by when it was added.
 
 import AddByLink from "@/components/AddByLink";
+import AddToListSheet, { type ListTarget } from "@/components/AddToListSheet";
+import BudgetEntrySheet, { type EntryDraft } from "@/components/BudgetEntrySheet";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import SweepSheet from "@/components/SweepSheet";
 import ProductCard from "@/components/ProductCard";
 import TrackedItemSheet from "@/components/TrackedItemSheet";
 import {
@@ -13,7 +17,8 @@ import {
   Loading,
   Screen,
 } from "@/components/ui";
-import { colors, radius, spacing, type } from "@/constants/theme";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 import {
   ApiError,
   type Schedule,
@@ -21,13 +26,18 @@ import {
   getSchedule,
   getTrackedProducts,
   untrackProduct,
+  getBudget,
+  getBudgetPrefill,
 } from "@/lib/api";
 import { formatPrice, percentOff } from "@/lib/format";
+import { useSweep } from "@/lib/useSweep";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 
 export default function TrackingScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
 
   const [tracked, setTracked] = useState<TrackedProduct[] | null>(null);
@@ -41,6 +51,17 @@ export default function TrackingScreen() {
   const [removing, setRemoving] = useState<string | null>(null);
   const [editing, setEditing] = useState<TrackedProduct | null>(null);
   const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [listTarget, setListTarget] = useState<ListTarget | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [boughtDraft, setBoughtDraft] = useState<EntryDraft | null>(null);
+  const [budgetCategories, setBudgetCategories] = useState<string[]>([]);
+  const [canCustomCategories, setCanCustomCategories] = useState(false);
+  // Remembered so the "stop tracking it too?" prompt after logging knows which
+  // tracked row to remove.
+  const [boughtItem, setBoughtItem] = useState<TrackedProduct | null>(null);
+  // The tracked row the "stop tracking too?" dialog is asking about.
+  const [confirmUntrack, setConfirmUntrack] = useState<TrackedProduct | null>(null);
+  const sweep = useSweep();
 
   const load = useCallback(async () => {
     try {
@@ -85,6 +106,52 @@ export default function TrackingScreen() {
     setRefreshing(false);
   }
 
+  /**
+   * "I bought this" — opens the log sheet prefilled from the product.
+   *
+   * The prefill is a server call because the price and a category guess both
+   * live there; if it fails we still open the sheet, just empty. Refusing to
+   * log a purchase because a guess didn't load would be absurd.
+   */
+  async function openBought(item: TrackedProduct) {
+    setBoughtItem(item);
+    setBoughtDraft({
+      amount: item.product.price,
+      category: "Other",
+      description: item.product.title,
+      productId: item.product.id,
+      productTitle: item.product.title,
+    });
+
+    try {
+      const [prefill, budget] = await Promise.all([
+        getBudgetPrefill(item.product.id),
+        getBudget(),
+      ]);
+      setBudgetCategories(budget.availableCategories);
+      setCanCustomCategories(budget.limits.canUseCustomCategories);
+      setBoughtDraft({
+        amount: prefill.amount,
+        category: prefill.category,
+        description: prefill.description,
+        productId: item.product.id,
+        productTitle: item.product.title,
+      });
+    } catch {
+      // Keep the local draft above.
+    }
+  }
+
+  /**
+   * Once something is bought, watching its price is usually pointless — and a
+   * tracking slot is a scarce thing on the free tier. Offered, never automatic:
+   * people do track items they've already bought, to watch for a price-drop
+   * refund window.
+   */
+  function offerUntrack(item: TrackedProduct) {
+    setConfirmUntrack(item);
+  }
+
   async function onUntrack(item: TrackedProduct) {
     setRemoving(item.id);
     // Optimistic: the row disappears immediately, and comes back if the server
@@ -115,6 +182,7 @@ export default function TrackingScreen() {
   return (
     <Screen>
       {error && <ErrorBanner message={error} onRetry={load} />}
+      {notice && <Text style={styles.notice}>{notice}</Text>}
 
       {limits && (
         <View style={styles.limitRow}>
@@ -204,15 +272,42 @@ export default function TrackingScreen() {
                 note={since?.text ?? null}
                 noteTone={since?.tone}
                 onPress={() => router.push(`/product/${item.product.id}`)}
-                action={
-                  <Button
-                    label="Edit"
-                    onPress={() => setEditing(item)}
-                    variant="secondary"
-                    busy={removing === item.id}
-                    compact
-                  />
-                }
+                actions={[
+                  {
+                    key: "list",
+                    icon: "list-outline",
+                    label: "List",
+                    onPress: () =>
+                      setListTarget({
+                        retailer: item.product.retailer,
+                        retailerId: item.product.retailerId,
+                        title: item.product.title,
+                        url: item.product.url,
+                      }),
+                  },
+                  // Tracked items have real history, so the sale verdict here
+                  // is far stronger than it can be for a cold search result.
+                  sweep.available && {
+                    key: "sweep",
+                    icon: "sparkles",
+                    label: "Sweep",
+                    tone: "accent" as const,
+                    onPress: () => sweep.sweep({ productId: item.product.id }),
+                  },
+                  {
+                    key: "bought",
+                    icon: "cart-outline",
+                    label: "Bought",
+                    onPress: () => openBought(item),
+                  },
+                  {
+                    key: "edit",
+                    icon: "options-outline",
+                    label: "Edit",
+                    busy: removing === item.id,
+                    onPress: () => setEditing(item),
+                  },
+                ]}
               />
               {item.product.lastStatus &&
                 item.product.lastStatus !== "success" && (
@@ -226,6 +321,59 @@ export default function TrackingScreen() {
           );
         }}
       />
+      <AddToListSheet
+        product={listTarget}
+        onClose={() => setListTarget(null)}
+        onAdded={(name) => setNotice(`Added to ${name}.`)}
+      />
+
+      <BudgetEntrySheet
+        draft={boughtDraft}
+        categories={budgetCategories}
+        canUseCustomCategories={canCustomCategories}
+        onClose={() => setBoughtDraft(null)}
+        onSaved={() => {
+          const item = boughtItem;
+          setNotice("Added to your budget.");
+          if (item) offerUntrack(item);
+        }}
+      />
+
+      <SweepSheet
+        visible={sweep.open}
+        busy={sweep.busy}
+        result={sweep.result}
+        error={sweep.error}
+        remaining={sweep.quota?.remaining ?? null}
+        onClose={sweep.close}
+      />
+
+      <ConfirmDialog
+        content={
+          confirmUntrack && {
+            icon: "checkmark-circle",
+            title: "Added to your budget",
+            body: "Want to stop watching its price as well?",
+            subject: {
+              title: confirmUntrack.product.title,
+              imageUrl: confirmUntrack.product.imageUrl,
+              caption: `Tracking since ${new Date(confirmUntrack.addedAt).toLocaleDateString(
+                undefined,
+                { month: "short", day: "numeric" },
+              )}`,
+            },
+            confirmLabel: "Stop tracking",
+            cancelLabel: "Keep tracking",
+          }
+        }
+        onCancel={() => setConfirmUntrack(null)}
+        onConfirm={() => {
+          const item = confirmUntrack;
+          setConfirmUntrack(null);
+          if (item) void onUntrack(item);
+        }}
+      />
+
       <TrackedItemSheet
         item={editing}
         schedule={schedule}
@@ -285,36 +433,44 @@ function dealScore(item: TrackedProduct): number {
   return percentOff(item.product.price, item.product.listPrice) ?? 0;
 }
 
-const styles = StyleSheet.create({
-  limitRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-  },
-  limitText: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    fontWeight: "600",
-  },
-  limitFull: {
-    color: colors.warning,
-    fontSize: type.caption.fontSize,
-    fontWeight: "800",
-    backgroundColor: colors.surface,
-    borderRadius: radius.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    overflow: "hidden",
-  },
-  list: { padding: spacing.md, gap: spacing.sm },
-  emptyList: { flexGrow: 1 },
-  cardWrap: { marginBottom: spacing.sm },
-  staleWarning: {
-    color: colors.warning,
-    fontSize: type.caption.fontSize,
-    paddingHorizontal: spacing.sm,
-    paddingTop: 4,
-  },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    limitRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.sm,
+    },
+    limitText: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      fontWeight: "600",
+    },
+    limitFull: {
+      color: colors.warning,
+      fontSize: type.caption.fontSize,
+      fontWeight: "800",
+      backgroundColor: colors.surface,
+      borderRadius: radius.sm,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      overflow: "hidden",
+    },
+    notice: {
+      color: colors.success,
+      fontSize: type.label.fontSize,
+      fontWeight: "700",
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.xs,
+    },
+    list: { padding: spacing.md, gap: spacing.sm },
+    emptyList: { flexGrow: 1 },
+    cardWrap: { marginBottom: spacing.sm },
+    staleWarning: {
+      color: colors.warning,
+      fontSize: type.caption.fontSize,
+      paddingHorizontal: spacing.sm,
+      paddingTop: 4,
+    },
+  });

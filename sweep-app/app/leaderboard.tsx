@@ -19,7 +19,8 @@ import {
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Button, Loading, Screen, SectionTitle } from "@/components/ui";
-import { colors, radius, spacing, type } from "@/constants/theme";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 import UsernameSheet from "@/components/UsernameSheet";
 import {
   type Badge,
@@ -31,13 +32,17 @@ import {
 } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/format";
 
-const TIER_COLOR: Record<Badge["tier"], string> = {
+// Bronze and silver are fixed metals; gold borrows the accent, so this has to
+// be built per-palette rather than frozen at module load.
+const tierColor = (colors: Palette): Record<Badge["tier"], string> => ({
   bronze: "#C08457",
   silver: "#B9C2CC",
   gold: colors.accent,
-};
+});
 
 export default function LeaderboardScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [me, setMe] = useState<LeaderboardMe | null>(null);
   const [history, setHistory] = useState<XpEntry[]>([]);
@@ -156,7 +161,7 @@ export default function LeaderboardScreen() {
                 <Ionicons
                   name={badge.icon as never}
                   size={20}
-                  color={badge.earned ? TIER_COLOR[badge.tier] : colors.textTertiary}
+                  color={badge.earned ? tierColor(colors)[badge.tier] : colors.textTertiary}
                 />
                 <Text
                   style={[styles.badgeLabel, !badge.earned && styles.badgeLabelLocked]}
@@ -274,177 +279,178 @@ function reasonLabel(reason: string) {
   return reason;
 }
 
-const styles = StyleSheet.create({
-  content: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xxl },
-  levelCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.accentMuted,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  levelTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  levelLeft: { flex: 1, gap: 1 },
-  nameRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
-  levelName: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    fontWeight: "700",
-  },
-  levelLabel: {
-    color: colors.accent,
-    fontSize: type.caption.fontSize,
-    fontWeight: "900",
-    letterSpacing: 0.7,
-  },
-  levelTitle: {
-    color: colors.textPrimary,
-    fontSize: type.title.fontSize,
-    fontWeight: "900",
-  },
-  rankPill: {
-    backgroundColor: colors.accentMuted,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-  },
-  rankPillText: { color: colors.accent, fontSize: type.heading.fontSize, fontWeight: "900" },
-  progressTrack: {
-    height: 7,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceRaised,
-    overflow: "hidden",
-  },
-  progressFill: { height: "100%", backgroundColor: colors.accent, borderRadius: radius.pill },
-  progressText: { color: colors.textSecondary, fontSize: type.caption.fontSize },
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    content: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xxl },
+    levelCard: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.accentMuted,
+      padding: spacing.md,
+      gap: spacing.sm,
+    },
+    levelTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    levelLeft: { flex: 1, gap: 1 },
+    nameRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
+    levelName: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      fontWeight: "700",
+    },
+    levelLabel: {
+      color: colors.accent,
+      fontSize: type.caption.fontSize,
+      fontWeight: "900",
+      letterSpacing: 0.7,
+    },
+    levelTitle: {
+      color: colors.textPrimary,
+      fontSize: type.title.fontSize,
+      fontWeight: "900",
+    },
+    rankPill: {
+      backgroundColor: colors.accentMuted,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 6,
+    },
+    rankPillText: { color: colors.accent, fontSize: type.heading.fontSize, fontWeight: "900" },
+    progressTrack: {
+      height: 7,
+      borderRadius: radius.pill,
+      backgroundColor: colors.surfaceRaised,
+      overflow: "hidden",
+    },
+    progressFill: { height: "100%", backgroundColor: colors.accent, borderRadius: radius.pill },
+    progressText: { color: colors.textSecondary, fontSize: type.caption.fontSize },
 
-  nameNudge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.accentMuted,
-    padding: spacing.md,
-  },
-  nameNudgeText: { flex: 1, color: colors.textSecondary, fontSize: type.label.fontSize },
-  bold: { color: colors.textPrimary, fontWeight: "800" },
-  nameCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  nameLabel: { color: colors.textPrimary, fontSize: type.body.fontSize, fontWeight: "700" },
-  nameInput: {
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    color: colors.textPrimary,
-    fontSize: type.body.fontSize,
-  },
-  nameError: { color: colors.danger, fontSize: type.caption.fontSize },
-  nameActions: { flexDirection: "row", gap: spacing.sm },
-  nameAction: { flex: 1 },
+    nameNudge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.accentMuted,
+      padding: spacing.md,
+    },
+    nameNudgeText: { flex: 1, color: colors.textSecondary, fontSize: type.label.fontSize },
+    bold: { color: colors.textPrimary, fontWeight: "800" },
+    nameCard: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      padding: spacing.md,
+      gap: spacing.sm,
+    },
+    nameLabel: { color: colors.textPrimary, fontSize: type.body.fontSize, fontWeight: "700" },
+    nameInput: {
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 10,
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+    },
+    nameError: { color: colors.danger, fontSize: type.caption.fontSize },
+    nameActions: { flexDirection: "row", gap: spacing.sm },
+    nameAction: { flex: 1 },
 
-  section: { gap: spacing.xs },
-  sectionBlurb: {
-    color: colors.textSecondary,
-    fontSize: type.caption.fontSize,
-    marginBottom: spacing.xs,
-  },
-  badgeGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  badge: {
-    width: "31%",
-    flexGrow: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.sm,
-    gap: 2,
-    alignItems: "center",
-  },
-  badgeLocked: { opacity: 0.45 },
-  badgeLabel: {
-    color: colors.textPrimary,
-    fontSize: type.caption.fontSize,
-    fontWeight: "800",
-    textAlign: "center",
-  },
-  badgeLabelLocked: { color: colors.textSecondary },
-  badgeProgress: {
-    color: colors.textTertiary,
-    fontSize: type.caption.fontSize,
-    textAlign: "center",
-  },
-  nameCol: { flex: 1, gap: 1 },
-  entryTitle: { color: colors.textTertiary, fontSize: type.caption.fontSize },
-  board: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-  },
-  offList: { marginTop: spacing.sm, borderColor: colors.accentMuted },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 11,
-  },
-  rowDivided: { borderTopWidth: 1, borderTopColor: colors.surfaceBorder },
-  rowMe: { backgroundColor: colors.surfaceRaised },
-  rank: {
-    color: colors.textTertiary,
-    fontSize: type.label.fontSize,
-    fontWeight: "800",
-    width: 26,
-  },
-  rankTop: { color: colors.accent },
-  name: { flex: 1, color: colors.textPrimary, fontSize: type.body.fontSize, fontWeight: "600" },
-  nameMe: { fontWeight: "800" },
-  lvl: { color: colors.textTertiary, fontSize: type.caption.fontSize },
-  xp: {
-    color: colors.textPrimary,
-    fontSize: type.label.fontSize,
-    fontWeight: "800",
-    width: 46,
-    textAlign: "right",
-  },
+    section: { gap: spacing.xs },
+    sectionBlurb: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      marginBottom: spacing.xs,
+    },
+    badgeGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+    badge: {
+      width: "31%",
+      flexGrow: 1,
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      padding: spacing.sm,
+      gap: 2,
+      alignItems: "center",
+    },
+    badgeLocked: { opacity: 0.45 },
+    badgeLabel: {
+      color: colors.textPrimary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "800",
+      textAlign: "center",
+    },
+    badgeLabelLocked: { color: colors.textSecondary },
+    badgeProgress: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      textAlign: "center",
+    },
+    nameCol: { flex: 1, gap: 1 },
+    entryTitle: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    board: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+    },
+    offList: { marginTop: spacing.sm, borderColor: colors.accentMuted },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 11,
+    },
+    rowDivided: { borderTopWidth: 1, borderTopColor: colors.surfaceBorder },
+    rowMe: { backgroundColor: colors.surfaceRaised },
+    rank: {
+      color: colors.textTertiary,
+      fontSize: type.label.fontSize,
+      fontWeight: "800",
+      width: 26,
+    },
+    rankTop: { color: colors.accent },
+    name: { flex: 1, color: colors.textPrimary, fontSize: type.body.fontSize, fontWeight: "600" },
+    nameMe: { fontWeight: "800" },
+    lvl: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    xp: {
+      color: colors.textPrimary,
+      fontSize: type.label.fontSize,
+      fontWeight: "800",
+      width: 46,
+      textAlign: "right",
+    },
 
-  historyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-  },
-  historyText: { flex: 1, gap: 1 },
-  historyTitle: { color: colors.textPrimary, fontSize: type.label.fontSize, fontWeight: "600" },
-  historyDetail: { color: colors.textTertiary, fontSize: type.caption.fontSize },
-  historyXp: { color: colors.success, fontSize: type.body.fontSize, fontWeight: "800" },
+    historyRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 10,
+    },
+    historyText: { flex: 1, gap: 1 },
+    historyTitle: { color: colors.textPrimary, fontSize: type.label.fontSize, fontWeight: "600" },
+    historyDetail: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    historyXp: { color: colors.success, fontSize: type.body.fontSize, fontWeight: "800" },
 
-  empty: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    borderStyle: "dashed",
-    padding: spacing.md,
-  },
-  emptyText: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    lineHeight: 18,
-    textAlign: "center",
-  },
-});
+    empty: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      borderStyle: "dashed",
+      padding: spacing.md,
+    },
+    emptyText: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      lineHeight: 18,
+      textAlign: "center",
+    },
+  });

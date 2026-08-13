@@ -317,3 +317,119 @@ function state(
     resetsAt,
   };
 }
+
+// ---- "Sweep this deal" -----------------------------------------------------
+//
+// Metered separately from search. A sweep fans out to every other retailer AND
+// reads price history, so it costs more than a search and is deliberately a
+// small daily allowance rather than something to spend casually.
+
+export interface SweepQuotaState {
+  used: number;
+  limit: number;
+  remaining: number;
+  resetsAt: Date;
+  /** False on tiers that don't include the feature at all. */
+  available: boolean;
+}
+
+export async function getSweepQuota(userId: string): Promise<SweepQuotaState | null> {
+  const wallet = await prisma.wallet.findUnique({ where: { userId } });
+  if (!wallet) return null;
+
+  const limit = TIER_LIMITS[effectiveTier(wallet)].sweepsPerDay;
+
+  if (isStale(wallet.sweepsResetAt)) {
+    const resetsAt = nextResetAt();
+    await prisma.wallet.update({
+      where: { userId },
+      data: { sweepsUsedToday: 0, sweepsResetAt: resetsAt },
+    });
+    return { used: 0, limit, remaining: limit, resetsAt, available: limit > 0 };
+  }
+
+  const used = wallet.sweepsUsedToday;
+  return {
+    used,
+    limit,
+    remaining: Math.max(0, limit - used),
+    resetsAt: wallet.sweepsResetAt,
+    available: limit > 0,
+  };
+}
+
+/**
+ * Spend one sweep. Returns null if the user has none left, so the caller can
+ * refuse before doing any of the expensive work.
+ */
+export async function consumeSweep(userId: string): Promise<SweepQuotaState | null> {
+  const state = await getSweepQuota(userId);
+  if (!state || state.remaining <= 0) return null;
+
+  await prisma.wallet.update({
+    where: { userId },
+    data: { sweepsUsedToday: { increment: 1 } },
+  });
+
+  return { ...state, used: state.used + 1, remaining: state.remaining - 1 };
+}
+
+// ---- deal radar refreshes --------------------------------------------------
+//
+// The free tier's radar has no scheduled checks at all, so this counter is its
+// entire cost ceiling: a radar only runs when someone taps refresh, and they
+// get two taps a day.
+
+export interface RadarRefreshState {
+  used: number;
+  /** Null means unlimited. */
+  limit: number | null;
+  remaining: number | null;
+  resetsAt: Date;
+}
+
+export async function getRadarRefreshState(
+  userId: string,
+): Promise<RadarRefreshState | null> {
+  const wallet = await prisma.wallet.findUnique({ where: { userId } });
+  if (!wallet) return null;
+
+  const limit = TIER_LIMITS[effectiveTier(wallet)].radarRefreshesPerDay;
+
+  if (isStale(wallet.radarRefreshesResetAt)) {
+    const resetsAt = nextResetAt();
+    await prisma.wallet.update({
+      where: { userId },
+      data: { radarRefreshesToday: 0, radarRefreshesResetAt: resetsAt },
+    });
+    return { used: 0, limit, remaining: limit, resetsAt };
+  }
+
+  const used = wallet.radarRefreshesToday;
+  return {
+    used,
+    limit,
+    remaining: limit === null ? null : Math.max(0, limit - used),
+    resetsAt: wallet.radarRefreshesResetAt,
+  };
+}
+
+/** Spend one refresh, or return null if there are none left. */
+export async function consumeRadarRefresh(
+  userId: string,
+): Promise<RadarRefreshState | null> {
+  const state = await getRadarRefreshState(userId);
+  if (!state) return null;
+  if (state.remaining !== null && state.remaining <= 0) return null;
+
+  await prisma.wallet.update({
+    where: { userId },
+    data: { radarRefreshesToday: { increment: 1 } },
+  });
+
+  return {
+    ...state,
+    used: state.used + 1,
+    remaining: state.remaining === null ? null : state.remaining - 1,
+  };
+}

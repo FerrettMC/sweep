@@ -13,7 +13,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Loading, Screen, SectionTitle } from "@/components/ui";
-import { colors, radius, spacing, type } from "@/constants/theme";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 import {
   type TrackedProduct,
   getNotificationStatus,
@@ -37,6 +38,8 @@ const TIER_LABEL: Record<string, string> = {
 };
 
 export default function HomeScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
 
   const [tracked, setTracked] = useState<TrackedProduct[]>([]);
@@ -120,7 +123,7 @@ export default function HomeScreen() {
               {(["amazon", "walmart", "bestbuy", "ebay", "newegg", "asos"] as const).map((r) => (
                 <View
                   key={r}
-                  style={[styles.storeDot, { backgroundColor: retailerColor(r) }]}
+                  style={[styles.storeDot, { backgroundColor: retailerColor(colors, r) }]}
                 />
               ))}
             </View>
@@ -209,7 +212,18 @@ export default function HomeScreen() {
               hint="Track spending"
               onPress={() => router.push("/budget")}
             />
-            <Shortcut icon="list-outline" label="Lists" hint="Gift & wishlists" soon />
+            <Shortcut
+              icon="radio-outline"
+              label="Deal Radar"
+              hint="Watch for a price"
+              onPress={() => router.push("/radar")}
+            />
+            <Shortcut
+              icon="list-outline"
+              label="Lists"
+              hint="Gift & wishlists"
+              onPress={() => router.push("/lists")}
+            />
             <Shortcut
               icon="trophy-outline"
               label="Leaderboard"
@@ -260,6 +274,8 @@ function ActionCard({
   tone: "accent" | "warning";
   onPress: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const accentColor = tone === "warning" ? colors.warning : colors.accent;
   return (
     <Pressable
@@ -293,6 +309,8 @@ function Shortcut({
   onPress?: () => void;
   soon?: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
       style={({ pressed }) => [
@@ -314,183 +332,184 @@ function Shortcut({
   );
 }
 
-const styles = StyleSheet.create({
-  content: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xxl },
-  pressed: { opacity: 0.75 },
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    content: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xxl },
+    pressed: { opacity: 0.75 },
 
-  brand: { gap: 1 },
-  brandName: {
-    color: colors.textPrimary,
-    fontSize: type.display.fontSize,
-    fontWeight: "900",
-    letterSpacing: -0.5,
-  },
-  brandTagline: {
-    color: colors.accent,
-    fontSize: type.body.fontSize,
-    fontWeight: "600",
-  },
+    brand: { gap: 1 },
+    brandName: {
+      color: colors.textPrimary,
+      fontSize: type.display.fontSize,
+      fontWeight: "900",
+      letterSpacing: -0.5,
+    },
+    brandTagline: {
+      color: colors.accent,
+      fontSize: type.body.fontSize,
+      fontWeight: "600",
+    },
 
-  searchHero: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.accentMuted,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  searchHeroTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  searchHeroTitle: {
-    color: colors.textPrimary,
-    fontSize: type.heading.fontSize,
-    fontWeight: "800",
-    flex: 1,
-  },
-  searchHeroBody: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    lineHeight: 19,
-  },
-  searchHeroFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: spacing.xs,
-  },
-  storeDots: { flexDirection: "row", gap: 5 },
-  storeDot: { width: 9, height: 9, borderRadius: radius.pill },
-  searchHeroMeta: {
-    color: colors.textTertiary,
-    fontSize: type.caption.fontSize,
-    fontWeight: "600",
-  },
+    searchHero: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.accentMuted,
+      padding: spacing.md,
+      gap: spacing.sm,
+    },
+    searchHeroTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+    searchHeroTitle: {
+      color: colors.textPrimary,
+      fontSize: type.heading.fontSize,
+      fontWeight: "800",
+      flex: 1,
+    },
+    searchHeroBody: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      lineHeight: 19,
+    },
+    searchHeroFooter: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginTop: spacing.xs,
+    },
+    storeDots: { flexDirection: "row", gap: 5 },
+    storeDot: { width: 9, height: 9, borderRadius: radius.pill },
+    searchHeroMeta: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "600",
+    },
 
-  watchCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.md,
-  },
-  watchLeft: { flex: 1, gap: 2 },
-  watchLabel: {
-    color: colors.textTertiary,
-    fontSize: type.caption.fontSize,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-  watchTitle: {
-    color: colors.textPrimary,
-    fontSize: type.body.fontSize,
-    fontWeight: "600",
-  },
-  watchPriceRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: spacing.sm,
-    marginTop: 1,
-  },
-  watchPrice: { color: colors.textPrimary, fontSize: 17, fontWeight: "800" },
-  watchOff: {
-    color: colors.success,
-    fontSize: type.caption.fontSize,
-    fontWeight: "800",
-  },
-  watchRetailer: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    watchCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      padding: spacing.md,
+    },
+    watchLeft: { flex: 1, gap: 2 },
+    watchLabel: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "800",
+      letterSpacing: 0.5,
+    },
+    watchTitle: {
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+      fontWeight: "600",
+    },
+    watchPriceRow: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      gap: spacing.sm,
+      marginTop: 1,
+    },
+    watchPrice: { color: colors.textPrimary, fontSize: 17, fontWeight: "800" },
+    watchOff: {
+      color: colors.success,
+      fontSize: type.caption.fontSize,
+      fontWeight: "800",
+    },
+    watchRetailer: { color: colors.textTertiary, fontSize: type.caption.fontSize },
 
-  watchEmpty: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    borderStyle: "dashed",
-    padding: spacing.md,
-  },
-  watchEmptyText: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    flex: 1,
-  },
+    watchEmpty: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      borderStyle: "dashed",
+      padding: spacing.md,
+    },
+    watchEmptyText: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      flex: 1,
+    },
 
-  section: { gap: spacing.xs },
+    section: { gap: spacing.xs },
 
-  actionCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  actionText: { flex: 1, gap: 1 },
-  actionTitle: {
-    color: colors.textPrimary,
-    fontSize: type.body.fontSize,
-    fontWeight: "700",
-  },
-  actionBody: { color: colors.textSecondary, fontSize: type.caption.fontSize },
+    actionCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      padding: spacing.md,
+      marginBottom: spacing.sm,
+    },
+    actionText: { flex: 1, gap: 1 },
+    actionTitle: {
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+      fontWeight: "700",
+    },
+    actionBody: { color: colors.textSecondary, fontSize: type.caption.fontSize },
 
-  shortcutGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  shortcut: {
-    // Two per row, accounting for the gap between them.
-    width: "48%",
-    flexGrow: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.md,
-    gap: 2,
-  },
-  shortcutSoon: { opacity: 0.55 },
-  shortcutLabel: {
-    color: colors.textPrimary,
-    fontSize: type.body.fontSize,
-    fontWeight: "700",
-    marginTop: spacing.xs,
-  },
-  shortcutLabelSoon: { color: colors.textSecondary },
-  shortcutHint: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    shortcutGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+    shortcut: {
+      // Two per row, accounting for the gap between them.
+      width: "48%",
+      flexGrow: 1,
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      padding: spacing.md,
+      gap: 2,
+    },
+    shortcutSoon: { opacity: 0.55 },
+    shortcutLabel: {
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+      fontWeight: "700",
+      marginTop: spacing.xs,
+    },
+    shortcutLabelSoon: { color: colors.textSecondary },
+    shortcutHint: { color: colors.textTertiary, fontSize: type.caption.fontSize },
 
-  planCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.md,
-  },
-  planLeft: { gap: 2 },
-  planLabel: {
-    color: colors.textTertiary,
-    fontSize: type.caption.fontSize,
-    fontWeight: "800",
-    letterSpacing: 0.6,
-  },
-  planTier: {
-    color: colors.textPrimary,
-    fontSize: type.heading.fontSize,
-    fontWeight: "800",
-  },
-  upgradePill: {
-    backgroundColor: colors.accentMuted,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-  },
-  upgradeText: {
-    color: colors.accent,
-    fontSize: type.caption.fontSize,
-    fontWeight: "800",
-  },
-});
+    planCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      padding: spacing.md,
+    },
+    planLeft: { gap: 2 },
+    planLabel: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "800",
+      letterSpacing: 0.6,
+    },
+    planTier: {
+      color: colors.textPrimary,
+      fontSize: type.heading.fontSize,
+      fontWeight: "800",
+    },
+    upgradePill: {
+      backgroundColor: colors.accentMuted,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 6,
+    },
+    upgradeText: {
+      color: colors.accent,
+      fontSize: type.caption.fontSize,
+      fontWeight: "800",
+    },
+  });

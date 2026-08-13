@@ -11,7 +11,8 @@
 // Custom thresholds ARE per product, so those are edited freely here.
 
 import { Button } from "@/components/ui";
-import { colors, radius, spacing, type } from "@/constants/theme";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 import {
   ApiError,
   type Schedule,
@@ -49,6 +50,8 @@ export default function TrackedItemSheet({
   onChanged,
   onRemove,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [threshold, setThreshold] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,8 +123,8 @@ export default function TrackedItemSheet({
             <View style={styles.scheduleNote}>
               <Text style={styles.scheduleText}>
                 {schedule?.fixedCheckTimes
-                  ? `Checked ${schedule.maxCheckTimes}× a day`
-                  : `Checked every ${
+                  ? `Checked up to ${schedule.maxCheckTimes}× a day`
+                  : `Checked up to every ${
                       (schedule?.checkIntervalMinutes ?? 120) >= 60
                         ? `${(schedule?.checkIntervalMinutes ?? 120) / 60} hours`
                         : `${schedule?.checkIntervalMinutes} minutes`
@@ -221,157 +224,158 @@ function nextCheckLabel(nextCheckAt: string | null | undefined) {
   })}.`;
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    maxHeight: "90%",
-    borderTopWidth: 1,
-    borderColor: colors.surfaceBorder,
-  },
-  grabber: {
-    alignSelf: "center",
-    width: 38,
-    height: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceBorder,
-    marginTop: spacing.sm,
-  },
-  content: { padding: spacing.md, gap: spacing.md },
-  title: {
-    color: colors.textPrimary,
-    fontSize: type.heading.fontSize,
-    fontWeight: "800",
-    lineHeight: 23,
-  },
-  meta: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    marginTop: -8,
-  },
-  section: { gap: spacing.xs },
-  sectionTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  sectionTitle: {
-    color: colors.textPrimary,
-    fontSize: type.body.fontSize,
-    fontWeight: "800",
-  },
-  sectionHint: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    lineHeight: 18,
-  },
-  warn: { color: colors.warning, fontWeight: "700" },
-  scheduleNote: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.md,
-  },
-  scheduleText: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    lineHeight: 19,
-  },
-  hourGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.xs,
-    marginTop: spacing.xs,
-  },
-  minuteGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.xs,
-    marginTop: spacing.xs,
-  },
-  slotSummary: {
-    color: colors.accent,
-    fontSize: type.caption.fontSize,
-    fontWeight: "700",
-    marginTop: spacing.xs,
-  },
-  hourChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    minWidth: 58,
-    alignItems: "center",
-  },
-  hourChipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  hourText: {
-    color: colors.textSecondary,
-    fontSize: type.caption.fontSize,
-    fontWeight: "700",
-  },
-  hourTextOn: { color: colors.background },
-  pressed: { opacity: 0.7 },
-  proPill: {
-    backgroundColor: colors.accentMuted,
-    borderRadius: radius.sm,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-  },
-  proPillText: {
-    color: colors.accent,
-    fontSize: type.caption.fontSize,
-    fontWeight: "900",
-  },
-  priceInputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    marginTop: spacing.xs,
-  },
-  currency: {
-    color: colors.textSecondary,
-    fontSize: type.body.fontSize,
-    fontWeight: "800",
-  },
-  priceInput: {
-    flex: 1,
-    paddingVertical: 11,
-    color: colors.textPrimary,
-    fontSize: type.body.fontSize,
-  },
-  error: { color: colors.danger, fontSize: type.label.fontSize },
-  notice: { color: colors.success, fontSize: type.label.fontSize },
-  removeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-  },
-  removeText: {
-    color: colors.danger,
-    fontSize: type.label.fontSize,
-    fontWeight: "700",
-  },
-  actions: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.surfaceBorder,
-  },
-  action: { flex: 1 },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.scrim,
+      justifyContent: "flex-end",
+    },
+    sheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: radius.lg,
+      borderTopRightRadius: radius.lg,
+      maxHeight: "90%",
+      borderTopWidth: 1,
+      borderColor: colors.surfaceBorder,
+    },
+    grabber: {
+      alignSelf: "center",
+      width: 38,
+      height: 4,
+      borderRadius: radius.pill,
+      backgroundColor: colors.surfaceBorder,
+      marginTop: spacing.sm,
+    },
+    content: { padding: spacing.md, gap: spacing.md },
+    title: {
+      color: colors.textPrimary,
+      fontSize: type.heading.fontSize,
+      fontWeight: "800",
+      lineHeight: 23,
+    },
+    meta: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      marginTop: -8,
+    },
+    section: { gap: spacing.xs },
+    sectionTitleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+    },
+    sectionTitle: {
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+      fontWeight: "800",
+    },
+    sectionHint: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      lineHeight: 18,
+    },
+    warn: { color: colors.warning, fontWeight: "700" },
+    scheduleNote: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      padding: spacing.md,
+    },
+    scheduleText: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      lineHeight: 19,
+    },
+    hourGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.xs,
+      marginTop: spacing.xs,
+    },
+    minuteGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.xs,
+      marginTop: spacing.xs,
+    },
+    slotSummary: {
+      color: colors.accent,
+      fontSize: type.caption.fontSize,
+      fontWeight: "700",
+      marginTop: spacing.xs,
+    },
+    hourChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      borderRadius: radius.sm,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      minWidth: 58,
+      alignItems: "center",
+    },
+    hourChipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+    hourText: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "700",
+    },
+    hourTextOn: { color: colors.background },
+    pressed: { opacity: 0.7 },
+    proPill: {
+      backgroundColor: colors.accentMuted,
+      borderRadius: radius.sm,
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+    },
+    proPillText: {
+      color: colors.accent,
+      fontSize: type.caption.fontSize,
+      fontWeight: "900",
+    },
+    priceInputRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.md,
+      marginTop: spacing.xs,
+    },
+    currency: {
+      color: colors.textSecondary,
+      fontSize: type.body.fontSize,
+      fontWeight: "800",
+    },
+    priceInput: {
+      flex: 1,
+      paddingVertical: 11,
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+    },
+    error: { color: colors.danger, fontSize: type.label.fontSize },
+    notice: { color: colors.success, fontSize: type.label.fontSize },
+    removeRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      paddingVertical: spacing.sm,
+    },
+    removeText: {
+      color: colors.danger,
+      fontSize: type.label.fontSize,
+      fontWeight: "700",
+    },
+    actions: {
+      flexDirection: "row",
+      gap: spacing.sm,
+      padding: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: colors.surfaceBorder,
+    },
+    action: { flex: 1 },
+  });

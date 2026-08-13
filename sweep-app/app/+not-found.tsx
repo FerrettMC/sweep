@@ -1,8 +1,11 @@
 import { Link, Stack } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
-import { colors, spacing, type } from "@/constants/theme";
+import { type Palette, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 
 export default function NotFoundScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <>
       <Stack.Screen
@@ -22,19 +25,20 @@ export default function NotFoundScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.xl,
-    backgroundColor: colors.background,
-  },
-  title: {
-    color: colors.textPrimary,
-    fontSize: type.heading.fontSize,
-    fontWeight: "700",
-  },
-  link: { marginTop: spacing.md, paddingVertical: spacing.md },
-  linkText: { color: colors.accent, fontSize: type.body.fontSize, fontWeight: "700" },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: spacing.xl,
+      backgroundColor: colors.background,
+    },
+    title: {
+      color: colors.textPrimary,
+      fontSize: type.heading.fontSize,
+      fontWeight: "700",
+    },
+    link: { marginTop: spacing.md, paddingVertical: spacing.md },
+    linkText: { color: colors.accent, fontSize: type.body.fontSize, fontWeight: "700" },
+  });

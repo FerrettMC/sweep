@@ -23,13 +23,17 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSweep } from "@/lib/useSweep";
 import { useFocusEffect, useRouter } from "expo-router";
+import AddToListSheet, { type ListTarget } from "@/components/AddToListSheet";
+import SweepSheet from "@/components/SweepSheet";
 import CompareTray from "@/components/CompareTray";
 import WhyLimitedSheet from "@/components/WhyLimitedSheet";
 import HighlightCard from "@/components/HighlightCard";
 import ProductCard from "@/components/ProductCard";
 import { Button, EmptyState, ErrorBanner, Loading, Screen } from "@/components/ui";
-import { colors, radius, spacing, type } from "@/constants/theme";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { useTheme, useThemedStyles } from "@/lib/theme";
 import {
   ApiError,
   type Highlight,
@@ -63,6 +67,8 @@ const AMAZON_POLL_MS = 4000;
 const AMAZON_MAX_WAIT_MS = 210_000;
 
 export default function SearchScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
 
   const [keyword, setKeyword] = useState("");
@@ -82,6 +88,8 @@ export default function SearchScreen() {
   const [watchingAd, setWatchingAd] = useState(false);
   const [showAds, setShowAds] = useState(false);
   const [showWhy, setShowWhy] = useState(false);
+  const [listTarget, setListTarget] = useState<ListTarget | null>(null);
+  const sweep = useSweep();
 
   // Bumped on each new search so an in-flight poll from the previous one can
   // tell it's stale and stop writing results into the current view.
@@ -452,6 +460,19 @@ export default function SearchScreen() {
                         key={`${h.kind}:${h.product.retailer}:${h.product.retailerId}`}
                         highlight={h}
                         onPress={() => Linking.openURL(h.product.url)}
+                        // Shares the compare tray with the per-store rows, so
+                        // starring a pick here and starring the same item below
+                        // are the same action rather than two separate ones.
+                        starred={Boolean(starred[productKey(h.product)])}
+                        onToggleStar={() => toggleStar(h.product)}
+                        onAddToList={() =>
+                          setListTarget({
+                            retailer: h.product.retailer,
+                            retailerId: h.product.retailerId,
+                            title: h.product.title,
+                            url: h.product.url,
+                          })
+                        }
                       />
                     ))}
                   </ScrollView>
@@ -471,7 +492,7 @@ export default function SearchScreen() {
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader}>
               <View
-                style={[styles.sectionDot, { backgroundColor: retailerColor(section.retailer) }]}
+                style={[styles.sectionDot, { backgroundColor: retailerColor(colors, section.retailer) }]}
               />
               <Text style={styles.sectionTitle}>{section.title}</Text>
               {section.status === "pending" && (
@@ -502,24 +523,67 @@ export default function SearchScreen() {
                 ratingCount={item.ratingCount}
                 sellerRating={item.sellerRating}
                 sellerRatingCount={item.sellerRatingCount}
-                starred={Boolean(starred[productKey(item)])}
-                onToggleStar={() => toggleStar(item)}
-                // Search is for comparing who's cheapest. Tracking happens by
-                // pasting a link on the Tracking tab, which costs no quota.
-                action={
-                  <Button
-                    label="Open"
-                    onPress={() => Linking.openURL(item.url)}
-                    variant="secondary"
-                    compact
-                  />
-                }
+                actions={[
+                  {
+                    key: "compare",
+                    icon: "star-outline",
+                    activeIcon: "star",
+                    label: "Compare",
+                    activeLabel: "Added",
+                    active: Boolean(starred[productKey(item)]),
+                    onPress: () => toggleStar(item),
+                  },
+                  {
+                    key: "list",
+                    icon: "list-outline",
+                    label: "List",
+                    onPress: () =>
+                      setListTarget({
+                        retailer: item.retailer,
+                        retailerId: item.retailerId,
+                        title: item.title,
+                        url: item.url,
+                      }),
+                  },
+                  // Dropped entirely on tiers without the feature, rather than
+                  // shown-and-refused: a dead button is worse than no button.
+                  sweep.available && {
+                    key: "sweep",
+                    icon: "sparkles",
+                    label: "Sweep",
+                    tone: "accent" as const,
+                    onPress: () => sweep.sweep({ url: item.url }),
+                  },
+                  // Search is for comparing who's cheapest. Tracking happens by
+                  // pasting a link on the Tracking tab, which costs no quota.
+                  {
+                    key: "open",
+                    icon: "open-outline",
+                    label: "Open",
+                    onPress: () => Linking.openURL(item.url),
+                  },
+                ]}
               />
             </View>
           )}
           ListFooterComponent={<View style={styles.footerSpace} />}
         />
       )}
+      <SweepSheet
+        visible={sweep.open}
+        busy={sweep.busy}
+        result={sweep.result}
+        error={sweep.error}
+        remaining={sweep.quota?.remaining ?? null}
+        onClose={sweep.close}
+      />
+
+      <AddToListSheet
+        product={listTarget}
+        onClose={() => setListTarget(null)}
+        onAdded={(name) => setNotice(`Added to ${name}.`)}
+      />
+
       <WhyLimitedSheet
         visible={showWhy}
         onClose={() => setShowWhy(false)}
@@ -532,112 +596,113 @@ export default function SearchScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  searchBar: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    padding: spacing.md,
-    alignItems: "center",
-  },
-  input: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    color: colors.textPrimary,
-    fontSize: type.body.fontSize,
-  },
-  quotaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    gap: spacing.sm,
-  },
-  quotaTextRow: { flexDirection: "row", alignItems: "center", gap: 5, flex: 1 },
-  quotaText: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    fontWeight: "600",
-    flex: 1,
-  },
-  capNote: {
-    color: colors.textTertiary,
-    fontSize: type.caption.fontSize,
-    fontWeight: "600",
-  },
-  notice: {
-    color: colors.success,
-    fontSize: type.label.fontSize,
-    fontWeight: "700",
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  guestBanner: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.accentMuted,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    gap: spacing.sm,
-  },
-  guestText: {
-    color: colors.textSecondary,
-    fontSize: type.label.fontSize,
-    lineHeight: 19,
-  },
-  list: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  sectionDot: { width: 8, height: 8, borderRadius: radius.pill },
-  sectionTitle: {
-    color: colors.textPrimary,
-    fontSize: type.label.fontSize,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  sectionStatus: {
-    color: colors.textTertiary,
-    fontSize: type.caption.fontSize,
-    flex: 1,
-  },
-  pendingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    flex: 1,
-  },
-  highlightBlock: { gap: spacing.sm, marginTop: spacing.sm },
-  highlightHeading: {
-    color: colors.textPrimary,
-    fontSize: type.heading.fontSize,
-    fontWeight: "800",
-  },
-  highlightRow: { gap: spacing.sm, paddingRight: spacing.md, paddingBottom: 2 },
-  skippedNote: {
-    color: colors.textTertiary,
-    fontSize: type.caption.fontSize,
-    marginTop: spacing.md,
-    lineHeight: 15,
-  },
-  byStoreHeading: {
-    color: colors.textPrimary,
-    fontSize: type.heading.fontSize,
-    fontWeight: "800",
-    marginTop: spacing.lg,
-  },
-  cardWrap: { marginBottom: spacing.sm },
-  footerSpace: { height: spacing.xl },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    searchBar: {
+      flexDirection: "row",
+      gap: spacing.sm,
+      padding: spacing.md,
+      alignItems: "center",
+    },
+    input: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 12,
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+    },
+    quotaRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.md,
+      paddingBottom: spacing.sm,
+      gap: spacing.sm,
+    },
+    quotaTextRow: { flexDirection: "row", alignItems: "center", gap: 5, flex: 1 },
+    quotaText: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      fontWeight: "600",
+      flex: 1,
+    },
+    capNote: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "600",
+    },
+    notice: {
+      color: colors.success,
+      fontSize: type.label.fontSize,
+      fontWeight: "700",
+      paddingHorizontal: spacing.md,
+      paddingBottom: spacing.sm,
+    },
+    guestBanner: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.accentMuted,
+      borderRadius: radius.md,
+      padding: spacing.md,
+      marginHorizontal: spacing.md,
+      marginBottom: spacing.sm,
+      gap: spacing.sm,
+    },
+    guestText: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      lineHeight: 19,
+    },
+    list: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl },
+    sectionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      marginTop: spacing.lg,
+      marginBottom: spacing.sm,
+    },
+    sectionDot: { width: 8, height: 8, borderRadius: radius.pill },
+    sectionTitle: {
+      color: colors.textPrimary,
+      fontSize: type.label.fontSize,
+      fontWeight: "800",
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+    },
+    sectionStatus: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      flex: 1,
+    },
+    pendingRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      flex: 1,
+    },
+    highlightBlock: { gap: spacing.sm, marginTop: spacing.sm },
+    highlightHeading: {
+      color: colors.textPrimary,
+      fontSize: type.heading.fontSize,
+      fontWeight: "800",
+    },
+    highlightRow: { gap: spacing.sm, paddingRight: spacing.md, paddingBottom: 2 },
+    skippedNote: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      marginTop: spacing.md,
+      lineHeight: 15,
+    },
+    byStoreHeading: {
+      color: colors.textPrimary,
+      fontSize: type.heading.fontSize,
+      fontWeight: "800",
+      marginTop: spacing.lg,
+    },
+    cardWrap: { marginBottom: spacing.sm },
+    footerSpace: { height: spacing.xl },
+  });
