@@ -37,7 +37,9 @@ export default function HomeScreen() {
   const router = useRouter();
 
   const [tracked, setTracked] = useState<TrackedProduct[]>([]);
-  const [tier, setTier] = useState("free");
+  // Null while unknown — defaulting to "free" told offline users they were on
+  // the free plan instead of admitting we hadn't reached the server.
+  const [tier, setTier] = useState<string | null>(null);
   const [searchesLeft, setSearchesLeft] = useState<number | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [pushOn, setPushOn] = useState<boolean | null>(null);
@@ -240,9 +242,11 @@ export default function HomeScreen() {
         >
           <View style={styles.planLeft}>
             <Text style={styles.planLabel}>YOUR PLAN</Text>
-            <Text style={styles.planTier}>{TIER_LABEL[tier] ?? "Free"}</Text>
+            <Text style={[styles.planTier, !tier && styles.planUnknown]}>
+              {tier ? (TIER_LABEL[tier] ?? tier) : "Not confirmed"}
+            </Text>
           </View>
-          {tier === "free" ? (
+          {tier === null || tier === "free" ? (
             <View style={styles.upgradePill}>
               <Text style={styles.upgradeText}>See upgrades</Text>
             </View>
@@ -490,6 +494,7 @@ const makeStyles = (colors: Palette) =>
       fontWeight: "800",
       letterSpacing: 0.6,
     },
+    planUnknown: { color: colors.textTertiary },
     planTier: {
       color: colors.textPrimary,
       fontSize: type.heading.fontSize,

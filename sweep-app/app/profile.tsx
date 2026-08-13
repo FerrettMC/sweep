@@ -42,7 +42,10 @@ export default function ProfileScreen() {
   const router = useRouter();
 
   const [email, setEmail] = useState<string | null>(null);
-  const [tier, setTier] = useState("free");
+  // Null means we couldn't reach the server. Defaulting to "free" here was
+  // the bug: offline, the app confidently told people they were on the free
+  // plan rather than admitting it didn't know.
+  const [tier, setTier] = useState<string | null>(null);
   // Fetched rather than hardcoded: the copy that used to live here drifted and
   // advertised Pro at 10 searches a day months after the cap moved to 30.
   const [planSummary, setPlanSummary] = useState<string | null>(null);
@@ -167,18 +170,26 @@ export default function ProfileScreen() {
           <View style={styles.planRow}>
             <Text style={styles.label}>Plan</Text>
             <View style={styles.planRight}>
-              <View style={styles.tierPill}>
-                <Text style={styles.tierPillText}>{tier.toUpperCase()}</Text>
+              <View style={[styles.tierPill, !tier && styles.tierPillUnknown]}>
+                <Text style={[styles.tierPillText, !tier && styles.tierPillTextUnknown]}>
+                  {tier ? tier.toUpperCase() : "—"}
+                </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
             </View>
           </View>
-          {planSummary && <Text style={styles.value}>{planSummary}</Text>}
+          {planSummary ? (
+            <Text style={styles.value}>{planSummary}</Text>
+          ) : (
+            <Text style={styles.unknown}>
+              Can't reach Sweep right now, so your plan isn't confirmed.
+            </Text>
+          )}
           {searchesLeft !== null && (
             <Text style={styles.sub}>{pluralize(searchesLeft, "search")} left today</Text>
           )}
           <Text style={styles.comparePlans}>
-            {tier === "free" ? "Compare plans" : "See what's included"}
+            {tier === null || tier === "free" ? "Compare plans" : "See what's included"}
           </Text>
         </Pressable>
 
@@ -403,6 +414,9 @@ const makeStyles = (colors: Palette) =>
     value: { color: colors.textPrimary, fontSize: type.body.fontSize, fontWeight: "600" },
     sub: { color: colors.textSecondary, fontSize: type.label.fontSize },
     planRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    tierPillUnknown: { backgroundColor: colors.surfaceRaised },
+    tierPillTextUnknown: { color: colors.textTertiary },
+    unknown: { color: colors.warning, fontSize: type.label.fontSize },
     tierPill: {
       backgroundColor: colors.accentMuted,
       borderRadius: radius.sm,

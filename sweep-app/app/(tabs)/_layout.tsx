@@ -10,17 +10,21 @@
 // rather than a native module, so it needs no rebuild. Outline when inactive,
 // filled when active.
 
-import { Link, Tabs } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import { type ColorValue, Pressable, StyleSheet, View } from "react-native";
 import { type Palette, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { Ionicons } from "@expo/vector-icons";
+import { Link, Tabs } from "expo-router";
+import { type ColorValue, Pressable, StyleSheet, View } from "react-native";
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
 function tabIcon(active: IoniconName, inactive: IoniconName) {
   return ({ color, focused }: { color: ColorValue; focused: boolean }) => (
-    <Ionicons name={focused ? active : inactive} size={24} color={color as string} />
+    <Ionicons
+      name={focused ? active : inactive}
+      size={24}
+      color={color as string}
+    />
   );
 }
 
@@ -29,7 +33,10 @@ function ProfileButton() {
   const styles = useThemedStyles(makeStyles);
   return (
     <Link href="/profile" asChild>
-      <Pressable hitSlop={12} style={({ pressed }) => pressed && styles.pressed}>
+      <Pressable
+        hitSlop={12}
+        style={({ pressed }) => pressed && styles.pressed}
+      >
         <View style={styles.profileButton}>
           <Ionicons name="person" size={17} color={colors.textSecondary} />
         </View>

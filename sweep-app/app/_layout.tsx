@@ -6,10 +6,18 @@
 // user can sign in, sign out, or have a token expire at any point, and a
 // one-shot check leaves the app showing a screen the session no longer allows.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as Notifications from "expo-notifications";
 import { Stack, useRouter, useSegments } from "expo-router";
+import { View } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import {
+  SafeAreaInsetsContext,
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import OfflineBanner from "@/components/OfflineBanner";
+import { useIsOnline } from "@/lib/connection";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 import { syncUser } from "@/lib/api";
 import { isGuestMode } from "@/lib/guestMode";
@@ -26,14 +34,28 @@ import { supabase } from "@/lib/supabase";
  */
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <RootNavigator />
-    </ThemeProvider>
+    // SafeAreaProvider explicitly rather than relying on the navigator's own:
+    // the offline banner renders ABOVE the navigator and still needs insets.
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <RootNavigator />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 
 function RootNavigator() {
   const { colors, scheme } = useTheme();
+  const online = useIsOnline();
+  const insets = useSafeAreaInsets();
+
+  // The banner sits above the navigator and already pads for the status bar.
+  // Without telling the navigator that, its header pads for the status bar a
+  // second time and the title ends up floating well below the banner.
+  const navigatorInsets = useMemo(
+    () => (online ? insets : { ...insets, top: 0 }),
+    [online, insets],
+  );
   const router = useRouter();
   const segments = useSegments();
 
@@ -168,9 +190,14 @@ function RootNavigator() {
   if (!ready || seenTour === null) return null;
 
   return (
-    <>
+    // An explicit flex container: the banner and the navigator are siblings,
+    // so the navigator needs something to fill the space that's left.
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <StatusBar style={scheme === "dark" ? "light" : "dark"} />
-      <Stack
+      {/* Above the navigator so no screen can forget it. */}
+      <OfflineBanner />
+      <SafeAreaInsetsContext.Provider value={navigatorInsets}>
+        <Stack
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: colors.background },
@@ -265,7 +292,8 @@ function RootNavigator() {
             headerTitleStyle: { fontWeight: "800" },
           }}
         />
-      </Stack>
-    </>
+        </Stack>
+      </SafeAreaInsetsContext.Provider>
+    </View>
   );
 }

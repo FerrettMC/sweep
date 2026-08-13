@@ -5,6 +5,7 @@
 // server can apply the right limits without the client asserting anything.
 
 import Constants from "expo-constants";
+import { markReachable, markUnreachable } from "./connection";
 import { getDeviceId } from "./deviceId";
 import { supabase } from "./supabase";
 
@@ -58,12 +59,17 @@ async function request<T>(
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
   } catch {
+    markUnreachable();
     throw new ApiError(
       "Can't reach Sweep. Check your connection and that the backend is running.",
       0,
       "NETWORK_ERROR",
     );
   }
+
+  // Any response means the server is there — a 4xx or 5xx is still a
+  // conversation, and treating it as "offline" would be misleading.
+  markReachable();
 
   const text = await response.text();
   let payload: any = null;
