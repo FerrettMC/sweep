@@ -4,7 +4,7 @@
 // haven't found yet.
 //
 // The tier split here is about labour, not capability: every tier searches the
-// same six stores with the same target price. Paid tiers have Sweep re-run
+// same stores with the same target price. Paid tiers have Sweep re-run
 // them on a schedule; free runs them by hand, twice a day. That's deliberate —
 // a free radar that couldn't set a target price would be a feature that exists
 // and does nothing, which is worse than not shipping it.
@@ -18,7 +18,12 @@ import { requireAuth } from "../lib/auth.js";
 import { effectiveIntervalMinutes } from "../lib/backoff.js";
 import { runRadar } from "../lib/dealRadar.js";
 import { prisma } from "../lib/prisma.js";
-import { consumeRadarRefresh, getRadarRefreshState } from "../lib/quota.js";
+import {
+  consumeRadarChange,
+  consumeRadarRefresh,
+  getRadarChangeState,
+  getRadarRefreshState,
+} from "../lib/quota.js";
 import { effectiveTier, limitsFor } from "../lib/tiers.js";
 
 const MAX_KEYWORD_LENGTH = 80;
@@ -34,9 +39,10 @@ export async function radarRoutes(app: FastifyInstance) {
     if (!wallet) return reply.status(404).send({ error: "No wallet for user" });
 
     const limits = limitsFor(wallet);
-    const [searches, refreshes] = await Promise.all([
+    const [searches, refreshes, changes] = await Promise.all([
       prisma.savedSearch.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
       getRadarRefreshState(userId),
+      getRadarChangeState(userId),
     ]);
 
     return {
@@ -49,6 +55,7 @@ export async function radarRoutes(app: FastifyInstance) {
         autoChecks: limits.savedSearchIntervalMinutes > 0,
       },
       refreshes,
+      changes,
       tier: effectiveTier(wallet),
     };
   });
@@ -90,6 +97,19 @@ export async function radarRoutes(app: FastifyInstance) {
       });
     }
 
+    // Spending a change here is what stops "create, refresh, delete, repeat"
+    // from turning a one-radar allowance into an unmetered search box.
+    const change = await consumeRadarChange(userId);
+    if (!change) {
+      const state = await getRadarChangeState(userId);
+      return reply.status(429).send({
+        error: `You've set up ${state?.limit ?? 0} radars today. Try again tomorrow, or refresh the ones you have.`,
+        code: "RADAR_CHANGE_EXHAUSTED",
+        changes: state,
+        tier: effectiveTier(wallet),
+      });
+    }
+
     const saved = await prisma.savedSearch.create({
       data: {
         userId,
@@ -117,6 +137,12 @@ export async function radarRoutes(app: FastifyInstance) {
         targetPrice?: unknown;
       };
 
+      const userId = request.userId!;
+      const existing = await prisma.savedSearch.findFirst({
+        where: { id: request.params.id, userId },
+      });
+      if (!existing) return reply.status(404).send({ error: "Radar not found" });
+
       const data: { keyword?: string; targetPrice?: number | null; lastBestPrice?: null } = {};
 
       if (keyword !== undefined) {
@@ -125,10 +151,27 @@ export async function radarRoutes(app: FastifyInstance) {
             .status(400)
             .send({ error: "What should Sweep watch for?", code: "INVALID_KEYWORD" });
         }
-        data.keyword = keyword.trim().slice(0, MAX_KEYWORD_LENGTH);
-        // A different search is a different question — forget what we'd already
-        // reported, or the new one starts out silently muted.
-        data.lastBestPrice = null;
+        const next = keyword.trim().slice(0, MAX_KEYWORD_LENGTH);
+
+        // Renaming is the cheap version of delete-and-recreate, so it costs the
+        // same. A no-op rename is free — re-saving an unchanged form shouldn't
+        // quietly burn someone's allowance.
+        if (next !== existing.keyword) {
+          const change = await consumeRadarChange(userId);
+          if (!change) {
+            const state = await getRadarChangeState(userId);
+            return reply.status(429).send({
+              error: `You've changed radars ${state?.limit ?? 0} times today. Target prices can still be edited.`,
+              code: "RADAR_CHANGE_EXHAUSTED",
+              changes: state,
+            });
+          }
+          // A different search is a different question — forget what we'd
+          // already reported, or the new one starts out silently muted.
+          data.lastBestPrice = null;
+        }
+
+        data.keyword = next;
       }
 
       if (targetPrice !== undefined) {
@@ -141,12 +184,7 @@ export async function radarRoutes(app: FastifyInstance) {
         data.targetPrice = target;
       }
 
-      const updated = await prisma.savedSearch.updateMany({
-        where: { id: request.params.id, userId: request.userId! },
-        data,
-      });
-      if (updated.count === 0) return reply.status(404).send({ error: "Radar not found" });
-
+      await prisma.savedSearch.update({ where: { id: existing.id }, data });
       return { ok: true };
     },
   );
@@ -181,7 +219,7 @@ export async function radarRoutes(app: FastifyInstance) {
 
       // Checked before the work, so nobody waits 30 seconds to be refused.
       const state = await getRadarRefreshState(userId);
-      if (state && state.remaining !== null && state.remaining <= 0) {
+      if (state && state.remaining <= 0) {
         return reply.status(429).send({
           error: `That's your ${state.limit} refreshes for today.`,
           code: "RADAR_REFRESH_EXHAUSTED",

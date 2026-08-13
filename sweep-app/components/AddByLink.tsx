@@ -15,6 +15,7 @@ import TrackProductModal from "@/components/TrackProductModal";
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { storeListPhrase } from "@/lib/format";
 import {
   ApiError,
   type ProductPreview,
@@ -139,7 +140,7 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
         <Pressable onPress={onPasteFromClipboard} hitSlop={8}>
           <Text style={styles.pasteLink}>Paste from clipboard</Text>
         </Pressable>
-        <Text style={styles.hint}>Amazon · Walmart · Best Buy · eBay · Newegg · ASOS</Text>
+        <Text style={styles.hint}>{storeListPhrase(6)}</Text>
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}

@@ -69,6 +69,50 @@ check("pro reports 5 radars", r.body.limits?.maxSavedSearches === 5, r.body.limi
 check("pro gets scheduled checks", r.body.limits?.autoChecks === true && r.body.limits?.intervalMinutes === 720, r.body.limits);
 check("a second radar is now allowed", (await call(token, "POST", "/radar", { keyword: "nintendo switch 2" })).status === 201);
 
+console.log("\n— radar must not become an unmetered search box —");
+// The exploit: search for what you want by creating a radar, refreshing it,
+// deleting it, and repeating with a new keyword. Capped by the change budget.
+await prisma.wallet.update({ where: { userId }, data: { tier: "free", radarChangesToday: 0, radarRefreshesToday: 0 } });
+await prisma.savedSearch.deleteMany({ where: { userId } });
+
+let created = 0;
+for (let i = 0; i < 8; i++) {
+  const made = await call(token, "POST", "/radar", { keyword: `churn probe ${i}` });
+  if (made.status !== 201) break;
+  created++;
+  await call(token, "DELETE", `/radar/${made.body.search.id}`);
+}
+check(`churning stops at the free change cap (made ${created})`, created === 3, { created });
+
+r = await call(token, "POST", "/radar", { keyword: "one more" });
+check("...with a clear reason", r.status === 429 && r.body.code === "RADAR_CHANGE_EXHAUSTED", r.body);
+
+// Renaming is the same trick without the delete, so it costs the same.
+await prisma.wallet.update({ where: { userId }, data: { radarChangesToday: 0 } });
+await prisma.savedSearch.deleteMany({ where: { userId } });
+const base = await call(token, "POST", "/radar", { keyword: "rename probe" });
+let renames = 0;
+for (let i = 0; i < 8; i++) {
+  const res = await call(token, "PATCH", `/radar/${base.body.search.id}`, { keyword: `rename probe ${i}` });
+  if (res.status !== 200) break;
+  renames++;
+}
+check(`renaming is metered too (did ${renames})`, renames === 2, { renames });
+
+r = await call(token, "PATCH", `/radar/${base.body.search.id}`, { targetPrice: 5000 });
+check("...but the target price can still be edited", r.status === 200, r.body);
+
+r = await call(token, "PATCH", `/radar/${base.body.search.id}`, { keyword: "rename probe 1" });
+check("a no-op rename costs nothing", r.status === 200, r.body);
+
+console.log("\n— no tier gets unlimited refreshes —");
+for (const tier of ["free", "pro", "ultimate"] as const) {
+  await prisma.wallet.update({ where: { userId }, data: { tier } });
+  const q = await call(token, "GET", "/radar");
+  check(`${tier} has a finite refresh cap (${q.body.refreshes?.limit})`, typeof q.body.refreshes?.limit === "number", q.body.refreshes);
+}
+await prisma.wallet.update({ where: { userId }, data: { tier: "pro" } });
+
 console.log("\n— ownership —");
 const other = await sb.auth.signUp({ email: `sweep-rad2-${Date.now()}@example.com`, password: "sweep-test-password-123" });
 const otherToken = other.data.session!.access_token;
@@ -80,8 +124,10 @@ check("another user can't delete yours", (await call(otherToken, "DELETE", `/rad
 check("auth is required", (await call(null, "GET", "/radar")).status === 401);
 
 console.log("\n— delete —");
-check("you can delete your own", (await call(token, "DELETE", `/radar/${radarId}`)).status === 200);
-check("deleting twice 404s", (await call(token, "DELETE", `/radar/${radarId}`)).status === 404);
+// A fresh one: the churn section above clears this user's saved searches.
+const doomed = await call(token, "POST", "/radar", { keyword: "delete me please" });
+check("you can delete your own", (await call(token, "DELETE", `/radar/${doomed.body.search.id}`)).status === 200);
+check("deleting twice 404s", (await call(token, "DELETE", `/radar/${doomed.body.search.id}`)).status === 404);
 
 for (const id of [userId, other.data.session!.user.id]) {
   await prisma.savedSearch.deleteMany({ where: { userId: id } });

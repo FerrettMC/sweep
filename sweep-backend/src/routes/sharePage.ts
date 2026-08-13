@@ -12,7 +12,7 @@
 
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../lib/prisma.js";
-import { RETAILER_LABELS, isRetailer } from "../lib/scrapers/types.js";
+import { RETAILER_LABELS, isRetailer, storeListPhrase } from "../lib/scrapers/types.js";
 import { displayName } from "../lib/xp.js";
 
 /** Where the app can be installed. Filled in once there's a store listing. */
@@ -114,7 +114,7 @@ export async function sharePageRoutes(app: FastifyInstance) {
            ${
              STORE_URL
                ? `<a class="cta" href="${escapeAttr(STORE_URL)}">Track prices with Sweep</a>`
-               : `<p class="cta-soon">Sweep tracks prices across Amazon, Walmart, Best Buy, eBay, Newegg and ASOS.</p>`
+               : `<p class="cta-soon">Sweep tracks prices across ${storeListPhrase()}.</p>`
            }
            <p class="contact">Questions about this list? <a href="mailto:${escapeAttr(SUPPORT_EMAIL)}?subject=Shared%20list">${escapeHtml(SUPPORT_EMAIL)}</a></p>
          </footer>

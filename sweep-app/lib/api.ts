@@ -468,6 +468,8 @@ export interface Plan {
   };
   /** Short ribbon above the name, e.g. "MOST POPULAR". Null for Free. */
   badge: string | null;
+  /** One-line summary of this plan's headline numbers. */
+  summary: string;
   /** The handful of numbers that improve at this tier. `from` is null on Free. */
   upgrades: { label: string; from: string | null; to: string }[];
   /** Features that switch on at this tier and weren't available below it. */
@@ -777,9 +779,16 @@ export interface RadarMatch {
 
 export interface RadarRefreshes {
   used: number;
-  /** Null means unlimited. */
-  limit: number | null;
-  remaining: number | null;
+  limit: number;
+  remaining: number;
+  resetsAt: string;
+}
+
+/** Budget for creating a radar or changing its keyword. */
+export interface RadarChanges {
+  used: number;
+  limit: number;
+  remaining: number;
   resetsAt: string;
 }
 
@@ -794,6 +803,7 @@ export function getRadar() {
       autoChecks: boolean;
     };
     refreshes: RadarRefreshes | null;
+    changes: RadarChanges | null;
     tier: string;
   }>("/radar");
 }

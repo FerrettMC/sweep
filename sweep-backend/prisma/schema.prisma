@@ -77,6 +77,10 @@ model Wallet {
   // many times a day.
   radarRefreshesToday Int      @default(0)
   radarRefreshesResetAt DateTime @default(now())
+  // New radars + keyword edits. Stops delete-and-recreate (or rename) churn
+  // from turning a 1-radar allowance into an unlimited search box.
+  radarChangesToday Int        @default(0)
+  radarChangesResetAt DateTime @default(now())
 
   checkHours        Int[]     @default([9, 21])
   // Minute offset for the interval tiers, anchored to local midnight.

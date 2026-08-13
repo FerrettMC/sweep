@@ -83,7 +83,7 @@ export interface TierLimits {
   //
   // A standing search that watches every store for something you haven't found
   // yet. The paid step here is deliberately about LABOUR, not capability: a
-  // free radar searches the same six stores with the same target price, the
+  // free radar searches the same stores with the same target price, the
   // user just has to press refresh. Crippling what free users can look for
   // would leave them holding a feature that exists and does nothing.
   /** How many standing searches this tier may keep. */
@@ -95,13 +95,24 @@ export interface TierLimits {
    */
   savedSearchIntervalMinutes: number;
   /**
-   * Manual "refresh my radars" runs a day. Null is unlimited.
+   * Manual "refresh my radars" runs a day.
    *
-   * Free's whole radar allowance lives here: with no scheduled checks, this
-   * count IS its cost ceiling, and it can't run away with signups because
-   * every run needs a human to tap.
+   * Never unlimited, even on Ultimate. A refresh is a full retailer fan-out —
+   * exactly a compiled search — so an unlimited allowance here would be an
+   * unlimited search allowance wearing a different hat, straight past
+   * searchesPerDay.
    */
-  radarRefreshesPerDay: number | null;
+  radarRefreshesPerDay: number;
+
+  /**
+   * New radars plus keyword edits per day.
+   *
+   * Without this, the concurrent radar cap means nothing: create, refresh,
+   * delete, repeat — or just rename the one you have — and a radar becomes a
+   * general-purpose search box. Renames count precisely because renaming is
+   * the cheaper version of the same trick.
+   */
+  radarChangesPerDay: number;
 
   // ---- lists / wishlists ----
   //
@@ -139,6 +150,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     maxSavedSearches: 1,
     savedSearchIntervalMinutes: 0,
     radarRefreshesPerDay: 2,
+    radarChangesPerDay: 3,
 
     maxLists: 1,
     maxItemsPerList: 10,
@@ -172,6 +184,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     maxSavedSearches: 5,
     savedSearchIntervalMinutes: 12 * 60,
     radarRefreshesPerDay: 20,
+    radarChangesPerDay: 10,
 
     maxLists: 5,
     maxItemsPerList: 30,
@@ -207,9 +220,9 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     sweepsPerDay: 3,
     maxSavedSearches: 15,
     savedSearchIntervalMinutes: 6 * 60,
-    // Bounded by a human tapping a button rather than by signups, same as
-    // Ultimate's manual price checks.
-    radarRefreshesPerDay: null,
+    // Deliberately a number, not unlimited: see radarRefreshesPerDay.
+    radarRefreshesPerDay: 40,
+    radarChangesPerDay: 25,
 
     maxLists: 20,
     maxItemsPerList: 100,

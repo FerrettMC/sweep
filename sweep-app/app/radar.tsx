@@ -133,10 +133,7 @@ export default function RadarScreen() {
   if (searches === null) return <Loading />;
 
   const atLimit = limits ? limits.used >= limits.maxSavedSearches : false;
-  const outOfRefreshes =
-    refreshes?.remaining !== null && refreshes?.remaining !== undefined
-      ? refreshes.remaining <= 0
-      : false;
+  const outOfRefreshes = refreshes ? refreshes.remaining <= 0 : false;
 
   return (
     <Screen>
@@ -282,13 +279,11 @@ export default function RadarScreen() {
                         ? "No refreshes left today"
                         : "Refresh"}
                   </Text>
-                  {refreshes?.remaining !== null &&
-                    refreshes?.remaining !== undefined &&
-                    busyId !== search.id && (
-                      <Text style={styles.refreshCount}>
-                        {refreshes.remaining} left
-                      </Text>
-                    )}
+                  {refreshes && busyId !== search.id && (
+                    <Text style={styles.refreshCount}>
+                      {refreshes.remaining} left
+                    </Text>
+                  )}
                 </Pressable>
 
                 {matches !== undefined && (
@@ -381,10 +376,7 @@ function cadenceCopy(
     return `Sweep re-runs these on its own, up to every ${hours} hours, and notifies you when something beats the best price it has found so far.`;
   }
 
-  const allowance =
-    refreshes?.limit === null || refreshes?.limit === undefined
-      ? "whenever you like"
-      : `${refreshes.limit} times a day`;
+  const allowance = refreshes ? `${refreshes.limit} times a day` : "a few times a day";
   return `On your plan radars run when you tap Refresh — ${allowance}. Pro and Ultimate re-run them in the background and send a notification.`;
 }
 

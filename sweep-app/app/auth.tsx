@@ -12,6 +12,7 @@ import { useRouter } from "expo-router";
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { storeListPhrase } from "@/lib/format";
 import { setGuestMode } from "@/lib/guestMode";
 import { supabase } from "@/lib/supabase";
 
@@ -124,7 +125,7 @@ export default function Auth() {
         <Text style={styles.guestButtonText}>Continue as guest</Text>
       </Pressable>
       <Text style={styles.guestNote}>
-        Compare prices across Amazon, Walmart, Best Buy, eBay, Newegg and ASOS
+        Compare prices across {storeListPhrase()}
         in one search. Guests get one a day.
       </Text>
     </View>

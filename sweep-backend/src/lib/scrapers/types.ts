@@ -28,6 +28,21 @@ export const RETAILER_LABELS: Record<Retailer, string> = {
   asos: "ASOS",
 };
 
+/**
+ * The supported stores as prose: "Amazon, Walmart, Best Buy, eBay and more".
+ *
+ * Generated rather than written out, because the list grows — every hardcoded
+ * "6 stores" becomes a lie the day a seventh is added, and those strings hide
+ * in error messages and marketing copy where nobody thinks to look.
+ */
+export function storeListPhrase(limit = 4): string {
+  const names = Object.values(RETAILER_LABELS);
+  const shown = names.slice(0, limit);
+  return names.length > shown.length
+    ? `${shown.join(", ")} and more`
+    : shown.slice(0, -1).join(", ") + ` and ${shown[shown.length - 1]}`;
+}
+
 export interface ScrapedProduct {
   retailer: Retailer;
   /** ASIN / usItemId / TCIN / SKU — whatever that retailer keys the item by. */

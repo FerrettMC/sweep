@@ -2,7 +2,7 @@
 //
 // Picks the handful of results worth showing above the per-store columns.
 //
-// A compiled search returns ~20 products across 6 stores, which is a wall.
+// A compiled search returns a few products from every store, which is a wall.
 // Most people are asking one of three questions — what's the biggest discount,
 // what's actually good, who's cheapest — so answer those first and keep the
 // full per-store breakdown underneath for anyone who wants it.

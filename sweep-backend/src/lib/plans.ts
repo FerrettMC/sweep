@@ -58,6 +58,13 @@ export interface Plan {
   pricing: PlanPricing;
   /** Short ribbon above the name, e.g. "MOST POPULAR". Null for Free. */
   badge: string | null;
+  /**
+   * One-line summary of the plan's headline numbers, for showing someone what
+   * they're currently on. Generated here because the copy that was hardcoded in
+   * the app drifted: it still advertised Pro at 10 searches a day long after
+   * the cap moved to 30.
+   */
+  summary: string;
   /** The numbers that improve at this tier. Leads the card. */
   upgrades: PlanUpgrade[];
   /** Features that switch on at this tier and weren't available below it. */
@@ -103,6 +110,7 @@ export function getPlans(): Plan[] {
     ...NAMES[tier],
     pricing: PRICING[tier],
     badge: BADGES[tier],
+    summary: summaryFor(tier),
     upgrades: upgradesFor(tier),
     unlocks: unlocksFor(tier),
     features: featuresFor(tier),
@@ -178,6 +186,17 @@ const DIALS: { label: string; value: (limits: TierLimits) => string }[] = [
     value: (l) => `${l.maxLists} × ${l.maxItemsPerList} items`,
   },
 ];
+
+function summaryFor(tier: Tier): string {
+  const l = TIER_LIMITS[tier];
+  const cadence = l.fixedCheckTimes
+    ? `checked up to ${l.checkTimesPerDay}× a day`
+    : l.checkIntervalMinutes === 60
+      ? "checked up to hourly"
+      : `checked up to every ${l.checkIntervalMinutes / 60}h`;
+  const searches = `${l.searchesPerDay} ${l.searchesPerDay === 1 ? "search" : "searches"} a day`;
+  return `${l.maxTrackedProducts} products · ${cadence} · ${searches}`;
+}
 
 function upgradesFor(tier: Tier): PlanUpgrade[] {
   const limits = TIER_LIMITS[tier];
@@ -274,7 +293,7 @@ function featuresFor(tier: Tier): PlanFeature[] {
       included: true,
       label: `${l.searchesPerDay} multi-store ${l.searchesPerDay === 1 ? "search" : "searches"} a day`,
     },
-    { group: "search", included: true, label: "Compare across 6 stores at once" },
+    { group: "search", included: true, label: "Compare every store at once" },
     { group: "search", included: !l.showAds, label: "No ads" },
     {
       group: "search",

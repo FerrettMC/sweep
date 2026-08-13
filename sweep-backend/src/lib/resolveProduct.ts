@@ -20,7 +20,7 @@ import { prisma } from "./prisma.js";
 import { recordCheck } from "./health.js";
 import { upsertScrapedProduct } from "./priceChecker.js";
 import { adapters } from "./scrapers/index.js";
-import { type Retailer, isRetailer } from "./scrapers/types.js";
+import { type Retailer, isRetailer, storeListPhrase } from "./scrapers/types.js";
 import { normalizeProductUrl } from "./scrapers/url.js";
 
 /** How recently a cached product counts as fresh enough to reuse as-is. */
@@ -52,7 +52,7 @@ export async function resolveProduct(input: ResolveInput): Promise<ResolveResult
         ? {
             ok: false,
             status: 400,
-            error: `Sweep doesn't support ${normalized.detail} yet. Try Amazon, Walmart, Best Buy, eBay, Newegg or ASOS.`,
+            error: `Sweep doesn't support ${normalized.detail} yet. Try ${storeListPhrase()}.`,
             code: "UNSUPPORTED_RETAILER",
             detail: normalized.detail,
           }

@@ -382,9 +382,8 @@ export async function consumeSweep(userId: string): Promise<SweepQuotaState | nu
 
 export interface RadarRefreshState {
   used: number;
-  /** Null means unlimited. */
-  limit: number | null;
-  remaining: number | null;
+  limit: number;
+  remaining: number;
   resetsAt: Date;
 }
 
@@ -409,7 +408,7 @@ export async function getRadarRefreshState(
   return {
     used,
     limit,
-    remaining: limit === null ? null : Math.max(0, limit - used),
+    remaining: Math.max(0, limit - used),
     resetsAt: wallet.radarRefreshesResetAt,
   };
 }
@@ -419,17 +418,67 @@ export async function consumeRadarRefresh(
   userId: string,
 ): Promise<RadarRefreshState | null> {
   const state = await getRadarRefreshState(userId);
-  if (!state) return null;
-  if (state.remaining !== null && state.remaining <= 0) return null;
+  if (!state || state.remaining <= 0) return null;
 
   await prisma.wallet.update({
     where: { userId },
     data: { radarRefreshesToday: { increment: 1 } },
   });
 
+  return { ...state, used: state.used + 1, remaining: state.remaining - 1 };
+}
+
+/**
+ * Budget for creating a radar or changing its keyword.
+ *
+ * Separate from refreshes because they defend against different things: the
+ * refresh cap bounds how much SCRAPING someone can trigger, this bounds how
+ * many different QUESTIONS they can ask. Without it, one radar plus a rename
+ * is an unmetered search box.
+ */
+export interface RadarChangeState {
+  used: number;
+  limit: number;
+  remaining: number;
+  resetsAt: Date;
+}
+
+export async function getRadarChangeState(
+  userId: string,
+): Promise<RadarChangeState | null> {
+  const wallet = await prisma.wallet.findUnique({ where: { userId } });
+  if (!wallet) return null;
+
+  const limit = TIER_LIMITS[effectiveTier(wallet)].radarChangesPerDay;
+
+  if (isStale(wallet.radarChangesResetAt)) {
+    const resetsAt = nextResetAt();
+    await prisma.wallet.update({
+      where: { userId },
+      data: { radarChangesToday: 0, radarChangesResetAt: resetsAt },
+    });
+    return { used: 0, limit, remaining: limit, resetsAt };
+  }
+
+  const used = wallet.radarChangesToday;
   return {
-    ...state,
-    used: state.used + 1,
-    remaining: state.remaining === null ? null : state.remaining - 1,
+    used,
+    limit,
+    remaining: Math.max(0, limit - used),
+    resetsAt: wallet.radarChangesResetAt,
   };
+}
+
+export async function consumeRadarChange(
+  userId: string,
+): Promise<RadarChangeState | null> {
+  const state = await getRadarChangeState(userId);
+  if (!state || state.remaining <= 0) return null;
+
+  await prisma.wallet.update({
+    where: { userId },
+    data: { radarChangesToday: { increment: 1 } },
+  });
+
+  return { ...state, used: state.used + 1, remaining: state.remaining - 1 };
 }

@@ -21,13 +21,7 @@ import {
   getQuota,
   getTrackedProducts,
 } from "@/lib/api";
-import {
-  formatPrice,
-  percentOff,
-  pluralize,
-  retailerColor,
-  retailerLabel,
-} from "@/lib/format";
+import { formatPrice, percentOff, pluralize, retailerColor, retailerLabel, storeListPhrase } from "@/lib/format";
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -115,7 +109,7 @@ export default function HomeScreen() {
             <Text style={styles.searchHeroTitle}>What are you shopping for?</Text>
           </View>
           <Text style={styles.searchHeroBody}>
-            Search once and see Amazon, Walmart, Best Buy, eBay, Newegg and ASOS
+            Search once and see {storeListPhrase()}
             side by side — so you know who's actually cheapest before you buy.
           </Text>
           <View style={styles.searchHeroFooter}>
@@ -129,7 +123,7 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.searchHeroMeta}>
               {searchesLeft === null
-                ? "5 stores, one search"
+                ? "Every store, one search"
                 : `${pluralize(searchesLeft, "search")} left today`}
             </Text>
           </View>

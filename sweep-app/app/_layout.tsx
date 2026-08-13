@@ -13,6 +13,7 @@ import { StatusBar } from "expo-status-bar";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 import { syncUser } from "@/lib/api";
 import { isGuestMode } from "@/lib/guestMode";
+import { hasSeenOnboarding } from "@/lib/onboarding";
 import {
   parsePayload,
   registerForPushNotifications,
@@ -39,6 +40,9 @@ function RootNavigator() {
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [guest, setGuest] = useState(false);
+  // Null until read from storage, so the gate can't bounce someone to /auth
+  // before it knows whether they've seen the tour.
+  const [seenTour, setSeenTour] = useState<boolean | null>(null);
 
   // Which user we've already synced, so re-renders and token refreshes don't
   // fire a redundant round trip on every auth event.
@@ -130,20 +134,38 @@ function RootNavigator() {
   }, [ready, signedIn, router]);
 
   useEffect(() => {
-    if (!ready) return;
+    hasSeenOnboarding().then(setSeenTour).catch(() => setSeenTour(true));
+  }, []);
+
+  useEffect(() => {
+    if (!ready || seenTour === null) return;
 
     const inAuth = segments[0] === "auth";
+    const inTour = segments[0] === "onboarding";
     const hasAccess = signedIn || guest;
 
-    if (!hasAccess && !inAuth) {
-      router.replace("/auth");
-    } else if (signedIn && inAuth) {
-      // Signed in but sitting on the auth screen — send them into the app.
-      router.replace("/(tabs)");
+    if (hasAccess) {
+      // Sitting on the auth screen with a session already — send them in.
+      // Deliberately does NOT redirect off the tour: replaying it from Profile
+      // is something a signed-in user does on purpose.
+      if (inAuth) router.replace("/(tabs)");
+      return;
     }
-  }, [ready, signedIn, guest, segments, router]);
 
-  if (!ready) return null;
+    // The tour runs before the login form, but only once per device, and never
+    // for someone who already has a session to restore.
+    //
+    // `inAuth` is in the first condition because finishing the tour navigates
+    // to /auth immediately, before this component has re-read storage — without
+    // it the stale `seenTour` would bounce them straight back into the tour.
+    if (!seenTour && !inTour && !inAuth) {
+      router.replace("/onboarding");
+    } else if (seenTour && !inAuth && !inTour) {
+      router.replace("/auth");
+    }
+  }, [ready, seenTour, signedIn, guest, segments, router]);
+
+  if (!ready || seenTour === null) return null;
 
   return (
     <>
@@ -156,6 +178,8 @@ function RootNavigator() {
       >
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="auth" />
+        {/* No header and no swipe-back: the tour is a flow, not a page. */}
+        <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
         {/*
           Header styling lives here rather than only inside each screen. A
           screen that returns a loading state before rendering its own

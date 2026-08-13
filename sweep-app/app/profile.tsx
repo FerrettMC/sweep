@@ -11,11 +11,13 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Button, Loading, Screen, SectionTitle } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { APP_VERSION, SUPPORT_EMAIL, supportMailto } from "@/constants/support";
+import { resetOnboarding } from "@/lib/onboarding";
 import { type ThemeMode, useTheme, useThemedStyles } from "@/lib/theme";
 import UsernameSheet from "@/components/UsernameSheet";
 import {
   getMyXp,
   getNotificationStatus,
+  getPlans,
   getQuota,
   getRetailerStatus,
 } from "@/lib/api";
@@ -34,12 +36,6 @@ interface RetailerStatus {
   successRate: number | null;
 }
 
-const TIER_BLURB: Record<string, string> = {
-  free: "3 products · up to 2 checks a day · 1 search a day",
-  pro: "20 products · checked up to every 4h · 10 searches a day",
-  ultimate: "100 products · checked up to hourly · 100 searches a day",
-};
-
 export default function ProfileScreen() {
   const { colors, mode, setMode } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -47,6 +43,9 @@ export default function ProfileScreen() {
 
   const [email, setEmail] = useState<string | null>(null);
   const [tier, setTier] = useState("free");
+  // Fetched rather than hardcoded: the copy that used to live here drifted and
+  // advertised Pro at 10 searches a day months after the cap moved to 30.
+  const [planSummary, setPlanSummary] = useState<string | null>(null);
   const [searchesLeft, setSearchesLeft] = useState<number | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [retailers, setRetailers] = useState<RetailerStatus[] | null>(null);
@@ -59,13 +58,14 @@ export default function ProfileScreen() {
   const [editingName, setEditingName] = useState(false);
 
   const load = useCallback(async () => {
-    const [{ data: session }, quotaResult, statusResult, pushResult, xpResult] =
+    const [{ data: session }, quotaResult, statusResult, pushResult, xpResult, plansResult] =
       await Promise.all([
         supabase.auth.getSession(),
         getQuota().catch(() => null),
         getRetailerStatus().catch(() => null),
         getNotificationStatus().catch(() => null),
         getMyXp().catch(() => null),
+        getPlans().catch(() => null),
       ]);
 
     setEmail(session.session?.user.email ?? null);
@@ -74,6 +74,9 @@ export default function ProfileScreen() {
       setSearchesLeft(quotaResult.quota.remaining);
       setIsGuest(quotaResult.isGuest);
     }
+    setPlanSummary(
+      plansResult?.plans.find((p) => p.tier === quotaResult?.tier)?.summary ?? null,
+    );
     setRetailers(statusResult?.retailers ?? null);
     setPushRegistered(pushResult?.registered ?? null);
     setUsernameValue(xpResult?.username ?? null);
@@ -170,7 +173,7 @@ export default function ProfileScreen() {
               <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
             </View>
           </View>
-          <Text style={styles.value}>{TIER_BLURB[tier] ?? TIER_BLURB.free}</Text>
+          {planSummary && <Text style={styles.value}>{planSummary}</Text>}
           {searchesLeft !== null && (
             <Text style={styles.sub}>{pluralize(searchesLeft, "search")} left today</Text>
           )}
@@ -288,6 +291,24 @@ export default function ProfileScreen() {
               <View style={styles.helpText}>
                 <Text style={styles.helpTitle}>Email support</Text>
                 <Text style={styles.helpSub}>{SUPPORT_EMAIL}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.helpRow,
+                styles.statusRowDivided,
+                pressed && styles.pressed,
+              ]}
+              onPress={async () => {
+                await resetOnboarding();
+                router.replace("/onboarding");
+              }}
+            >
+              <Ionicons name="play-circle-outline" size={18} color={colors.accent} />
+              <View style={styles.helpText}>
+                <Text style={styles.helpTitle}>Replay the tour</Text>
+                <Text style={styles.helpSub}>See how Sweep works again</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
             </Pressable>

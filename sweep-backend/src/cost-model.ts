@@ -5,7 +5,7 @@
 //   npm run cost-model
 //
 // The number that matters is AMAZON REQUESTS, not checks. Walmart, Best Buy,
-// eBay, Newegg and ASOS are self-scraped or free APIs — they cost latency and
+// Every store except Amazon is self-scraped or a free API — they cost latency and
 // goodwill, not money. Only the Amazon leg spends provider credits, so a
 // tracked item is only expensive if it happens to be an Amazon item.
 //
@@ -190,7 +190,7 @@ model(
 
 // The structural fix: Amazon is the only thing that costs, so check Amazon
 // items on a slower clock than everything else. A user still gets 30-minute
-// checks on 5 of 6 stores.
+// checks on every store except Amazon.
 const FIXED_FOR_ADAPTIVE: TierUsage[] = [
   { ...TIERS[0] },
   { ...TIERS[1], checksPerDay: 6 },
