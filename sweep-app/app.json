@@ -47,7 +47,8 @@
           "color": "#D85A30",
           "defaultChannel": "price-drops"
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true
