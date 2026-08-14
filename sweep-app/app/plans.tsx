@@ -85,8 +85,14 @@ export default function PlansScreen() {
           />
         ))}
 
+        {/*
+          Reads as a roadmap rather than a half-built feature. Same honesty —
+          nobody is charged and nobody is misled — but "coming soon" is a
+          promise, where "not wired up yet" sounds like something broke.
+        */}
         <Text style={styles.footnote}>
-          Payments aren't wired up yet — this is what the plans will be.
+          Pro and Ultimate are coming soon. Everything above is free to use
+          today at the Free tier's limits.
         </Text>
       </ScrollView>
     </Screen>

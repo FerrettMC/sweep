@@ -1,7 +1,6 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS",
     "buildCommand": "npm ci && npm run build && npx prisma migrate deploy"
   },
   "deploy": {

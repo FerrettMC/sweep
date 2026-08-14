@@ -46,6 +46,7 @@ import {
   search as runSearch,
 } from "@/lib/api";
 import {
+  ADS_ENABLED,
   countActionAndMaybeShowInterstitial,
   preloadInterstitial,
   showRewardedAd,
@@ -383,7 +384,7 @@ export default function SearchScreen() {
             Three states, not two. Silently hiding the button once the daily ad
             cap is hit looks identical to the feature being broken, so say why.
           */}
-          {outOfSearches && quota.canWatchAd && (
+          {outOfSearches && quota.canWatchAd && ADS_ENABLED && (
             <Button
               label="Watch ad for +1"
               onPress={onWatchAd}

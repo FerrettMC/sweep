@@ -29,6 +29,18 @@ export type RewardedOutcome =
   | { status: "failed"; reason: string };
 
 /** Always true while ads are stubbed out. */
+/**
+ * Whether ads actually work in this build.
+ *
+ * False while the module is stubbed. The UI must check this rather than
+ * offering a reward it cannot deliver — a "watch an ad for a free search"
+ * button that returns "ads are not enabled" is worse than no button, both for
+ * the user and for a store reviewer.
+ *
+ * Flip to true in the same change that restores the real SDK.
+ */
+export const ADS_ENABLED = false;
+
 export function usingTestAds() {
   return true;
 }
