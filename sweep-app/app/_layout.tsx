@@ -16,6 +16,7 @@ import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import AppErrorScreen from "@/components/AppErrorScreen";
 import OfflineBanner from "@/components/OfflineBanner";
 import { useIsOnline } from "@/lib/connection";
 import { ThemeProvider, useTheme } from "@/lib/theme";
@@ -27,6 +28,29 @@ import {
   registerForPushNotifications,
 } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
+
+/**
+ * expo-router renders this instead of the screen when a render throws.
+ *
+ * Must be exported from a layout, and must bring its own providers: the crash
+ * may have happened above them, so useTheme would throw again inside the very
+ * component meant to handle the crash.
+ */
+export function ErrorBoundary({
+  error,
+  retry,
+}: {
+  error: Error;
+  retry: () => Promise<void>;
+}) {
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AppErrorScreen error={error} retry={() => void retry()} />
+      </ThemeProvider>
+    </SafeAreaProvider>
+  );
+}
 
 /**
  * The provider has to sit above anything calling useTheme, so the navigator is

@@ -36,7 +36,14 @@ export const RETAILER_LABELS: Record<Retailer, string> = {
  * in error messages and marketing copy where nobody thinks to look.
  */
 export function storeListPhrase(limit = 4): string {
-  const names = Object.values(RETAILER_LABELS);
+  // Only stores we can actually reach. Naming a retailer that DISABLED_RETAILERS
+  // has switched off would advertise something the app will never return.
+  const off = (process.env.DISABLED_RETAILERS ?? "")
+    .split(",")
+    .map((n) => n.trim().toLowerCase());
+  const names = (Object.keys(RETAILER_LABELS) as (keyof typeof RETAILER_LABELS)[])
+    .filter((key) => !off.includes(key))
+    .map((key) => RETAILER_LABELS[key]);
   const shown = names.slice(0, limit);
   return names.length > shown.length
     ? `${shown.join(", ")} and more`

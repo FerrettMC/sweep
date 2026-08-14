@@ -599,6 +599,8 @@ export function getRetailerStatus() {
       label: string;
       available: boolean;
       successRate: number | null;
+      /** False when switched off by configuration, not merely failing. */
+      enabled?: boolean;
     }[];
   }>("/search/retailers");
 }

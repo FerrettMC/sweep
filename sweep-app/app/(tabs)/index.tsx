@@ -16,10 +16,11 @@ import { Loading, Screen, SectionTitle } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import {
-  type TrackedProduct,
   getNotificationStatus,
   getQuota,
+  getRetailerStatus,
   getTrackedProducts,
+  type TrackedProduct,
 } from "@/lib/api";
 import { formatPrice, percentOff, pluralize, retailerColor, retailerLabel, storeListPhrase } from "@/lib/format";
 
@@ -43,16 +44,20 @@ export default function HomeScreen() {
   const [searchesLeft, setSearchesLeft] = useState<number | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [pushOn, setPushOn] = useState<boolean | null>(null);
+  const [downStores, setDownStores] = useState<
+    { retailer: string; label: string; enabled?: boolean }[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     // Every one of these is allowed to fail independently — Home should still
     // render something useful if one endpoint is down.
-    const [products, quota, push] = await Promise.all([
+    const [products, quota, push, stores] = await Promise.all([
       getTrackedProducts().catch(() => null),
       getQuota().catch(() => null),
       getNotificationStatus().catch(() => null),
+      getRetailerStatus().catch(() => null),
     ]);
 
     if (products) {
@@ -64,6 +69,8 @@ export default function HomeScreen() {
       setIsGuest(quota.isGuest);
     }
     setPushOn(push?.registered ?? null);
+    // Only the ones that aren't working — a healthy list has nothing to say.
+    setDownStores((stores?.retailers ?? []).filter((r) => !r.available));
     setLoading(false);
   }, []);
 
@@ -199,6 +206,35 @@ export default function HomeScreen() {
         )}
 
         {/* ---- everything that isn't a tab ---- */}
+        {/*
+          Only rendered when something is actually down. A permanent "all
+          stores healthy" panel would be noise 99% of the time, and it would
+          train people to ignore the one time it matters.
+        */}
+        {downStores.length > 0 && (
+          <View style={styles.storesDown}>
+            <View style={styles.storesDownHead}>
+              <Ionicons name="build-outline" size={15} color={colors.warning} />
+              <Text style={styles.storesDownTitle}>
+                {downStores.length === 1
+                  ? `${downStores[0].label} is unavailable`
+                  : `${downStores.length} stores are unavailable`}
+              </Text>
+            </View>
+            <Text style={styles.storesDownBody}>
+              {/*
+                Two different situations, and saying the wrong one is a small
+                lie. A store we switched off isn't "having trouble" — we can't
+                reach it at all and are working on that. A store that's failing
+                checks usually recovers on its own within the hour.
+              */}
+              {downStores.every((s) => s.enabled === false)
+                ? `We can't reach ${downStores.map((s) => s.label).join(" or ")} from our servers right now. We're working on it — everything else is searching normally.`
+                : `${downStores.map((s) => s.label).join(", ")} ${downStores.length === 1 ? "is" : "are"} having trouble. This is usually temporary and fixes itself; the other stores are unaffected.`}
+            </Text>
+          </View>
+        )}
+
         <View style={styles.section}>
           <SectionTitle>Shortcuts</SectionTitle>
           <View style={styles.shortcutGrid}>
@@ -495,6 +531,26 @@ const makeStyles = (colors: Palette) =>
       letterSpacing: 0.6,
     },
     planUnknown: { color: colors.textTertiary },
+    storesDown: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.warning,
+      padding: spacing.md,
+      gap: 5,
+    },
+    storesDownHead: { flexDirection: "row", alignItems: "center", gap: 6 },
+    storesDownTitle: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: type.label.fontSize,
+      fontWeight: "800",
+    },
+    storesDownBody: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      lineHeight: 16,
+    },
     planTier: {
       color: colors.textPrimary,
       fontSize: type.heading.fontSize,
