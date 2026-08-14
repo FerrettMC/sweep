@@ -11,12 +11,7 @@ import { asosProductUrl, scrapeAsosProduct, searchAsos } from "./asos.js";
 import { neweggProductUrl, scrapeNeweggProduct, searchNewegg } from "./newegg.js";
 import { scrapeWalmartProduct, searchWalmart, walmartProductUrl } from "./walmart.js";
 import { type Category, classifyQuery } from "../categories.js";
-import {
-  RETAILERS,
-  type Retailer,
-  type ScrapeResult,
-  type ScrapedProduct,
-} from "./types.js";
+import { RETAILERS, isRetailer, type Retailer, type ScrapeResult, type ScrapedProduct } from "./types.js";
 
 interface RetailerAdapter {
   search(keyword: string, limit: number): Promise<ScrapeResult<ScrapedProduct[]>>;
@@ -66,13 +61,18 @@ export const adapters: Record<Retailer, RetailerAdapter> = {
     productUrl: walmartProductUrl,
     matchesUrl: (url) => /(^|\.)walmart\.com$/i.test(hostOf(url)),
     metered: false,
-    // Measured: bursts of back-to-back requests get "Robot or human?" (a 200
-    // with an interstitial, not a 429), and it clears on its own within
-    // minutes. Three in flight is fine; three in flight with no gap is not.
-    // 500ms caps us at ~2 req/s, which is far above anything the scheduler
-    // needs even at scale — see the throughput note in docs.
-    concurrency: 3,
-    minIntervalMs: 500,
+    // Two different defences, and they need different answers.
+    //
+    // Under load from a home connection Walmart serves "Robot or human?" (a
+    // 200 with an interstitial, not a 429) and clears within minutes — that's
+    // rate-based, and spacing requests fixes it.
+    //
+    // From a datacenter IP it refused the very first request of an idle
+    // minute, twice. That is reputation-based, and no amount of spacing
+    // changes it. 3000ms is the generous end of what pacing can do; if it
+    // still refuses, the answer is a residential proxy or DISABLED_RETAILERS.
+    concurrency: 2,
+    minIntervalMs: 3000,
     categories: null,
   },
   newegg: {
@@ -191,8 +191,30 @@ export interface RetailerRouting {
  * deliberate choice: a wasted call on a specialist costs a few seconds, while
  * wrongly skipping one shows the user an absence they can't explain.
  */
+/**
+ * Retailers turned off by configuration, e.g. DISABLED_RETAILERS=walmart.
+ *
+ * Exists because "this store won't talk to our server" is an operational fact
+ * that can change with a redeploy or a proxy, not a code change. A disabled
+ * store is dropped from routing entirely rather than attempted and reported as
+ * broken — users see a store that isn't there, not one that's failing.
+ */
+export function disabledRetailers(): Retailer[] {
+  return (process.env.DISABLED_RETAILERS ?? "")
+    .split(",")
+    .map((name) => name.trim().toLowerCase())
+    .filter((name): name is Retailer => isRetailer(name));
+}
+
+export function isRetailerEnabled(retailer: Retailer): boolean {
+  return !disabledRetailers().includes(retailer);
+}
+
 export function routeQuery(query: string, only?: Retailer[]): RetailerRouting {
-  const candidates = only?.length ? only : [...RETAILERS];
+  const off = disabledRetailers();
+  const candidates = (only?.length ? only : [...RETAILERS]).filter(
+    (r) => !off.includes(r),
+  );
   const { categories, confident } = classifyQuery(query);
 
   if (!confident) {

@@ -24,7 +24,11 @@ import {
   getUserQuota,
   grantRewardedSearch,
 } from "../lib/quota.js";
-import { routeQuery, searchAllRetailers } from "../lib/scrapers/index.js";
+import {
+  isRetailerEnabled,
+  routeQuery,
+  searchAllRetailers,
+} from "../lib/scrapers/index.js";
 import {
   RETAILERS,
   RETAILER_LABELS,
@@ -352,18 +356,23 @@ export async function searchRoutes(app: FastifyInstance) {
     });
 
     return {
+      // A store switched off by configuration is reported as unavailable with
+      // no success rate. Leaving it out entirely would make the app look like
+      // it had silently lost a feature; claiming it works would be a lie.
       retailers: RETAILERS.map((retailer) => {
         const rows = grouped.filter((g) => g.retailer === retailer);
         const total = rows.reduce((sum, r) => sum + r._count._all, 0);
         const ok = rows.find((r) => r.status === "success")?._count._all ?? 0;
+        const enabled = isRetailerEnabled(retailer);
 
         return {
           retailer,
           label: RETAILER_LABELS[retailer],
           // No data is not the same as broken — a quiet hour shouldn't grey
           // out a healthy retailer.
-          available: total === 0 || ok > 0,
-          successRate: total === 0 ? null : ok / total,
+          available: enabled && (total === 0 || ok > 0),
+          successRate: !enabled ? null : total === 0 ? null : ok / total,
+          enabled,
         };
       }),
     };
