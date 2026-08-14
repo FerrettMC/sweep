@@ -3,7 +3,7 @@
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 import { prisma } from "./lib/prisma.js";
-import { purgeTestUser } from "./testCleanup.js";
+import { createTestUser, purgeTestUser } from "./testCleanup.js";
 
 const API = process.env.TEST_API_URL ?? "http://localhost:3001";
 const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
@@ -24,11 +24,9 @@ const call = async (t: string | null, m: string, p: string, b?: unknown) => {
   return { status: r.status, body: j };
 };
 
-const email = `sweep-sw-${Date.now()}@example.com`;
-const { data } = await sb.auth.signUp({ email, password: "sweep-test-password-123" });
-const token = data.session!.access_token;
-const userId = data.session!.user.id;
-await call(token, "POST", "/auth/sync-user", { email });
+const primary = await createTestUser("sw", API);
+const token = primary.token;
+const userId = primary.id;
 
 // A product with real history, so the sale verdict has something to judge.
 const product = await prisma.product.create({

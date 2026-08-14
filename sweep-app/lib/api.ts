@@ -245,7 +245,13 @@ export function syncUser(email: string) {
 }
 
 export function getQuota() {
-  return request<{ quota: Quota; isGuest: boolean; tier: string }>("/search/quota");
+  return request<{
+    quota: Quota;
+    isGuest: boolean;
+    tier: string;
+    /** What this tier may choose per store. min === max means no choice. */
+    resultsRange?: { min: number; max: number; default: number };
+  }>("/search/quota");
 }
 
 export function search(

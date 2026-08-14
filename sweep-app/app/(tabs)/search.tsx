@@ -116,6 +116,15 @@ export default function SearchScreen() {
           // Only the free tier is ad-supported; canWatchAd already encodes
           // that, so reuse it rather than duplicating the tier rules here.
           setShowAds(result.tier === "free" && !result.isGuest);
+          // Known before the first search, so the picker can be chosen from
+          // rather than discovered afterwards.
+          const range = result.resultsRange;
+          if (range && range.min !== range.max) {
+            setResultsRange(range);
+            setResultsPref((current) => current ?? range.default);
+          } else {
+            setResultsRange(null);
+          }
           if (result.tier === "free" && !result.isGuest) preloadInterstitial();
         })
         .catch(() => {
@@ -166,13 +175,6 @@ export default function SearchScreen() {
       listRef.current?.getScrollResponder()?.scrollTo({ y: 0, animated: false });
 
       setHighlights(response.highlights);
-      if (response.resultsRange && response.resultsRange.min !== response.resultsRange.max) {
-        setResultsRange(response.resultsRange);
-        if (resultsPref === null) setResultsPref(response.resultsPerRetailer ?? null);
-      } else {
-        // Free tier has no choice; don't show a picker with one option.
-        setResultsRange(null);
-      }
       setSkipped(response.skipped);
 
       // A finished search is the natural interstitial moment — the user has
@@ -378,6 +380,36 @@ export default function SearchScreen() {
         />
       </View>
 
+      {/*
+        Above the results and outside them: this is a setting for the search
+        you are about to run. Shown only when the tier has a real choice — a
+        picker with one option is a label that looks tappable.
+      */}
+      {resultsRange && (
+        <View style={styles.resultsPicker}>
+          <Text style={styles.resultsLabel}>Results per store</Text>
+          <View style={styles.resultsOptions}>
+            {Array.from(
+              { length: resultsRange.max - resultsRange.min + 1 },
+              (_, i) => resultsRange.min + i,
+            ).map((count) => {
+              const on = (resultsPref ?? resultsRange.min) === count;
+              return (
+                <Pressable
+                  key={count}
+                  onPress={() => setResultsPref(count)}
+                  style={[styles.resultsChip, on && styles.resultsChipOn]}
+                >
+                  <Text style={[styles.resultsChipText, on && styles.resultsChipTextOn]}>
+                    {count}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      )}
+
       {quota && (
         <View style={styles.quotaRow}>
           <Pressable
@@ -466,40 +498,6 @@ export default function SearchScreen() {
                 showHint={sections.length > 0}
               />
 
-              {/*
-                Only shown when the tier actually has a choice — a picker with
-                one option is just a label that looks tappable. Changing it
-                re-runs the search, which costs a search from the daily
-                allowance, so the count is stated plainly rather than hidden
-                behind a menu.
-              */}
-              {resultsRange && (
-                <View style={styles.resultsPicker}>
-                  <Text style={styles.resultsLabel}>Results per store</Text>
-                  <View style={styles.resultsOptions}>
-                    {Array.from(
-                      { length: resultsRange.max - resultsRange.min + 1 },
-                      (_, i) => resultsRange.min + i,
-                    ).map((count) => {
-                      const on = (resultsPref ?? 4) === count;
-                      return (
-                        <Pressable
-                          key={count}
-                          onPress={() => {
-                            setResultsPref(count);
-                            if (keyword.trim()) void onSearch(count);
-                          }}
-                          style={[styles.resultsChip, on && styles.resultsChipOn]}
-                        >
-                          <Text style={[styles.resultsChipText, on && styles.resultsChipTextOn]}>
-                            {count}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
               {highlights.length > 0 && (
                 <View style={styles.highlightBlock}>
                   <Text style={styles.highlightHeading}>Top picks</Text>
@@ -737,7 +735,7 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.xs,
       flex: 1,
     },
-      resultsPicker: {
+    resultsPicker: {
       flexDirection: "row",
       alignItems: "center",
       gap: spacing.sm,

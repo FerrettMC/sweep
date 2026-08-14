@@ -11,6 +11,7 @@
 
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
+import { createTestUser, purgeTestUser } from "./testCleanup.js";
 
 const API = process.env.TEST_API_URL ?? "http://localhost:3001";
 const RETAILERS = process.env.TEST_RETAILERS ?? "walmart,bestbuy";
@@ -21,6 +22,9 @@ const supabase = createClient(
 );
 
 let token = "";
+// Remembered so the run can delete the account it created — otherwise
+// every suite run leaves a Supabase auth record behind forever.
+let createdUserId: string | null = null;
 let passed = 0;
 let failed = 0;
 
@@ -70,20 +74,19 @@ async function signIn() {
 
   const signedIn = await supabase.auth.signInWithPassword({ email, password });
 
-  // First run for a generated address won't have an account yet.
+  // A generated address won't exist on the first run. Create it pre-confirmed
+  // through the admin API rather than signing up: email confirmation is on for
+  // real users, and an @example.com address can never receive the mail.
   const data = signedIn.error
     ? await (async () => {
-        const created = await supabase.auth.signUp({ email, password });
-        if (created.error) throw new Error(`auth failed: ${created.error.message}`);
-        return created.data;
+        const created = await createTestUser("api", API);
+        createdUserId = created.id;
+        return { session: { access_token: created.token }, user: { id: created.id } };
       })()
     : signedIn.data;
 
   if (!data.session) {
-    throw new Error(
-      "No session returned. Email confirmation is probably ON in Supabase — " +
-        "turn it off for local dev, or set TEST_EMAIL/TEST_PASSWORD to a confirmed account.",
-    );
+    throw new Error("No session returned for the test account.");
   }
 
   token = data.session.access_token;
@@ -313,11 +316,15 @@ async function main() {
   check("a garbage token is rejected", badToken.status === 401, badToken.body);
   token = savedToken;
 
-  summary();
+  await summary();
 }
 
-function summary() {
+async function summary() {
   console.log(`\n${passed} passed, ${failed} failed`);
+  if (createdUserId) {
+    await purgeTestUser(createdUserId);
+    console.log("(cleaned up)");
+  }
   if (failed > 0) process.exitCode = 1;
 }
 

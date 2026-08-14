@@ -3,7 +3,7 @@
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 import { prisma } from "./lib/prisma.js";
-import { purgeTestUser } from "./testCleanup.js";
+import { createTestUser, purgeTestUser } from "./testCleanup.js";
 
 const API = process.env.TEST_API_URL ?? "http://localhost:3001";
 const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
@@ -24,11 +24,9 @@ const call = async (t: string | null, m: string, p: string, b?: unknown) => {
   return { status: r.status, body: j };
 };
 
-const email = `sweep-rad-${Date.now()}@example.com`;
-const { data } = await sb.auth.signUp({ email, password: "sweep-test-password-123" });
-const token = data.session!.access_token;
-const userId = data.session!.user.id;
-await call(token, "POST", "/auth/sync-user", { email });
+const primary = await createTestUser("rad", API);
+const token = primary.token;
+const userId = primary.id;
 
 console.log("\n— free tier gets a real radar —");
 let r = await call(token, "GET", "/radar");
@@ -115,9 +113,8 @@ for (const tier of ["free", "pro", "ultimate"] as const) {
 await prisma.wallet.update({ where: { userId }, data: { tier: "pro" } });
 
 console.log("\n— ownership —");
-const other = await sb.auth.signUp({ email: `sweep-rad2-${Date.now()}@example.com`, password: "sweep-test-password-123" });
-const otherToken = other.data.session!.access_token;
-await call(otherToken, "POST", "/auth/sync-user", { email: `sweep-rad2-${Date.now()}@example.com` });
+const other = await createTestUser("rad2", API);
+const otherToken = other.token;
 check("another user sees none of yours", (await call(otherToken, "GET", "/radar")).body.searches?.length === 0);
 check("another user can't edit yours", (await call(otherToken, "PATCH", `/radar/${radarId}`, { keyword: "hijacked" })).status === 404);
 check("another user can't refresh yours", (await call(otherToken, "POST", `/radar/${radarId}/refresh`)).status === 404);
@@ -130,7 +127,7 @@ const doomed = await call(token, "POST", "/radar", { keyword: "delete me please"
 check("you can delete your own", (await call(token, "DELETE", `/radar/${doomed.body.search.id}`)).status === 200);
 check("deleting twice 404s", (await call(token, "DELETE", `/radar/${doomed.body.search.id}`)).status === 404);
 
-for (const id of [userId, other.data.session!.user.id]) {
+for (const id of [userId, other.id]) {
   await prisma.savedSearch.deleteMany({ where: { userId: id } });
   await purgeTestUser(id);
 }

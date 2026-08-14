@@ -3,7 +3,7 @@
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 import { prisma } from "./lib/prisma.js";
-import { purgeTestUser } from "./testCleanup.js";
+import { createTestUser, purgeTestUser } from "./testCleanup.js";
 import { consumeGuestIpSearch } from "./lib/quota.js";
 
 const API = process.env.TEST_API_URL ?? "http://localhost:3001";
@@ -25,11 +25,9 @@ const call = async (t: string | null, m: string, p: string, b?: unknown, headers
   return { status: r.status, body: j };
 };
 
-const email = `sweep-sec-${Date.now()}@example.com`;
-const { data } = await sb.auth.signUp({ email, password: "sweep-test-password-123" });
-const token = data.session!.access_token;
-const userId = data.session!.user.id;
-await call(token, "POST", "/auth/sync-user", { email });
+const primary = await createTestUser("sec", API);
+const token = primary.token;
+const userId = primary.id;
 
 console.log("\n— account deletion —");
 check("auth is required", (await call(null, "DELETE", "/me", { confirm: true })).status === 401);
@@ -70,9 +68,8 @@ check("the Supabase auth record went too", del.body.authRecordRemoved === true, 
 check("the token no longer works", (await call(token, "GET", "/auth/me")).status !== 200);
 
 console.log("\n— rate limiting —");
-const fresh = await sb.auth.signUp({ email: `sweep-sec2-${Date.now()}@example.com`, password: "sweep-test-password-123" });
-const token2 = fresh.data.session!.access_token;
-await call(token2, "POST", "/auth/sync-user", { email: `sweep-sec2-${Date.now()}@example.com` });
+const fresh = await createTestUser("sec2", API);
+const token2 = fresh.token;
 
 // Fired in parallel: sequentially, token verification is slow enough that the
 // one-minute window rolls over before the ceiling is reached.
@@ -90,10 +87,8 @@ console.log("\n— limits are per account, not global —");
 // The claim worth proving: one user hitting their ceiling must not throttle
 // anyone else. At the default onRequest hook this fails, because the key is
 // computed before auth runs and every signed-in user falls back to their IP.
-const emailB = `sweep-sec3-${Date.now()}@example.com`;
-const userB = await sb.auth.signUp({ email: emailB, password: "sweep-test-password-123" });
-const tokenB = userB.data.session!.access_token;
-await call(tokenB, "POST", "/auth/sync-user", { email: emailB });
+const userB = await createTestUser("sec3", API);
+const tokenB = userB.token;
 
 // Exhaust user A's bucket.
 const flood = await Promise.all(
@@ -106,7 +101,7 @@ check(`user A is throttled after its own ceiling (${aRefused} refused)`, aRefuse
 const bResponse = await call(tokenB, "GET", "/auth/me");
 check("user B on the same IP is NOT throttled", bResponse.status === 200, bResponse);
 
-await purgeTestUser(userB.data.session!.user.id);
+await purgeTestUser(userB.id);
 
 console.log("\n— guest identity —");
 // A guest's device id is client-supplied. Rotating it must not be a way to
@@ -132,7 +127,7 @@ const stored = await prisma.ipQuota.findMany();
 check("IPs are stored hashed, never raw", stored.every((r) => !r.ipHash.includes(".") && r.ipHash.length === 32), stored.map((r) => r.ipHash));
 await prisma.ipQuota.deleteMany({});
 
-for (const id of [fresh.data.session!.user.id]) {
+for (const id of [fresh.id]) {
   await purgeTestUser(id);
 }
 console.log(`\n${pass} passed, ${fail} failed  (cleaned up)`);

@@ -36,7 +36,7 @@ import {
   isRetailer,
 } from "../lib/scrapers/types.js";
 import { getSearchJob, startAmazonSearch } from "../lib/searchJobs.js";
-import { effectiveTier, limitsFor } from "../lib/tiers.js";
+import { TIER_LIMITS, effectiveTier, limitsFor } from "../lib/tiers.js";
 
 const MAX_KEYWORD_LENGTH = 120;
 /** Fallback for callers with no wallet (guests). */
@@ -268,6 +268,12 @@ export async function searchRoutes(app: FastifyInstance) {
           quota,
           isGuest: false,
           tier: wallet ? effectiveTier(wallet) : "free",
+          // Sent here as well as on the search response so the picker can be
+          // shown BEFORE a search. Choosing how many results you want after
+          // paying for the search is the wrong way round.
+          resultsRange: wallet
+            ? limitsFor(wallet).resultsPerRetailer
+            : TIER_LIMITS.free.resultsPerRetailer,
         };
       }
 
@@ -276,6 +282,7 @@ export async function searchRoutes(app: FastifyInstance) {
           quota: await getGuestQuota(deviceId),
           isGuest: true,
           tier: "free",
+          resultsRange: TIER_LIMITS.free.resultsPerRetailer,
         };
       }
 

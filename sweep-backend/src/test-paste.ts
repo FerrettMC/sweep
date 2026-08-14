@@ -10,6 +10,7 @@
 
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
+import { createTestUser, purgeTestUser } from "./testCleanup.js";
 
 const API = process.env.TEST_API_URL ?? "http://localhost:3001";
 
@@ -19,6 +20,9 @@ const supabase = createClient(
 );
 
 let token = "";
+// Remembered so the run can delete the account it created — otherwise
+// every suite run leaves a Supabase auth record behind forever.
+let createdUserId: string | null = null;
 let passed = 0;
 let failed = 0;
 
@@ -53,14 +57,13 @@ function check(label: string, ok: boolean, detail?: unknown) {
 }
 
 async function signIn() {
-  const email = `sweep-paste-${Date.now()}@example.com`;
-  const password = "sweep-test-password-123";
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) throw new Error(`auth failed: ${error.message}`);
-  if (!data.session) throw new Error("no session — email confirmation is on?");
-  token = data.session.access_token;
-  await call("POST", "/auth/sync-user", { email });
-  console.log(`Signed in as ${email}\n`);
+  // Created pre-confirmed through the admin API. Plain signUp would try to
+  // email an @example.com address, which can't receive, and email confirmation
+  // is now on for real users.
+  const user = await createTestUser("paste", API);
+  token = user.token;
+  createdUserId = user.id;
+  console.log(`Signed in as ${user.email}\n`);
 }
 
 async function main() {
@@ -149,6 +152,10 @@ async function main() {
   );
 
   console.log(`\n${passed} passed, ${failed} failed`);
+  if (createdUserId) {
+    await purgeTestUser(createdUserId);
+    console.log("(cleaned up)");
+  }
   if (failed > 0) process.exitCode = 1;
 }
 

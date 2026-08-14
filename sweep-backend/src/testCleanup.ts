@@ -53,3 +53,48 @@ export async function purgeStrayTestAccounts() {
   for (const user of strays) await purgeTestUser(user.id);
   return strays.length;
 }
+
+/**
+ * Create a confirmed test account and return a usable session token.
+ *
+ * Uses the admin API rather than signUp because email confirmation is now on:
+ * signUp would try to send a confirmation email to an @example.com address,
+ * fail to deliver, and abort the whole suite with "Error sending confirmation
+ * email". Creating the user pre-confirmed skips the mailbox entirely, which is
+ * both correct for a test and considerably faster.
+ */
+export async function createTestUser(tag: string, apiUrl: string) {
+  const email = `sweep-${tag}-${Date.now()}@example.com`;
+  const password = "sweep-test-password-123";
+
+  const { data: created, error: createError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  if (createError || !created.user) {
+    throw new Error(`could not create test user: ${createError?.message}`);
+  }
+
+  // Sign in normally to get a token the API will accept — the admin client
+  // holds no session of its own.
+  const anon = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data: session, error: signInError } = await anon.auth.signInWithPassword({
+    email,
+    password,
+  });
+  if (signInError || !session.session) {
+    throw new Error(`could not sign in test user: ${signInError?.message}`);
+  }
+
+  const token = session.session.access_token;
+  await fetch(`${apiUrl}/auth/sync-user`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ email }),
+  });
+
+  return { id: created.user.id, email, password, token };
+}

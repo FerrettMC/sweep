@@ -3,7 +3,7 @@
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 import { prisma } from "./lib/prisma.js";
-import { purgeTestUser } from "./testCleanup.js";
+import { createTestUser, purgeTestUser } from "./testCleanup.js";
 
 const API = process.env.TEST_API_URL ?? "http://localhost:3001";
 const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
@@ -15,16 +15,9 @@ const check = (l: string, ok: boolean, d?: unknown) => {
 };
 
 async function mkUser(tag: string) {
-  const email = `sweep-${tag}-${Date.now()}@example.com`;
-  const { data, error } = await sb.auth.signUp({ email, password: "sweep-test-password-123" });
-  if (error || !data.session) throw new Error("auth: " + error?.message);
-  const token = data.session.access_token;
-  await fetch(`${API}/auth/sync-user`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ email }),
-  });
-  return { id: data.session.user.id, token };
+  // Shared helper: creates the account pre-confirmed via the admin API,
+  // because email confirmation is on and @example.com can't receive mail.
+  return createTestUser(tag, API);
 }
 
 const call = async (token: string | null, m: string, p: string, b?: unknown) => {
