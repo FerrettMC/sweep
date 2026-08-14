@@ -13,12 +13,18 @@ anywhere; only the UI differs.
 
 1. Sign in at [railway.com](https://railway.com) with GitHub.
 2. **New Project → Deploy from GitHub repo → `FerrettMC/sweep`**.
-3. Open the service → **Settings → Root Directory → `sweep-backend`**.
+3. **Leave Root Directory EMPTY.**
 
-That third step is the one people miss. This is a monorepo, and without it the
-build runs at the repo root, finds no `package.json`, and fails.
+Step 3 is deliberate and worth explaining, because the obvious thing does not
+work. The natural setup for a monorepo is Root Directory = `sweep-backend`, but
+Railway's analyzer kept inspecting the repo root regardless of that setting —
+finding three folders, no `package.json`, and failing with "Railpack could not
+determine how to build the app".
 
-Build and start commands come from `railway.json`, so there's nothing to type.
+So the build is a `Dockerfile` at the repo root instead. It copies only
+`sweep-backend/`, and it does not depend on any platform setting behaving as
+documented. Root Directory must stay empty so the build context matches the
+paths in that Dockerfile.
 
 ## 2. Environment variables
 
