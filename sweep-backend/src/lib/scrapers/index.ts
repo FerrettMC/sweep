@@ -12,6 +12,7 @@ import { neweggProductUrl, scrapeNeweggProduct, searchNewegg } from "./newegg.js
 import { scrapeWalmartProduct, searchWalmart, walmartProductUrl } from "./walmart.js";
 import { type Category, classifyQuery } from "../categories.js";
 import { RETAILERS, isRetailer, type Retailer, type ScrapeResult, type ScrapedProduct } from "./types.js";
+import { throttled } from "./rateGate.js";
 
 interface RetailerAdapter {
   search(keyword: string, limit: number): Promise<ScrapeResult<ScrapedProduct[]>>;
@@ -44,7 +45,12 @@ interface RetailerAdapter {
   categories: Category[] | null;
 }
 
-export const adapters: Record<Retailer, RetailerAdapter> = {
+/**
+ * The adapters WITHOUT the rate gate. Exported only so tests can prove the
+ * wrapping actually happened — nothing in the app should import this, because
+ * using it is precisely how a path ends up unthrottled.
+ */
+export const unthrottledAdapters: Record<Retailer, RetailerAdapter> = {
   amazon: {
     search: searchAmazonProducts,
     scrapeProduct: scrapeAmazonProduct,
@@ -132,6 +138,29 @@ export interface RetailerSearchOutcome {
  * must not blank the other four, since partial results are the whole point of
  * the compiled view.
  */
+/**
+ * The adapters everything else uses, with the per-retailer rate gate applied.
+ *
+ * Wrapped here rather than at each call site because there are six of them —
+ * search, radar, sweep, tracking, paste-a-link and drop re-verification — and
+ * the one that gets forgotten is the one that gets us blocked. Anything that
+ * reaches a retailer now goes through the gate by construction.
+ */
+export const adapters: Record<Retailer, RetailerAdapter> = Object.fromEntries(
+  (Object.entries(unthrottledAdapters) as [Retailer, RetailerAdapter][]).map(
+    ([retailer, adapter]) => [
+      retailer,
+      {
+        ...adapter,
+        search: (keyword: string, limit: number) =>
+          throttled(retailer, () => adapter.search(keyword, limit)),
+        scrapeProduct: (url: string) =>
+          throttled(retailer, () => adapter.scrapeProduct(url)),
+      },
+    ],
+  ),
+) as Record<Retailer, RetailerAdapter>;
+
 export async function searchAllRetailers(
   keyword: string,
   limitPerRetailer = 4,

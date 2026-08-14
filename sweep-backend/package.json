@@ -25,7 +25,8 @@
     "test:matching": "tsx src/test-matching.ts",
     "test:sweep": "tsx src/test-sweep.ts",
     "test:radar": "tsx src/test-radar.ts",
-    "test:security": "tsx src/test-security.ts"
+    "test:security": "tsx src/test-security.ts",
+    "test:ratelimit": "tsx src/test-rategate.ts"
   },
   "keywords": [],
   "author": "",
