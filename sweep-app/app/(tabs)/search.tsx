@@ -28,6 +28,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import AddToListSheet, { type ListTarget } from "@/components/AddToListSheet";
 import SweepSheet from "@/components/SweepSheet";
 import CompareTray from "@/components/CompareTray";
+import ResultsMenu from "@/components/ResultsMenu";
 import WhyLimitedSheet from "@/components/WhyLimitedSheet";
 import HighlightCard from "@/components/HighlightCard";
 import ProductCard from "@/components/ProductCard";
@@ -93,8 +94,13 @@ export default function SearchScreen() {
   const sweep = useSweep();
   // Null until a search tells us what this tier allows. Persisted so the choice
   // survives a restart — it's a preference, not a per-search decision.
-  const [resultsRange, setResultsRange] = useState<{ min: number; max: number } | null>(null);
+  const [resultsRange, setResultsRange] = useState<{
+    min: number;
+    max: number;
+    default: number;
+  } | null>(null);
   const [resultsPref, setResultsPref] = useState<number | null>(null);
+  const [showResultsMenu, setShowResultsMenu] = useState(false);
 
   // Bumped on each new search so an in-flight poll from the previous one can
   // tell it's stale and stop writing results into the current view.
@@ -380,36 +386,6 @@ export default function SearchScreen() {
         />
       </View>
 
-      {/*
-        Above the results and outside them: this is a setting for the search
-        you are about to run. Shown only when the tier has a real choice — a
-        picker with one option is a label that looks tappable.
-      */}
-      {resultsRange && (
-        <View style={styles.resultsPicker}>
-          <Text style={styles.resultsLabel}>Results per store</Text>
-          <View style={styles.resultsOptions}>
-            {Array.from(
-              { length: resultsRange.max - resultsRange.min + 1 },
-              (_, i) => resultsRange.min + i,
-            ).map((count) => {
-              const on = (resultsPref ?? resultsRange.min) === count;
-              return (
-                <Pressable
-                  key={count}
-                  onPress={() => setResultsPref(count)}
-                  style={[styles.resultsChip, on && styles.resultsChipOn]}
-                >
-                  <Text style={[styles.resultsChipText, on && styles.resultsChipTextOn]}>
-                    {count}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-      )}
-
       {quota && (
         <View style={styles.quotaRow}>
           <Pressable
@@ -429,6 +405,24 @@ export default function SearchScreen() {
               color={colors.textTertiary}
             />
           </Pressable>
+          {/*
+            Sits on the quota row rather than a row of its own: it's a small
+            setting, and giving it a full-width strip above "searches left"
+            made it read as more important than the search box.
+          */}
+          {resultsRange && (
+            <Pressable
+              onPress={() => setShowResultsMenu(true)}
+              hitSlop={8}
+              style={({ pressed }) => [styles.resultsButton, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={styles.resultsButtonText}>
+                {resultsPref ?? resultsRange.default} per store
+              </Text>
+              <Ionicons name="chevron-down" size={13} color={colors.textSecondary} />
+            </Pressable>
+          )}
+
           {/*
             Three states, not two. Silently hiding the button once the daily ad
             cap is hit looks identical to the feature being broken, so say why.
@@ -635,6 +629,17 @@ export default function SearchScreen() {
         onAdded={(name) => setNotice(`Added to ${name}.`)}
       />
 
+      <ResultsMenu
+        visible={showResultsMenu}
+        range={resultsRange}
+        value={resultsPref}
+        onPick={(count) => {
+          setResultsPref(count);
+          setShowResultsMenu(false);
+        }}
+        onClose={() => setShowResultsMenu(false)}
+      />
+
       <WhyLimitedSheet
         visible={showWhy}
         onClose={() => setShowWhy(false)}
@@ -735,35 +740,22 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.xs,
       flex: 1,
     },
-    resultsPicker: {
+    resultsButton: {
       flexDirection: "row",
       alignItems: "center",
-      gap: spacing.sm,
-      marginTop: spacing.sm,
-    },
-    resultsLabel: {
-      flex: 1,
-      color: colors.textSecondary,
-      fontSize: type.label.fontSize,
-    },
-    resultsOptions: { flexDirection: "row", gap: 5 },
-    resultsChip: {
-      minWidth: 32,
-      alignItems: "center",
+      gap: 3,
+      paddingHorizontal: 9,
       paddingVertical: 5,
-      paddingHorizontal: 8,
       borderRadius: radius.sm,
       borderWidth: 1,
       borderColor: colors.surfaceBorder,
       backgroundColor: colors.surface,
     },
-    resultsChipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-    resultsChipText: {
+    resultsButtonText: {
       color: colors.textSecondary,
-      fontSize: type.label.fontSize,
-      fontWeight: "800",
+      fontSize: type.caption.fontSize,
+      fontWeight: "700",
     },
-    resultsChipTextOn: { color: colors.background },
     highlightBlock: { gap: spacing.sm, marginTop: spacing.sm },
     highlightHeading: {
       color: colors.textPrimary,
