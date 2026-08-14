@@ -1,0 +1,11 @@
+# Keeps the image small and free of anything sensitive. Everything the build
+# needs is copied explicitly in the Dockerfile.
+node_modules
+dist
+.env
+.env.*
+docs
+src/test-*.ts
+.claude
+.agents
+.windsurf

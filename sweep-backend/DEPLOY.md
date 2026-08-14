@@ -13,18 +13,18 @@ anywhere; only the UI differs.
 
 1. Sign in at [railway.com](https://railway.com) with GitHub.
 2. **New Project → Deploy from GitHub repo → `FerrettMC/sweep`**.
-3. **Leave Root Directory EMPTY.**
+3. Open the service → **Settings → Source → Root Directory → `/sweep-backend`**,
+   and save it before deploying.
 
-Step 3 is deliberate and worth explaining, because the obvious thing does not
-work. The natural setup for a monorepo is Root Directory = `sweep-backend`, but
-Railway's analyzer kept inspecting the repo root regardless of that setting —
-finding three folders, no `package.json`, and failing with "Railpack could not
-determine how to build the app".
+The build uses `sweep-backend/Dockerfile`, so Root Directory is what makes the
+build context this folder. Two failure modes to recognise, because both happened:
 
-So the build is a `Dockerfile` at the repo root instead. It copies only
-`sweep-backend/`, and it does not depend on any platform setting behaving as
-documented. Root Directory must stay empty so the build context matches the
-paths in that Dockerfile.
+- *"Railpack could not determine how to build the app"*, listing `sweep-app/`
+  and `sweep-backend/` — the Root Directory hadn't saved, so it was inspecting
+  the repo root. Save it, then redeploy.
+- *`"/sweep-backend/src": not found`* — the opposite: Root Directory applied, so
+  the context is already `sweep-backend/`, and a `COPY sweep-backend/...` path
+  is one level too deep. Paths in the Dockerfile are relative to this folder.
 
 ## 2. Environment variables
 
