@@ -19,8 +19,13 @@
 import { prisma } from "./prisma.js";
 import { recordCheck } from "./health.js";
 import { upsertScrapedProduct } from "./priceChecker.js";
-import { adapters } from "./scrapers/index.js";
-import { type Retailer, isRetailer, storeListPhrase } from "./scrapers/types.js";
+import { adapters, isRetailerEnabled } from "./scrapers/index.js";
+import {
+  RETAILER_LABELS,
+  type Retailer,
+  isRetailer,
+  storeListPhrase,
+} from "./scrapers/types.js";
 import { normalizeProductUrl } from "./scrapers/url.js";
 
 /** How recently a cached product counts as fresh enough to reuse as-is. */
@@ -86,6 +91,19 @@ export async function resolveProduct(input: ResolveInput): Promise<ResolveResult
       status: 400,
       error: "Provide either a url, or a retailer and retailerId",
       code: "INVALID_TARGET",
+    };
+  }
+
+  // A store switched off by configuration can't be tracked either. Without
+  // this, pasting a Walmart link while Walmart is disabled fails as a scrape
+  // error — which reads as "Sweep is broken" rather than "we don't do that
+  // store right now".
+  if (!isRetailerEnabled(retailer)) {
+    return {
+      ok: false,
+      status: 400,
+      error: `Sweep can't reach ${RETAILER_LABELS[retailer]} at the moment. Try another store.`,
+      code: "RETAILER_DISABLED",
     };
   }
 
