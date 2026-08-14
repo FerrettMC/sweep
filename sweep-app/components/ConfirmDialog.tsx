@@ -21,6 +21,8 @@ import {
   TextInput,
   View,
 } from "react-native";
+import PasswordInput from "@/components/PasswordInput";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 
@@ -61,6 +63,7 @@ interface Props {
 export default function ConfirmDialog({ content, onConfirm, onCancel }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
   if (!content) return null;
 
   const {
@@ -78,7 +81,21 @@ export default function ConfirmDialog({ content, onConfirm, onCancel }: Props) {
     <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
       {/* Tapping outside cancels — the safe choice either way, since the
           confirm action is the one that changes something. */}
-      <Pressable style={styles.backdrop} onPress={onCancel}>
+      {/*
+        Centred normally, but pushed to the top when there's a field to fill —
+        a centred dialog sits behind the keyboard, and the one control the user
+        needs is the one they can't see.
+      */}
+      <Pressable
+        style={[
+          styles.backdrop,
+          content.input && {
+            justifyContent: "flex-start" as const,
+            paddingTop: insets.top + spacing.lg,
+          },
+        ]}
+        onPress={onCancel}
+      >
         <Pressable style={styles.card} onPress={() => {}}>
           <View style={[styles.iconCircle, destructive && styles.iconCircleDanger]}>
             <Ionicons
@@ -115,19 +132,27 @@ export default function ConfirmDialog({ content, onConfirm, onCancel }: Props) {
             </View>
           )}
 
-          {input && (
-            <TextInput
-              style={styles.input}
-              value={input.value}
-              onChangeText={input.onChangeText}
-              placeholder={input.placeholder}
-              placeholderTextColor={colors.textTertiary}
-              secureTextEntry={input.secure}
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoFocus
-            />
-          )}
+          {input &&
+            (input.secure ? (
+              <PasswordInput
+                fieldStyle={styles.input}
+                value={input.value}
+                onChangeText={input.onChangeText}
+                placeholder={input.placeholder}
+                autoFocus
+              />
+            ) : (
+              <TextInput
+                style={styles.input}
+                value={input.value}
+                onChangeText={input.onChangeText}
+                placeholder={input.placeholder}
+                placeholderTextColor={colors.textTertiary}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoFocus
+              />
+            ))}
 
           <View style={styles.actions}>
             <Pressable

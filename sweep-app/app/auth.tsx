@@ -7,6 +7,7 @@
 // persisted session — paths that never pass through this screen.
 
 import ForgotPasswordSheet from "@/components/ForgotPasswordSheet";
+import PasswordInput from "@/components/PasswordInput";
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { storeListPhrase } from "@/lib/format";
@@ -122,13 +123,11 @@ export default function Auth() {
         keyboardType="email-address"
         textContentType="emailAddress"
       />
-      <TextInput
-        style={styles.input}
+      <PasswordInput
+        fieldStyle={styles.input}
         placeholder="Password"
-        placeholderTextColor={colors.textTertiary}
         value={password}
         onChangeText={setPassword}
-        secureTextEntry
         textContentType="password"
       />
 

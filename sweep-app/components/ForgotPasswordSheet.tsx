@@ -27,6 +27,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import PasswordInput from "@/components/PasswordInput";
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
@@ -173,14 +174,11 @@ export default function ForgotPasswordSheet({
                   maxLength={MAX_CODE_LENGTH}
                   autoFocus
                 />
-                <TextInput
-                  style={styles.input}
+                <PasswordInput
+                  fieldStyle={styles.input}
                   value={password}
                   onChangeText={setPassword}
                   placeholder="New password (8+ characters)"
-                  placeholderTextColor={colors.textTertiary}
-                  secureTextEntry
-                  autoCapitalize="none"
                 />
                 <Pressable onPress={() => setStep("email")} hitSlop={8}>
                   <Text style={styles.link}>Send another code</Text>

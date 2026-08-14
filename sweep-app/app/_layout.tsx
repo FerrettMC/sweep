@@ -19,6 +19,7 @@ import {
 import AppErrorScreen from "@/components/AppErrorScreen";
 import OfflineBanner from "@/components/OfflineBanner";
 import { useIsOnline } from "@/lib/connection";
+import { setPushRegistered } from "@/lib/pushStatus";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 import { syncUser } from "@/lib/api";
 import { loadGuestMode, useGuestMode } from "@/lib/guestMode";
@@ -143,9 +144,17 @@ function RootNavigator() {
     syncedUserId.current = user.id;
     try {
       await syncUser(user.email);
+
       // Register for push only after the account exists server-side —
       // /notifications/register needs a User row to attach the token to.
-      void registerForPushNotifications();
+      //
+      // The result is written to the shared store rather than discarded. Home
+      // reads its notification state on focus, which happens BEFORE this
+      // finishes, so it would see "no token yet" and show "Price alerts are
+      // off" for a session that had in fact just enabled them.
+      const push = await registerForPushNotifications();
+      if (push.status === "registered") setPushRegistered(true);
+      else if (push.status === "denied") setPushRegistered(false);
     } catch {
       // Non-fatal: the next authenticated call will surface a real problem.
       // Clear it so a transient network failure gets retried.
