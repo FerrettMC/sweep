@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.sweep"
+      "bundleIdentifier": "com.sweepshopping.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +19,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.sweep",
+      "package": "com.sweepshopping.app",
       "googleServicesFile": "./google-services.json"
     },
     "web": {

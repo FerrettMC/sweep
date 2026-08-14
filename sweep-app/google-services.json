@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "596143231769",
+    "project_id": "sweep-benju",
+    "storage_bucket": "sweep-benju.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:596143231769:android:aaf901fdb73b93fa47eb88",
+        "android_client_info": {
+          "package_name": "com.anonymous.sweep"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD83B6-br5xNuIewZSKl0sYBrditYiBhYY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:596143231769:android:3b02c017a695be6d47eb88",
+        "android_client_info": {
+          "package_name": "com.sweepshopping.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD83B6-br5xNuIewZSKl0sYBrditYiBhYY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

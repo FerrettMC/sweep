@@ -9,10 +9,13 @@ ios/
 
 expo-env.d.ts
 # @end expo-cli
-# Firebase / FCM credentials for push notifications. google-services.json is
-# not catastrophic to leak, but the service-account key absolutely is — it
-# grants send rights on your Firebase project.
-google-services.json
+# Firebase. google-services.json is deliberately NOT ignored: it ships inside
+# every APK and is extractable from any published build, so it isn't a secret,
+# and EAS builds from the git archive — ignoring it means the build has no
+# Firebase config and push notifications silently break.
+#
+# The service-account key is a different matter entirely. That one grants send
+# rights on the project and must never be committed.
 GoogleService-Info.plist
 *-firebase-adminsdk-*.json
 service-account*.json
