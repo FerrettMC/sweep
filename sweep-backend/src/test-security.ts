@@ -3,6 +3,7 @@
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 import { prisma } from "./lib/prisma.js";
+import { purgeTestUser } from "./testCleanup.js";
 import { consumeGuestIpSearch } from "./lib/quota.js";
 
 const API = process.env.TEST_API_URL ?? "http://localhost:3001";
@@ -99,8 +100,7 @@ check(`user A is throttled after its own ceiling (${aRefused} refused)`, aRefuse
 const bResponse = await call(tokenB, "GET", "/auth/me");
 check("user B on the same IP is NOT throttled", bResponse.status === 200, bResponse);
 
-await prisma.wallet.deleteMany({ where: { userId: userB.data.session!.user.id } });
-await prisma.user.deleteMany({ where: { id: userB.data.session!.user.id } });
+await purgeTestUser(userB.data.session!.user.id);
 
 console.log("\n— guest identity —");
 // A guest's device id is client-supplied. Rotating it must not be a way to
@@ -127,8 +127,7 @@ check("IPs are stored hashed, never raw", stored.every((r) => !r.ipHash.includes
 await prisma.ipQuota.deleteMany({});
 
 for (const id of [fresh.data.session!.user.id]) {
-  await prisma.wallet.deleteMany({ where: { userId: id } });
-  await prisma.user.deleteMany({ where: { id } });
+  await purgeTestUser(id);
 }
 console.log(`\n${pass} passed, ${fail} failed  (cleaned up)`);
 process.exit(fail ? 1 : 0);

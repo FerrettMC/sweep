@@ -3,6 +3,7 @@
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 import { prisma } from "./lib/prisma.js";
+import { purgeTestUser } from "./testCleanup.js";
 
 const API = process.env.TEST_API_URL ?? "http://localhost:3001";
 const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
@@ -105,8 +106,7 @@ for (const u of [owner, other]) {
   await prisma.list.deleteMany({ where: { userId: u.id } });
   await prisma.transaction.deleteMany({ where: { userId: u.id } });
   await prisma.trackedProduct.deleteMany({ where: { userId: u.id } });
-  await prisma.wallet.deleteMany({ where: { userId: u.id } });
-  await prisma.user.deleteMany({ where: { id: u.id } });
+  await purgeTestUser(u.id);
 }
 const admin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!, {
   auth: { autoRefreshToken: false, persistSession: false },

@@ -3,6 +3,7 @@
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 import { prisma } from "./lib/prisma.js";
+import { purgeTestUser } from "./testCleanup.js";
 
 const API = process.env.TEST_API_URL ?? "http://localhost:3001";
 const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
@@ -84,7 +85,6 @@ check("auth is required", (await call(null, "POST", "/sweep", { productId: produ
 
 await prisma.priceHistory.deleteMany({ where: { productId: product.id } });
 await prisma.product.delete({ where: { id: product.id } });
-await prisma.wallet.deleteMany({ where: { userId } });
-await prisma.user.deleteMany({ where: { id: userId } });
+await purgeTestUser(userId);
 console.log(`\n${pass} passed, ${fail} failed  (cleaned up)`);
 process.exit(fail ? 1 : 0);

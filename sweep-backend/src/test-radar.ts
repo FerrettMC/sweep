@@ -3,6 +3,7 @@
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 import { prisma } from "./lib/prisma.js";
+import { purgeTestUser } from "./testCleanup.js";
 
 const API = process.env.TEST_API_URL ?? "http://localhost:3001";
 const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
@@ -131,8 +132,7 @@ check("deleting twice 404s", (await call(token, "DELETE", `/radar/${doomed.body.
 
 for (const id of [userId, other.data.session!.user.id]) {
   await prisma.savedSearch.deleteMany({ where: { userId: id } });
-  await prisma.wallet.deleteMany({ where: { userId: id } });
-  await prisma.user.deleteMany({ where: { id } });
+  await purgeTestUser(id);
 }
 console.log(`\n${pass} passed, ${fail} failed  (cleaned up)`);
 process.exit(fail ? 1 : 0);
