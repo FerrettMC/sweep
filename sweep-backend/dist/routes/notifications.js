@@ -24,7 +24,11 @@ export async function notificationRoutes(app) {
         await prisma.pushToken.upsert({
             where: { token },
             create: { token, userId, platform: normalizedPlatform },
-            update: { userId, platform: normalizedPlatform, lastUsedAt: new Date() },
+            update: {
+                userId,
+                platform: normalizedPlatform,
+                lastUsedAt: new Date(),
+            },
         });
         return { ok: true };
     });

@@ -15,7 +15,7 @@ import { supabase } from "./supabase";
  * which is what makes localhost work there. Set EXPO_PUBLIC_API_URL to point
  * somewhere else (a LAN IP, or the deployed backend).
  */
-const API_URL =
+export const API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   Constants.expoConfig?.extra?.apiUrl ??
   "http://localhost:3001";
@@ -840,4 +840,18 @@ export function refreshRadar(id: string) {
     isNewBest: boolean;
     refreshes: RadarRefreshes | null;
   }>(`/radar/${id}/refresh`, { method: "POST" });
+}
+
+/**
+ * Permanently delete the signed-in account and everything attached to it.
+ *
+ * Required by Google Play. Irreversible — the confirmation flag is enforced
+ * server-side too, so this can't fire from a stray call.
+ */
+export function deleteAccount() {
+  return request<{
+    ok: true;
+    deleted: Record<string, number>;
+    authRecordRemoved: boolean;
+  }>("/me", { method: "DELETE", body: { confirm: true } });
 }

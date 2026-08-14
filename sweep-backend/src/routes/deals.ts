@@ -34,7 +34,10 @@ export async function dealRoutes(app: FastifyInstance) {
       ? new Set(
           (
             await prisma.trackedProduct.findMany({
-              where: { userId, productId: { in: deals.map((d) => d.productId) } },
+              where: {
+                userId,
+                productId: { in: deals.map((d) => d.productId) },
+              },
               select: { productId: true },
             })
           ).map((t) => t.productId),

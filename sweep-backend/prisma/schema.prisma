@@ -202,6 +202,23 @@ model ScraperAlert {
 // ID generated on the client. Server-side so the client can't reset it by
 // clearing state — reinstalling gets you one more search, and that's an
 // acceptable ceiling for a free anonymous tier.
+// A daily search ceiling per network, for guests only.
+//
+// GuestQuota is keyed on a device id the client sends, which anyone can rotate
+// — so on its own it caps nothing. This is the durable backstop: it survives
+// restarts (unlike an in-memory rate limiter) and it doesn't care what header
+// you send.
+//
+// The IP is stored hashed. We need to count requests from a network, not to
+// keep a record of who was on it.
+model IpQuota {
+  id                String   @id @default(uuid())
+  ipHash            String   @unique
+  searchesUsedToday Int      @default(0)
+  searchesResetAt   DateTime @default(now())
+  createdAt         DateTime @default(now())
+}
+
 model GuestQuota {
   id                String   @id @default(uuid())
   deviceId          String   @unique

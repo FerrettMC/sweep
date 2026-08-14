@@ -14,6 +14,7 @@
 
 import Constants from "expo-constants";
 import { Platform } from "react-native";
+import { API_URL } from "@/lib/api";
 
 /**
  * TODO before launch: point this at a real inbox and use the same address on
@@ -22,6 +23,16 @@ import { Platform } from "react-native";
 export const SUPPORT_EMAIL = "benju.support@gmail.com";
 
 export const APP_VERSION = Constants.expoConfig?.version ?? "dev";
+
+/**
+ * Legal pages, served by the backend so they share its domain.
+ *
+ * Google Play requires the privacy policy and the deletion page to be public
+ * URLs, and requires the policy to be reachable from inside the app too — so
+ * these are linked from Profile as well as from the store listing.
+ */
+export const PRIVACY_URL = `${API_URL}/privacy`;
+export const DELETE_ACCOUNT_URL = `${API_URL}/delete-account`;
 
 /** A mailto: with the subject and diagnostics already filled in. */
 export function supportMailto(

@@ -17,6 +17,7 @@ import type { FastifyInstance } from "fastify";
 import { requireAuth } from "../lib/auth.js";
 import { effectiveIntervalMinutes } from "../lib/backoff.js";
 import { runRadar } from "../lib/dealRadar.js";
+import { SCRAPE_LIMIT } from "../lib/rateLimit.js";
 import { prisma } from "../lib/prisma.js";
 import {
   consumeRadarChange,
@@ -40,7 +41,10 @@ export async function radarRoutes(app: FastifyInstance) {
 
     const limits = limitsFor(wallet);
     const [searches, refreshes, changes] = await Promise.all([
-      prisma.savedSearch.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
+      prisma.savedSearch.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+      }),
       getRadarRefreshState(userId),
       getRadarChangeState(userId),
     ]);
@@ -71,14 +75,20 @@ export async function radarRoutes(app: FastifyInstance) {
     if (typeof keyword !== "string" || keyword.trim().length < 2) {
       return reply
         .status(400)
-        .send({ error: "What should Sweep watch for?", code: "INVALID_KEYWORD" });
+        .send({
+          error: "What should Sweep watch for?",
+          code: "INVALID_KEYWORD",
+        });
     }
 
     const target = normalizeTarget(targetPrice);
     if (target === "invalid") {
       return reply
         .status(400)
-        .send({ error: "That target price doesn't look right.", code: "INVALID_TARGET" });
+        .send({
+          error: "That target price doesn't look right.",
+          code: "INVALID_TARGET",
+        });
     }
 
     const wallet = await prisma.wallet.findUnique({ where: { userId } });
@@ -141,15 +151,23 @@ export async function radarRoutes(app: FastifyInstance) {
       const existing = await prisma.savedSearch.findFirst({
         where: { id: request.params.id, userId },
       });
-      if (!existing) return reply.status(404).send({ error: "Radar not found" });
+      if (!existing)
+        return reply.status(404).send({ error: "Radar not found" });
 
-      const data: { keyword?: string; targetPrice?: number | null; lastBestPrice?: null } = {};
+      const data: {
+        keyword?: string;
+        targetPrice?: number | null;
+        lastBestPrice?: null;
+      } = {};
 
       if (keyword !== undefined) {
         if (typeof keyword !== "string" || keyword.trim().length < 2) {
           return reply
             .status(400)
-            .send({ error: "What should Sweep watch for?", code: "INVALID_KEYWORD" });
+            .send({
+              error: "What should Sweep watch for?",
+              code: "INVALID_KEYWORD",
+            });
         }
         const next = keyword.trim().slice(0, MAX_KEYWORD_LENGTH);
 
@@ -179,7 +197,10 @@ export async function radarRoutes(app: FastifyInstance) {
         if (target === "invalid") {
           return reply
             .status(400)
-            .send({ error: "That target price doesn't look right.", code: "INVALID_TARGET" });
+            .send({
+              error: "That target price doesn't look right.",
+              code: "INVALID_TARGET",
+            });
         }
         data.targetPrice = target;
       }
@@ -197,7 +218,8 @@ export async function radarRoutes(app: FastifyInstance) {
       const deleted = await prisma.savedSearch.deleteMany({
         where: { id: request.params.id, userId: request.userId! },
       });
-      if (deleted.count === 0) return reply.status(404).send({ error: "Radar not found" });
+      if (deleted.count === 0)
+        return reply.status(404).send({ error: "Radar not found" });
       return { ok: true };
     },
   );
@@ -205,7 +227,10 @@ export async function radarRoutes(app: FastifyInstance) {
   // ---- run one now ----
   app.post<{ Params: { id: string } }>(
     "/radar/:id/refresh",
-    { preHandler: requireAuth },
+    {
+      preHandler: requireAuth,
+      config: { rateLimit: SCRAPE_LIMIT },
+    },
     async (request, reply) => {
       const userId = request.userId!;
 
@@ -215,7 +240,8 @@ export async function radarRoutes(app: FastifyInstance) {
       if (!saved) return reply.status(404).send({ error: "Radar not found" });
 
       const wallet = await prisma.wallet.findUnique({ where: { userId } });
-      if (!wallet) return reply.status(404).send({ error: "No wallet for user" });
+      if (!wallet)
+        return reply.status(404).send({ error: "No wallet for user" });
 
       // Checked before the work, so nobody waits 30 seconds to be refused.
       const state = await getRadarRefreshState(userId);
@@ -273,7 +299,8 @@ export async function radarRoutes(app: FastifyInstance) {
 function normalizeTarget(value: unknown): number | null | "invalid" {
   if (value === undefined || value === null || value === "") return null;
   const cents = typeof value === "number" ? Math.round(value) : Number(value);
-  if (!Number.isFinite(cents) || cents <= 0 || cents > MAX_TARGET_CENTS) return "invalid";
+  if (!Number.isFinite(cents) || cents <= 0 || cents > MAX_TARGET_CENTS)
+    return "invalid";
   return cents;
 }
 

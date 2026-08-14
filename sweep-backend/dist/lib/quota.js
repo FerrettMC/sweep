@@ -4,6 +4,7 @@
 // money — every search fans out to five retailers, and the Amazon leg costs
 // Bright Data quota — so it's enforced here, server-side, before any scraping
 // starts. The client is told its remaining count purely so it can render it.
+import { createHash } from "node:crypto";
 import { prisma } from "./prisma.js";
 import { GUEST_LIMITS, MAX_REWARDED_SEARCHES_PER_DAY, effectiveTier, TIER_LIMITS, } from "./tiers.js";
 /**
@@ -206,5 +207,147 @@ function state(used, limit, bonus, resetsAt, tier, adsAllowed = true) {
         // Only ad-supported tiers can top up, and only up to the daily ceiling.
         canWatchAd: adsAllowed && TIER_LIMITS[tier].showAds && bonus < MAX_REWARDED_SEARCHES_PER_DAY,
         resetsAt,
+    };
+}
+export async function getSweepQuota(userId) {
+    const wallet = await prisma.wallet.findUnique({ where: { userId } });
+    if (!wallet)
+        return null;
+    const limit = TIER_LIMITS[effectiveTier(wallet)].sweepsPerDay;
+    if (isStale(wallet.sweepsResetAt)) {
+        const resetsAt = nextResetAt();
+        await prisma.wallet.update({
+            where: { userId },
+            data: { sweepsUsedToday: 0, sweepsResetAt: resetsAt },
+        });
+        return { used: 0, limit, remaining: limit, resetsAt, available: limit > 0 };
+    }
+    const used = wallet.sweepsUsedToday;
+    return {
+        used,
+        limit,
+        remaining: Math.max(0, limit - used),
+        resetsAt: wallet.sweepsResetAt,
+        available: limit > 0,
+    };
+}
+/**
+ * Spend one sweep. Returns null if the user has none left, so the caller can
+ * refuse before doing any of the expensive work.
+ */
+export async function consumeSweep(userId) {
+    const state = await getSweepQuota(userId);
+    if (!state || state.remaining <= 0)
+        return null;
+    await prisma.wallet.update({
+        where: { userId },
+        data: { sweepsUsedToday: { increment: 1 } },
+    });
+    return { ...state, used: state.used + 1, remaining: state.remaining - 1 };
+}
+export async function getRadarRefreshState(userId) {
+    const wallet = await prisma.wallet.findUnique({ where: { userId } });
+    if (!wallet)
+        return null;
+    const limit = TIER_LIMITS[effectiveTier(wallet)].radarRefreshesPerDay;
+    if (isStale(wallet.radarRefreshesResetAt)) {
+        const resetsAt = nextResetAt();
+        await prisma.wallet.update({
+            where: { userId },
+            data: { radarRefreshesToday: 0, radarRefreshesResetAt: resetsAt },
+        });
+        return { used: 0, limit, remaining: limit, resetsAt };
+    }
+    const used = wallet.radarRefreshesToday;
+    return {
+        used,
+        limit,
+        remaining: Math.max(0, limit - used),
+        resetsAt: wallet.radarRefreshesResetAt,
+    };
+}
+/** Spend one refresh, or return null if there are none left. */
+export async function consumeRadarRefresh(userId) {
+    const state = await getRadarRefreshState(userId);
+    if (!state || state.remaining <= 0)
+        return null;
+    await prisma.wallet.update({
+        where: { userId },
+        data: { radarRefreshesToday: { increment: 1 } },
+    });
+    return { ...state, used: state.used + 1, remaining: state.remaining - 1 };
+}
+export async function getRadarChangeState(userId) {
+    const wallet = await prisma.wallet.findUnique({ where: { userId } });
+    if (!wallet)
+        return null;
+    const limit = TIER_LIMITS[effectiveTier(wallet)].radarChangesPerDay;
+    if (isStale(wallet.radarChangesResetAt)) {
+        const resetsAt = nextResetAt();
+        await prisma.wallet.update({
+            where: { userId },
+            data: { radarChangesToday: 0, radarChangesResetAt: resetsAt },
+        });
+        return { used: 0, limit, remaining: limit, resetsAt };
+    }
+    const used = wallet.radarChangesToday;
+    return {
+        used,
+        limit,
+        remaining: Math.max(0, limit - used),
+        resetsAt: wallet.radarChangesResetAt,
+    };
+}
+export async function consumeRadarChange(userId) {
+    const state = await getRadarChangeState(userId);
+    if (!state || state.remaining <= 0)
+        return null;
+    await prisma.wallet.update({
+        where: { userId },
+        data: { radarChangesToday: { increment: 1 } },
+    });
+    return { ...state, used: state.used + 1, remaining: state.remaining - 1 };
+}
+// ---- guest network ceiling -------------------------------------------------
+/**
+ * Guests are identified by a device id they send us, which anyone can change.
+ * That makes GuestQuota a courtesy, not a control: rotate the header and you
+ * get a fresh allowance, and every search costs an Amazon credit.
+ *
+ * So guests are also counted per network. Deliberately generous — offices,
+ * schools and mobile carriers put a lot of real people behind one address, and
+ * the goal is to stop a script, not to punish a shared connection.
+ */
+const GUEST_SEARCHES_PER_IP_PER_DAY = 25;
+function hashIp(ip) {
+    return createHash("sha256").update(`sweep:${ip}`).digest("hex").slice(0, 32);
+}
+/** Count a guest search against its network, and say whether to allow it. */
+export async function consumeGuestIpSearch(ip) {
+    const ipHash = hashIp(ip);
+    const existing = await prisma.ipQuota.findUnique({ where: { ipHash } });
+    if (!existing || isStale(existing.searchesResetAt)) {
+        await prisma.ipQuota.upsert({
+            where: { ipHash },
+            create: { ipHash, searchesUsedToday: 1, searchesResetAt: nextResetAt() },
+            update: { searchesUsedToday: 1, searchesResetAt: nextResetAt() },
+        });
+        return { allowed: true, used: 1, limit: GUEST_SEARCHES_PER_IP_PER_DAY };
+    }
+    if (existing.searchesUsedToday >= GUEST_SEARCHES_PER_IP_PER_DAY) {
+        return {
+            allowed: false,
+            used: existing.searchesUsedToday,
+            limit: GUEST_SEARCHES_PER_IP_PER_DAY,
+        };
+    }
+    const updated = await prisma.ipQuota.update({
+        where: { ipHash },
+        data: { searchesUsedToday: { increment: 1 } },
+    });
+    return {
+        allowed: true,
+        used: updated.searchesUsedToday,
+        limit: GUEST_SEARCHES_PER_IP_PER_DAY,
     };
 }

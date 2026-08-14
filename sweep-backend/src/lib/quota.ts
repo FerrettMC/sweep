@@ -5,6 +5,7 @@
 // Bright Data quota — so it's enforced here, server-side, before any scraping
 // starts. The client is told its remaining count purely so it can render it.
 
+import { createHash } from "node:crypto";
 import { prisma } from "./prisma.js";
 import {
   GUEST_LIMITS,
@@ -481,4 +482,60 @@ export async function consumeRadarChange(
   });
 
   return { ...state, used: state.used + 1, remaining: state.remaining - 1 };
+}
+
+// ---- guest network ceiling -------------------------------------------------
+
+/**
+ * Guests are identified by a device id they send us, which anyone can change.
+ * That makes GuestQuota a courtesy, not a control: rotate the header and you
+ * get a fresh allowance, and every search costs an Amazon credit.
+ *
+ * So guests are also counted per network. Deliberately generous — offices,
+ * schools and mobile carriers put a lot of real people behind one address, and
+ * the goal is to stop a script, not to punish a shared connection.
+ */
+const GUEST_SEARCHES_PER_IP_PER_DAY = 25;
+
+function hashIp(ip: string): string {
+  return createHash("sha256").update(`sweep:${ip}`).digest("hex").slice(0, 32);
+}
+
+export interface IpQuotaResult {
+  allowed: boolean;
+  used: number;
+  limit: number;
+}
+
+/** Count a guest search against its network, and say whether to allow it. */
+export async function consumeGuestIpSearch(ip: string): Promise<IpQuotaResult> {
+  const ipHash = hashIp(ip);
+  const existing = await prisma.ipQuota.findUnique({ where: { ipHash } });
+
+  if (!existing || isStale(existing.searchesResetAt)) {
+    await prisma.ipQuota.upsert({
+      where: { ipHash },
+      create: { ipHash, searchesUsedToday: 1, searchesResetAt: nextResetAt() },
+      update: { searchesUsedToday: 1, searchesResetAt: nextResetAt() },
+    });
+    return { allowed: true, used: 1, limit: GUEST_SEARCHES_PER_IP_PER_DAY };
+  }
+
+  if (existing.searchesUsedToday >= GUEST_SEARCHES_PER_IP_PER_DAY) {
+    return {
+      allowed: false,
+      used: existing.searchesUsedToday,
+      limit: GUEST_SEARCHES_PER_IP_PER_DAY,
+    };
+  }
+
+  const updated = await prisma.ipQuota.update({
+    where: { ipHash },
+    data: { searchesUsedToday: { increment: 1 } },
+  });
+  return {
+    allowed: true,
+    used: updated.searchesUsedToday,
+    limit: GUEST_SEARCHES_PER_IP_PER_DAY,
+  };
 }

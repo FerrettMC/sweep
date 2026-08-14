@@ -12,6 +12,7 @@ import type { FastifyInstance } from "fastify";
 import { optionalAuth, requireAuth } from "../lib/auth.js";
 import { FEATURE_GROUP_LABELS, getPlans } from "../lib/plans.js";
 import { effectiveTier } from "../lib/tiers.js";
+import { SENSITIVE_LIMIT } from "../lib/rateLimit.js";
 import { prisma } from "../lib/prisma.js";
 import { badgesFor, collectBadgeStats } from "../lib/badges.js";
 import { displayName, levelFromXp, levelTitle } from "../lib/xp.js";
@@ -112,7 +113,9 @@ export async function leaderboardRoutes(app: FastifyInstance) {
 
     // Attach titles so the feed reads as "AirPods 4 — 32% below average"
     // rather than as a row of opaque ids.
-    const productIds = [...new Set(history.map((h) => h.productId).filter(Boolean))] as string[];
+    const productIds = [
+      ...new Set(history.map((h) => h.productId).filter(Boolean)),
+    ] as string[];
     const products = productIds.length
       ? await prisma.product.findMany({
           where: { id: { in: productIds } },
@@ -147,38 +150,51 @@ export async function leaderboardRoutes(app: FastifyInstance) {
         xp: entry.xpChange,
         reason: entry.reason,
         detail: entry.detail,
-        productTitle: entry.productId ? (titleById.get(entry.productId) ?? null) : null,
+        productTitle: entry.productId
+          ? (titleById.get(entry.productId) ?? null)
+          : null,
         at: entry.createdAt,
       })),
     };
   });
 
   // ---- choose a public name ----
-  app.put("/me/username", { preHandler: requireAuth }, async (request, reply) => {
-    const userId = request.userId!;
-    const { username } = (request.body ?? {}) as { username?: unknown };
+  app.put(
+    "/me/username",
+    {
+      preHandler: requireAuth,
+      config: { rateLimit: SENSITIVE_LIMIT },
+    },
+    async (request, reply) => {
+      const userId = request.userId!;
+      const { username } = (request.body ?? {}) as { username?: unknown };
 
-    if (typeof username !== "string" || !USERNAME_PATTERN.test(username)) {
-      return reply.status(400).send({
-        error: "Usernames are 3–16 characters, letters, numbers and underscores only.",
-        code: "INVALID_USERNAME",
+      if (typeof username !== "string" || !USERNAME_PATTERN.test(username)) {
+        return reply.status(400).send({
+          error:
+            "Usernames are 3–16 characters, letters, numbers and underscores only.",
+          code: "INVALID_USERNAME",
+        });
+      }
+
+      // Case-insensitive uniqueness, so "Ferret" and "ferret" can't both exist
+      // and be mistaken for each other on a public board.
+      const taken = await prisma.user.findFirst({
+        where: {
+          username: { equals: username, mode: "insensitive" },
+          id: { not: userId },
+        },
+        select: { id: true },
       });
-    }
+      if (taken) {
+        return reply.status(409).send({
+          error: "That username is taken.",
+          code: "USERNAME_TAKEN",
+        });
+      }
 
-    // Case-insensitive uniqueness, so "Ferret" and "ferret" can't both exist
-    // and be mistaken for each other on a public board.
-    const taken = await prisma.user.findFirst({
-      where: { username: { equals: username, mode: "insensitive" }, id: { not: userId } },
-      select: { id: true },
-    });
-    if (taken) {
-      return reply.status(409).send({
-        error: "That username is taken.",
-        code: "USERNAME_TAKEN",
-      });
-    }
-
-    await prisma.user.update({ where: { id: userId }, data: { username } });
-    return { username };
-  });
+      await prisma.user.update({ where: { id: userId }, data: { username } });
+      return { username };
+    },
+  );
 }

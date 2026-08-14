@@ -62,6 +62,10 @@ export async function scrapeBestBuyProduct(url) {
     if (!target.keyword) {
         return fail("failed", `couldn't recover a search term from ${url}`, elapsed(started));
     }
+    // Measured: the search page's inlined Apollo payload only ever carries the
+    // first 4 products — the rest of the grid is fetched client-side, so there
+    // is no wider net to cast. Asking for more is free but changes nothing; the
+    // real defence against a miss is the Product cache, which search now fills.
     const search = await searchBestBuy(target.keyword, 12);
     if (search.status !== "success") {
         return fail(search.status, search.detail, elapsed(started));
@@ -81,6 +85,8 @@ export async function scrapeBestBuyProduct(url) {
     }
     return ok(match, elapsed(started));
 }
+/** Words of the url slug to use as a search query. See parseProductUrl. */
+const KEYWORD_WORDS = 6;
 /**
  * Best Buy urls come in two shapes, and between them they give us a keyword
  * plus an identifier to match on:
@@ -94,8 +100,19 @@ function parseProductUrl(url) {
     const bsin = url.match(/\/product\/[^/]+\/([A-Z0-9]{8,})/)?.[1] ?? null;
     const slug = url.match(/\/product\/([^/?#]+)/)?.[1] ?? url.match(/\/site\/([^/?#]+)/)?.[1] ?? null;
     // "apple-airpods-4-white" -> "apple airpods 4 white"
+    //
+    // Capped at a handful of words on purpose. Best Buy slugs run long ("...
+    // wireless active noise cancelling earbuds with heart rate sensing feature
+    // white") and feeding the whole thing in as a query measurably *hurts*
+    // relevance — the item drops out of its own search results. The leading
+    // words are the brand and model, which is what actually identifies it.
     const keyword = slug
-        ? decodeURIComponent(slug).replace(/-/g, " ").trim().slice(0, 80) || null
+        ? decodeURIComponent(slug)
+            .replace(/-/g, " ")
+            .trim()
+            .split(/\s+/)
+            .slice(0, KEYWORD_WORDS)
+            .join(" ") || null
         : null;
     return { keyword, sku, bsin };
 }

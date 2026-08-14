@@ -12,7 +12,11 @@
 
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../lib/prisma.js";
-import { RETAILER_LABELS, isRetailer, storeListPhrase } from "../lib/scrapers/types.js";
+import {
+  RETAILER_LABELS,
+  isRetailer,
+  storeListPhrase,
+} from "../lib/scrapers/types.js";
 import { displayName } from "../lib/xp.js";
 
 /** Where the app can be installed. Filled in once there's a store listing. */
@@ -26,47 +30,53 @@ const STORE_URL = process.env.APP_STORE_URL ?? null;
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL ?? "support@sweepapp.example";
 
 export async function sharePageRoutes(app: FastifyInstance) {
-  app.get<{ Params: { token: string } }>("/list/:token", async (request, reply) => {
-    const list = await prisma.list.findUnique({
-      where: { shareToken: request.params.token },
-      include: {
-        user: { select: { id: true, username: true } },
-        items: { orderBy: { addedAt: "desc" }, include: { product: true } },
-      },
-    });
+  app.get<{ Params: { token: string } }>(
+    "/list/:token",
+    async (request, reply) => {
+      const list = await prisma.list.findUnique({
+        where: { shareToken: request.params.token },
+        include: {
+          user: { select: { id: true, username: true } },
+          items: { orderBy: { addedAt: "desc" }, include: { product: true } },
+        },
+      });
 
-    reply.type("text/html; charset=utf-8");
+      reply.type("text/html; charset=utf-8");
 
-    if (!list || !list.isPublic) {
-      return reply.status(404).send(
-        page(
-          "List not found",
-          `<div class="empty">
+      if (!list || !list.isPublic) {
+        return reply.status(404).send(
+          page(
+            "List not found",
+            `<div class="empty">
              <h1>This list isn't available</h1>
              <p>The link may be wrong, or whoever shared it has turned sharing off.</p>
            </div>`,
-        ),
+          ),
+        );
+      }
+
+      const owner = displayName(list.user);
+      const total = list.items.reduce(
+        (sum, item) => sum + (item.product.currentPrice ?? 0),
+        0,
       );
-    }
 
-    const owner = displayName(list.user);
-    const total = list.items.reduce(
-      (sum, item) => sum + (item.product.currentPrice ?? 0),
-      0,
-    );
+      const items = list.items
+        .map((item) => {
+          const p = item.product;
+          const retailer = isRetailer(p.retailer)
+            ? RETAILER_LABELS[p.retailer]
+            : p.retailer;
+          const price =
+            p.currentPrice !== null
+              ? `$${(p.currentPrice / 100).toFixed(2)}`
+              : "—";
+          const wasCheaper =
+            p.listPrice !== null &&
+            p.currentPrice !== null &&
+            p.listPrice > p.currentPrice;
 
-    const items = list.items
-      .map((item) => {
-        const p = item.product;
-        const retailer = isRetailer(p.retailer)
-          ? RETAILER_LABELS[p.retailer]
-          : p.retailer;
-        const price =
-          p.currentPrice !== null ? `$${(p.currentPrice / 100).toFixed(2)}` : "—";
-        const wasCheaper =
-          p.listPrice !== null && p.currentPrice !== null && p.listPrice > p.currentPrice;
-
-        return `
+          return `
           <li class="item${item.claimed ? " claimed" : ""}">
             <div class="thumb">${
               p.imageUrl
@@ -87,13 +97,13 @@ export async function sharePageRoutes(app: FastifyInstance) {
               ${item.claimed ? "Undo" : "I'll get this"}
             </button>
           </li>`;
-      })
-      .join("");
+        })
+        .join("");
 
-    return reply.send(
-      page(
-        `${list.name} — a Sweep list`,
-        `<header>
+      return reply.send(
+        page(
+          `${list.name} — a Sweep list`,
+          `<header>
            <div class="brand">Sweep</div>
            <h1>${escapeHtml(list.name)}</h1>
            <p class="by">Shared by ${escapeHtml(owner)}</p>
@@ -135,9 +145,10 @@ export async function sharePageRoutes(app: FastifyInstance) {
              });
            });
          </script>`,
-      ),
-    );
-  });
+        ),
+      );
+    },
+  );
 }
 
 /** Shell shared by both states. Inline CSS — one request, no dependencies. */

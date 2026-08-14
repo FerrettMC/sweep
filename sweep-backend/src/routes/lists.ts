@@ -18,6 +18,7 @@
 import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { optionalAuth, requireAuth } from "../lib/auth.js";
+import { SCRAPE_LIMIT } from "../lib/rateLimit.js";
 import { prisma } from "../lib/prisma.js";
 import { resolveProduct } from "../lib/resolveProduct.js";
 import { effectiveTier, limitsFor } from "../lib/tiers.js";
@@ -162,7 +163,10 @@ export async function listRoutes(app: FastifyInstance) {
   // Accepts a pasted url or a retailer + retailerId pair, same as tracking.
   app.post<{ Params: { id: string } }>(
     "/lists/:id/items",
-    { preHandler: requireAuth },
+    {
+      preHandler: requireAuth,
+      config: { rateLimit: SCRAPE_LIMIT },
+    },
     async (request, reply) => {
       const userId = request.userId!;
       const body = (request.body ?? {}) as {
@@ -179,7 +183,8 @@ export async function listRoutes(app: FastifyInstance) {
       if (!list) return reply.status(404).send({ error: "List not found" });
 
       const wallet = await prisma.wallet.findUnique({ where: { userId } });
-      if (!wallet) return reply.status(404).send({ error: "No wallet for user" });
+      if (!wallet)
+        return reply.status(404).send({ error: "No wallet for user" });
 
       const limits = limitsFor(wallet);
       if (list._count.items >= limits.maxItemsPerList) {
@@ -251,11 +256,15 @@ export async function listRoutes(app: FastifyInstance) {
       const { enabled } = (request.body ?? {}) as { enabled?: unknown };
 
       const wallet = await prisma.wallet.findUnique({ where: { userId } });
-      if (!wallet) return reply.status(404).send({ error: "No wallet for user" });
+      if (!wallet)
+        return reply.status(404).send({ error: "No wallet for user" });
       if (!limitsFor(wallet).shareableLists) {
         return reply
           .status(403)
-          .send({ error: "Sharing isn't available on your plan.", code: "TIER_REQUIRED" });
+          .send({
+            error: "Sharing isn't available on your plan.",
+            code: "TIER_REQUIRED",
+          });
       }
 
       const list = await prisma.list.findFirst({
@@ -273,7 +282,8 @@ export async function listRoutes(app: FastifyInstance) {
         return { isPublic: false, shareToken: null };
       }
 
-      const shareToken = list.shareToken ?? randomBytes(9).toString("base64url");
+      const shareToken =
+        list.shareToken ?? randomBytes(9).toString("base64url");
       await prisma.list.update({
         where: { id: list.id },
         data: { isPublic: true, shareToken },

@@ -19,32 +19,72 @@ export const TIER_LIMITS = {
         checkIntervalMinutes: 12 * 60,
         fixedCheckTimes: true,
         checkTimesPerDay: 2,
+        canSetCheckMinute: false,
         manualChecksPerDay: 5,
         manualCheckCooldownMinutes: null,
         customThresholds: false,
         showAds: true,
         priorityQueue: false,
+        // Deliberately generous: unlimited entries, 3 months of history.
+        budgetHistoryMonths: 3,
+        budgetLimits: false,
+        customCategories: false,
+        budgetExport: false,
+        sweepsPerDay: 0,
+        maxSavedSearches: 1,
+        savedSearchIntervalMinutes: 0,
+        radarRefreshesPerDay: 2,
+        radarChangesPerDay: 3,
+        maxLists: 1,
+        maxItemsPerList: 10,
+        shareableLists: true,
     },
     pro: {
         maxTrackedProducts: 20,
-        searchesPerDay: 10,
+        // Raised from 10. Under Bright Data a compiled search cost 4 credits (one
+        // per Amazon result); amazonscraperapi bills per request, so it's 1. The
+        // old cap was priced for the old billing.
+        searchesPerDay: 30,
         historyDays: 90,
-        checkIntervalMinutes: 60,
+        // Every 4 hours. Six checks a day catches any real drop — price cuts last
+        // hours or days, not minutes — and it leaves a genuine 4× step up to
+        // Ultimate rather than a marginal one.
+        checkIntervalMinutes: 240,
         fixedCheckTimes: false,
         checkTimesPerDay: 0,
+        canSetCheckMinute: true,
         manualChecksPerDay: null,
         manualCheckCooldownMinutes: 30,
-        customThresholds: false,
+        customThresholds: true,
         showAds: false,
         priorityQueue: false,
+        budgetHistoryMonths: 12,
+        budgetLimits: true,
+        customCategories: true,
+        budgetExport: true,
+        sweepsPerDay: 1,
+        maxSavedSearches: 5,
+        savedSearchIntervalMinutes: 12 * 60,
+        radarRefreshesPerDay: 20,
+        radarChangesPerDay: 10,
+        maxLists: 5,
+        maxItemsPerList: 30,
+        shareableLists: true,
     },
     ultimate: {
         maxTrackedProducts: 100,
-        searchesPerDay: 100,
+        // Effectively unlimited for a human — nobody runs 200 searches a day — but
+        // still a number. "Unlimited" is the one knob that scales with signups
+        // rather than with bounded usage, which is the trap worth avoiding.
+        searchesPerDay: 200,
         historyDays: null,
-        checkIntervalMinutes: 30,
+        // Hourly rather than every 30 minutes. Halves the Amazon bill for the
+        // tier that was consuming half the entire budget, for a difference nobody
+        // can act on — you can't buy something twice as fast.
+        checkIntervalMinutes: 60,
         fixedCheckTimes: false,
         checkTimesPerDay: 0,
+        canSetCheckMinute: true,
         // Unlimited, deliberately: this is bounded by a human tapping a button,
         // not by signups, so it can't run away the way an unlimited tracking
         // allowance would.
@@ -53,6 +93,19 @@ export const TIER_LIMITS = {
         customThresholds: true,
         showAds: false,
         priorityQueue: true,
+        budgetHistoryMonths: null,
+        budgetLimits: true,
+        customCategories: true,
+        budgetExport: true,
+        sweepsPerDay: 3,
+        maxSavedSearches: 15,
+        savedSearchIntervalMinutes: 6 * 60,
+        // Deliberately a number, not unlimited: see radarRefreshesPerDay.
+        radarRefreshesPerDay: 40,
+        radarChangesPerDay: 25,
+        maxLists: 20,
+        maxItemsPerList: 100,
+        shareableLists: true,
     },
 };
 /** Guests have no account. One search a day, and nothing else. */
@@ -80,6 +133,16 @@ export function effectiveTier(wallet) {
 }
 export function limitsFor(wallet) {
     return TIER_LIMITS[effectiveTier(wallet)];
+}
+/**
+ * The largest minute offset a tier may pick — you can't offset further than
+ * the interval itself, and never past 59 since it's expressed as a minute.
+ */
+export function maxCheckMinute(tier) {
+    const limits = TIER_LIMITS[tier];
+    if (!limits.canSetCheckMinute)
+        return 0;
+    return Math.min(limits.checkIntervalMinutes, 60) - 1;
 }
 /**
  * The oldest price point a tier may read. Null means no cutoff.

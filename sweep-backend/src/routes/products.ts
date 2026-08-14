@@ -10,6 +10,7 @@ import type { FastifyInstance } from "fastify";
 import { requireAuth } from "../lib/auth.js";
 import { checkProduct } from "../lib/priceChecker.js";
 import { resolveProduct } from "../lib/resolveProduct.js";
+import { SCRAPE_LIMIT } from "../lib/rateLimit.js";
 import { prisma } from "../lib/prisma.js";
 import { consumeManualCheck, getManualCheckState } from "../lib/quota.js";
 import {
@@ -67,7 +68,10 @@ export async function productRoutes(app: FastifyInstance) {
   // returned by compiled search.
   app.post(
     "/products/track",
-    { preHandler: requireAuth },
+    {
+      preHandler: requireAuth,
+      config: { rateLimit: SCRAPE_LIMIT },
+    },
     async (request, reply) => {
       const userId = request.userId!;
       const body = (request.body ?? {}) as {
@@ -179,7 +183,10 @@ export async function productRoutes(app: FastifyInstance) {
   // and the next person to paste the same link gets it free.
   app.post(
     "/products/preview",
-    { preHandler: requireAuth },
+    {
+      preHandler: requireAuth,
+      config: { rateLimit: SCRAPE_LIMIT },
+    },
     async (request, reply) => {
       const userId = request.userId!;
       const { url: rawUrl } = (request.body ?? {}) as { url?: string };
@@ -505,7 +512,10 @@ export async function productRoutes(app: FastifyInstance) {
   //   ultimate — unlimited
   app.post<{ Params: { id: string } }>(
     "/products/:id/refresh",
-    { preHandler: requireAuth },
+    {
+      preHandler: requireAuth,
+      config: { rateLimit: SCRAPE_LIMIT },
+    },
     async (request, reply) => {
       const userId = request.userId!;
 

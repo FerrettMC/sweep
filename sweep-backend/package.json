@@ -24,13 +24,15 @@
     "test:verify-drop": "tsx src/test-verify-drop.ts",
     "test:matching": "tsx src/test-matching.ts",
     "test:sweep": "tsx src/test-sweep.ts",
-    "test:radar": "tsx src/test-radar.ts"
+    "test:radar": "tsx src/test-radar.ts",
+    "test:security": "tsx src/test-security.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@fastify/rate-limit": "^11.2.0",
     "@prisma/client": "6.19.3",
     "@sentry/node": "^10.70.0",
     "@supabase/supabase-js": "^2.112.2",
@@ -47,5 +49,8 @@
     "@types/nodemailer": "^8.0.1",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=22 <25"
   }
 }

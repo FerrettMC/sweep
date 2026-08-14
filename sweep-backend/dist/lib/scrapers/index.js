@@ -28,7 +28,13 @@ export const adapters = {
         productUrl: walmartProductUrl,
         matchesUrl: (url) => /(^|\.)walmart\.com$/i.test(hostOf(url)),
         metered: false,
+        // Measured: bursts of back-to-back requests get "Robot or human?" (a 200
+        // with an interstitial, not a 429), and it clears on its own within
+        // minutes. Three in flight is fine; three in flight with no gap is not.
+        // 500ms caps us at ~2 req/s, which is far above anything the scheduler
+        // needs even at scale — see the throughput note in docs.
         concurrency: 3,
+        minIntervalMs: 500,
         categories: null,
     },
     newegg: {
@@ -38,6 +44,7 @@ export const adapters = {
         matchesUrl: (url) => /(^|\.)newegg\.com$/i.test(hostOf(url)),
         metered: false,
         concurrency: 2,
+        minIntervalMs: 400,
         categories: ["electronics"],
     },
     asos: {
@@ -47,6 +54,7 @@ export const adapters = {
         matchesUrl: (url) => /(^|\.)asos\.com$/i.test(hostOf(url)),
         metered: false,
         concurrency: 2,
+        minIntervalMs: 400,
         categories: ["clothing"],
     },
     bestbuy: {

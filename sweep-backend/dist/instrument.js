@@ -16,6 +16,18 @@ if (dsn) {
         // Performance sampling. Full rate in development is useful; in production
         // it's noise and quota, so sample down.
         tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+        // Never attach sentry-trace/baggage headers to outgoing requests.
+        //
+        // This is not a preference — it is load-bearing. Sentry's HTTP
+        // instrumentation adds those headers to EVERY outbound request, including
+        // the ones we make to retailers, and Walmart's bot detection treats them
+        // as a fingerprint: with tracing headers attached, its search page returns
+        // the "Robot or human?" interstitial 100% of the time. Measured 0/4 with
+        // them and 4/4 without, back to back.
+        //
+        // We gain nothing by propagating traces to a third party we don't operate,
+        // so the empty list costs us nothing and keeps the scrapers working.
+        tracePropagationTargets: [],
         // Scrape failures are recorded in ScrapeCheck and alerted on by email —
         // they're expected operational events, not exceptions, and shipping them
         // to Sentry as well would bury real bugs under retailer flakiness.

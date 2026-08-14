@@ -8,13 +8,16 @@ import { useCallback, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
-import { Button, Loading, Screen, SectionTitle } from "@/components/ui";
+import { Button, ErrorBanner, Loading, Screen, SectionTitle } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
-import { APP_VERSION, SUPPORT_EMAIL, supportMailto } from "@/constants/support";
+import { APP_VERSION, PRIVACY_URL, SUPPORT_EMAIL, supportMailto } from "@/constants/support";
 import { resetOnboarding } from "@/lib/onboarding";
 import { type ThemeMode, useTheme, useThemedStyles } from "@/lib/theme";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import UsernameSheet from "@/components/UsernameSheet";
 import {
+  ApiError,
+  deleteAccount,
   getMyXp,
   getNotificationStatus,
   getPlans,
@@ -49,6 +52,9 @@ export default function ProfileScreen() {
   // Fetched rather than hardcoded: the copy that used to live here drifted and
   // advertised Pro at 10 searches a day months after the cap moved to 30.
   const [planSummary, setPlanSummary] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [searchesLeft, setSearchesLeft] = useState<number | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [retailers, setRetailers] = useState<RetailerStatus[] | null>(null);
@@ -117,6 +123,22 @@ export default function ProfileScreen() {
     }
 
     setEnablingPush(false);
+  }
+
+  async function onDeleteAccount() {
+    setDeleting(true);
+    setConfirmingDelete(false);
+    try {
+      await deleteAccount();
+      // The session is dead server-side; clearing it locally is what sends the
+      // auth gate back to the sign-in screen.
+      await supabase.auth.signOut();
+      await setGuestMode(false);
+      router.replace("/auth");
+    } catch (err) {
+      setDeleting(false);
+      setError((err as ApiError).message);
+    }
   }
 
   async function onSignOut() {
@@ -323,6 +345,21 @@ export default function ProfileScreen() {
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
             </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.helpRow,
+                styles.statusRowDivided,
+                pressed && styles.pressed,
+              ]}
+              onPress={() => Linking.openURL(PRIVACY_URL)}
+            >
+              <Ionicons name="shield-checkmark-outline" size={18} color={colors.textSecondary} />
+              <View style={styles.helpText}>
+                <Text style={styles.helpTitle}>Privacy policy</Text>
+                <Text style={styles.helpSub}>What Sweep stores, and why</Text>
+              </View>
+              <Ionicons name="open-outline" size={15} color={colors.textTertiary} />
+            </Pressable>
             <View style={[styles.helpRow, styles.statusRowDivided]}>
               <Ionicons name="information-circle-outline" size={18} color={colors.textTertiary} />
               <View style={styles.helpText}>
@@ -332,6 +369,18 @@ export default function ProfileScreen() {
             </View>
           </View>
         </View>
+
+        {error && <ErrorBanner message={error} />}
+
+        {!isGuest && (
+          <Pressable
+            onPress={() => setConfirmingDelete(true)}
+            style={({ pressed }) => [styles.deleteRow, pressed && styles.pressed]}
+          >
+            <Ionicons name="trash-outline" size={15} color={colors.danger} />
+            <Text style={styles.deleteText}>Delete my account</Text>
+          </Pressable>
+        )}
 
         <View style={styles.actions}>
           {isGuest ? (
@@ -347,6 +396,23 @@ export default function ProfileScreen() {
         current={username}
         onClose={() => setEditingName(false)}
         onSaved={load}
+      />
+      <ConfirmDialog
+        content={
+          confirmingDelete && !deleting
+            ? {
+                icon: "trash-outline",
+                destructive: true,
+                title: "Delete your account?",
+                body: "This erases your tracked products, lists, budget, radars and XP. It cannot be undone.",
+                subject: email ? { title: email, caption: "This account" } : undefined,
+                confirmLabel: "Delete forever",
+                cancelLabel: "Keep my account",
+              }
+            : null
+        }
+        onCancel={() => setConfirmingDelete(false)}
+        onConfirm={onDeleteAccount}
       />
     </Screen>
   );
@@ -382,6 +448,18 @@ const makeStyles = (colors: Palette) =>
       fontWeight: "700",
     },
     themeLabelOn: { color: colors.accent },
+    deleteRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      paddingVertical: spacing.sm,
+    },
+    deleteText: {
+      color: colors.danger,
+      fontSize: type.label.fontSize,
+      fontWeight: "700",
+    },
     helpRow: {
       flexDirection: "row",
       alignItems: "center",

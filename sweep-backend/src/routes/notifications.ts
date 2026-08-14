@@ -37,7 +37,11 @@ export async function notificationRoutes(app: FastifyInstance) {
       await prisma.pushToken.upsert({
         where: { token },
         create: { token, userId, platform: normalizedPlatform },
-        update: { userId, platform: normalizedPlatform, lastUsedAt: new Date() },
+        update: {
+          userId,
+          platform: normalizedPlatform,
+          lastUsedAt: new Date(),
+        },
       });
 
       return { ok: true };

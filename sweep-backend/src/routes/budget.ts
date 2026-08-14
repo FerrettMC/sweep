@@ -43,15 +43,21 @@ export async function budgetRoutes(app: FastifyInstance) {
       const userId = request.userId!;
 
       const wallet = await prisma.wallet.findUnique({ where: { userId } });
-      if (!wallet) return reply.status(404).send({ error: "No wallet for user" });
+      if (!wallet)
+        return reply.status(404).send({ error: "No wallet for user" });
       const limits = limitsFor(wallet);
 
       const now = new Date();
-      const month = request.query.month ? parseMonth(request.query.month) : monthStart(now);
+      const month = request.query.month
+        ? parseMonth(request.query.month)
+        : monthStart(now);
       if (!month) {
         return reply
           .status(400)
-          .send({ error: "Month should look like 2026-08.", code: "INVALID_MONTH" });
+          .send({
+            error: "Month should look like 2026-08.",
+            code: "INVALID_MONTH",
+          });
       }
 
       const earliest = earliestReadableMonth(limits, now);
@@ -89,11 +95,16 @@ export async function budgetRoutes(app: FastifyInstance) {
       // answer.
       const byCategory = new Map<string, number>();
       for (const entry of entries) {
-        byCategory.set(entry.category, (byCategory.get(entry.category) ?? 0) + entry.amount);
+        byCategory.set(
+          entry.category,
+          (byCategory.get(entry.category) ?? 0) + entry.amount,
+        );
       }
 
       const categoryLimits = new Map(
-        allLimits.filter((row) => row.category !== OVERALL).map((row) => [row.category, row.amount]),
+        allLimits
+          .filter((row) => row.category !== OVERALL)
+          .map((row) => [row.category, row.amount]),
       );
       const overall = allLimits.find((row) => row.category === OVERALL) ?? null;
 
@@ -127,7 +138,9 @@ export async function budgetRoutes(app: FastifyInstance) {
           historyMonths: limits.budgetHistoryMonths,
           earliestMonth: earliest ? formatMonth(earliest) : null,
         },
-        availableCategories: availableCategories(usedCategories.map((row) => row.category)),
+        availableCategories: availableCategories(
+          usedCategories.map((row) => row.category),
+        ),
         tier: effectiveTier(wallet),
       };
     },
@@ -152,12 +165,17 @@ export async function budgetRoutes(app: FastifyInstance) {
     if (amount === null) {
       return reply
         .status(400)
-        .send({ error: "Enter an amount greater than zero.", code: "INVALID_AMOUNT" });
+        .send({
+          error: "Enter an amount greater than zero.",
+          code: "INVALID_AMOUNT",
+        });
     }
 
     const category = normalizeCategory(body.category);
     if (!category) {
-      return reply.status(400).send({ error: "Pick a category.", code: "INVALID_CATEGORY" });
+      return reply
+        .status(400)
+        .send({ error: "Pick a category.", code: "INVALID_CATEGORY" });
     }
     // Custom categories are a paid perk, so a free user is held to the
     // defaults. Checked here because the client's picker can be bypassed.
@@ -230,14 +248,19 @@ export async function budgetRoutes(app: FastifyInstance) {
         if (amount === null) {
           return reply
             .status(400)
-            .send({ error: "Enter an amount greater than zero.", code: "INVALID_AMOUNT" });
+            .send({
+              error: "Enter an amount greater than zero.",
+              code: "INVALID_AMOUNT",
+            });
         }
         data.amount = amount;
       }
       if (body.category !== undefined) {
         const category = normalizeCategory(body.category);
         if (!category) {
-          return reply.status(400).send({ error: "Pick a category.", code: "INVALID_CATEGORY" });
+          return reply
+            .status(400)
+            .send({ error: "Pick a category.", code: "INVALID_CATEGORY" });
         }
         data.category = category;
       }
@@ -249,7 +272,10 @@ export async function budgetRoutes(app: FastifyInstance) {
         if (spentAt === null) {
           return reply
             .status(400)
-            .send({ error: "That date doesn't look right.", code: "INVALID_DATE" });
+            .send({
+              error: "That date doesn't look right.",
+              code: "INVALID_DATE",
+            });
         }
         data.spentAt = spentAt;
       }
@@ -286,53 +312,69 @@ export async function budgetRoutes(app: FastifyInstance) {
   //
   // `category: null` is the overall monthly budget, which every tier gets.
   // A named category is a paid perk. `amount: null` clears it.
-  app.put("/budget/limits", { preHandler: requireAuth }, async (request, reply) => {
-    const userId = request.userId!;
-    const body = (request.body ?? {}) as { category?: unknown; amount?: unknown };
+  app.put(
+    "/budget/limits",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const userId = request.userId!;
+      const body = (request.body ?? {}) as {
+        category?: unknown;
+        amount?: unknown;
+      };
 
-    const wallet = await prisma.wallet.findUnique({ where: { userId } });
-    if (!wallet) return reply.status(404).send({ error: "No wallet for user" });
-    const limits = limitsFor(wallet);
+      const wallet = await prisma.wallet.findUnique({ where: { userId } });
+      if (!wallet)
+        return reply.status(404).send({ error: "No wallet for user" });
+      const limits = limitsFor(wallet);
 
-    const category =
-      body.category === null || body.category === undefined
-        ? null
-        : normalizeCategory(body.category);
-    if (body.category !== null && body.category !== undefined && !category) {
-      return reply.status(400).send({ error: "Pick a category.", code: "INVALID_CATEGORY" });
-    }
+      const category =
+        body.category === null || body.category === undefined
+          ? null
+          : normalizeCategory(body.category);
+      if (body.category !== null && body.category !== undefined && !category) {
+        return reply
+          .status(400)
+          .send({ error: "Pick a category.", code: "INVALID_CATEGORY" });
+      }
 
-    if (category !== null && !limits.budgetLimits) {
-      return reply.status(403).send({
-        error: "Per-category limits are a Pro feature. Your overall monthly budget still works.",
-        code: "CATEGORY_LIMIT_REQUIRES_TIER",
-        tier: effectiveTier(wallet),
+      if (category !== null && !limits.budgetLimits) {
+        return reply.status(403).send({
+          error:
+            "Per-category limits are a Pro feature. Your overall monthly budget still works.",
+          code: "CATEGORY_LIMIT_REQUIRES_TIER",
+          tier: effectiveTier(wallet),
+        });
+      }
+
+      // `` is how "overall" is stored; the API keeps speaking null.
+      const stored = category ?? OVERALL;
+
+      if (body.amount === null) {
+        await prisma.budgetLimit.deleteMany({
+          where: { userId, category: stored },
+        });
+        return { ok: true, category, amount: null };
+      }
+
+      const amount = normalizeAmount(body.amount);
+      if (amount === null) {
+        return reply
+          .status(400)
+          .send({
+            error: "Enter an amount greater than zero.",
+            code: "INVALID_AMOUNT",
+          });
+      }
+
+      await prisma.budgetLimit.upsert({
+        where: { userId_category: { userId, category: stored } },
+        create: { userId, category: stored, amount },
+        update: { amount },
       });
-    }
 
-    // `` is how "overall" is stored; the API keeps speaking null.
-    const stored = category ?? OVERALL;
-
-    if (body.amount === null) {
-      await prisma.budgetLimit.deleteMany({ where: { userId, category: stored } });
-      return { ok: true, category, amount: null };
-    }
-
-    const amount = normalizeAmount(body.amount);
-    if (amount === null) {
-      return reply
-        .status(400)
-        .send({ error: "Enter an amount greater than zero.", code: "INVALID_AMOUNT" });
-    }
-
-    await prisma.budgetLimit.upsert({
-      where: { userId_category: { userId, category: stored } },
-      create: { userId, category: stored, amount },
-      update: { amount },
-    });
-
-    return { ok: true, category, amount };
-  });
+      return { ok: true, category, amount };
+    },
+  );
 
   // ---- what to prefill "I bought this" with ----
   //
@@ -346,7 +388,8 @@ export async function budgetRoutes(app: FastifyInstance) {
       const product = await prisma.product.findUnique({
         where: { id: request.params.productId },
       });
-      if (!product) return reply.status(404).send({ error: "Product not found" });
+      if (!product)
+        return reply.status(404).send({ error: "Product not found" });
 
       return {
         productId: product.id,
@@ -358,48 +401,56 @@ export async function budgetRoutes(app: FastifyInstance) {
   );
 
   // ---- export ----
-  app.get("/budget/export.csv", { preHandler: requireAuth }, async (request, reply) => {
-    const userId = request.userId!;
+  app.get(
+    "/budget/export.csv",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const userId = request.userId!;
 
-    const wallet = await prisma.wallet.findUnique({ where: { userId } });
-    if (!wallet) return reply.status(404).send({ error: "No wallet for user" });
-    const limits = limitsFor(wallet);
+      const wallet = await prisma.wallet.findUnique({ where: { userId } });
+      if (!wallet)
+        return reply.status(404).send({ error: "No wallet for user" });
+      const limits = limitsFor(wallet);
 
-    if (!limits.budgetExport) {
-      return reply.status(403).send({
-        error: "Exporting is a Pro feature.",
-        code: "EXPORT_REQUIRES_TIER",
-        tier: effectiveTier(wallet),
+      if (!limits.budgetExport) {
+        return reply.status(403).send({
+          error: "Exporting is a Pro feature.",
+          code: "EXPORT_REQUIRES_TIER",
+          tier: effectiveTier(wallet),
+        });
+      }
+
+      // Export respects the same history window as the month view — otherwise
+      // it would be a way to read back further than the plan allows.
+      const earliest = earliestReadableMonth(limits, new Date());
+      const entries = await prisma.budgetEntry.findMany({
+        where: { userId, ...(earliest ? { spentAt: { gte: earliest } } : {}) },
+        orderBy: { spentAt: "desc" },
+        include: { product: true },
       });
-    }
 
-    // Export respects the same history window as the month view — otherwise
-    // it would be a way to read back further than the plan allows.
-    const earliest = earliestReadableMonth(limits, new Date());
-    const entries = await prisma.budgetEntry.findMany({
-      where: { userId, ...(earliest ? { spentAt: { gte: earliest } } : {}) },
-      orderBy: { spentAt: "desc" },
-      include: { product: true },
-    });
+      const rows = [
+        "Date,Amount,Category,Description,Store,Link",
+        ...entries.map((entry) =>
+          [
+            entry.spentAt.toISOString().slice(0, 10),
+            (entry.amount / 100).toFixed(2),
+            csvCell(entry.category),
+            csvCell(entry.description ?? ""),
+            csvCell(entry.product?.retailer ?? ""),
+            csvCell(entry.product?.url ?? ""),
+          ].join(","),
+        ),
+      ];
 
-    const rows = [
-      "Date,Amount,Category,Description,Store,Link",
-      ...entries.map((entry) =>
-        [
-          entry.spentAt.toISOString().slice(0, 10),
-          (entry.amount / 100).toFixed(2),
-          csvCell(entry.category),
-          csvCell(entry.description ?? ""),
-          csvCell(entry.product?.retailer ?? ""),
-          csvCell(entry.product?.url ?? ""),
-        ].join(","),
-      ),
-    ];
-
-    reply.header("Content-Type", "text/csv; charset=utf-8");
-    reply.header("Content-Disposition", 'attachment; filename="sweep-spending.csv"');
-    return reply.send(rows.join("\n"));
-  });
+      reply.header("Content-Type", "text/csv; charset=utf-8");
+      reply.header(
+        "Content-Disposition",
+        'attachment; filename="sweep-spending.csv"',
+      );
+      return reply.send(rows.join("\n"));
+    },
+  );
 }
 
 // ---- validation ------------------------------------------------------------
@@ -450,7 +501,13 @@ function serializeEntry(entry: {
   category: string;
   description: string | null;
   spentAt: Date;
-  product: { id: string; title: string; retailer: string; imageUrl: string | null; url: string } | null;
+  product: {
+    id: string;
+    title: string;
+    retailer: string;
+    imageUrl: string | null;
+    url: string;
+  } | null;
 }) {
   return {
     id: entry.id,

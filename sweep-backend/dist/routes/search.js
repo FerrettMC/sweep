@@ -7,21 +7,26 @@
 // metered), so the quota check happens before any work starts, and it is
 // spent even if some retailers fail — otherwise a partial outage would make
 // searches free.
+import { verifySsvCallback } from "../lib/admobSsv.js";
 import { optionalAuth, requireAuth } from "../lib/auth.js";
 import { recordCheck } from "../lib/health.js";
-import { prisma } from "../lib/prisma.js";
-import { consumeGuestSearch, consumeUserSearch, getGuestQuota, getUserQuota, grantRewardedSearch, } from "../lib/quota.js";
-import { verifySsvCallback } from "../lib/admobSsv.js";
 import { pickHighlights } from "../lib/highlights.js";
+import { cacheSearchResults } from "../lib/priceChecker.js";
+import { SCRAPE_LIMIT, SENSITIVE_LIMIT } from "../lib/rateLimit.js";
+import { prisma } from "../lib/prisma.js";
+import { consumeGuestIpSearch, consumeGuestSearch, consumeUserSearch, getGuestQuota, getUserQuota, grantRewardedSearch, } from "../lib/quota.js";
 import { routeQuery, searchAllRetailers } from "../lib/scrapers/index.js";
-import { getSearchJob, startAmazonSearch } from "../lib/searchJobs.js";
 import { RETAILERS, RETAILER_LABELS, isRetailer, } from "../lib/scrapers/types.js";
+import { getSearchJob, startAmazonSearch } from "../lib/searchJobs.js";
 import { effectiveTier } from "../lib/tiers.js";
 const MAX_KEYWORD_LENGTH = 120;
 const RESULTS_PER_RETAILER = 4;
 export async function searchRoutes(app) {
     // ---- compiled search ----
-    app.get("/search", { preHandler: optionalAuth }, async (request, reply) => {
+    app.get("/search", {
+        preHandler: optionalAuth,
+        config: { rateLimit: SCRAPE_LIMIT },
+    }, async (request, reply) => {
         const query = (request.query ?? {});
         const keyword = (query.q ?? "").trim();
         if (!keyword) {
@@ -45,6 +50,18 @@ export async function searchRoutes(app) {
                 error: "Sign in or send a device id to search.",
                 code: "IDENTIFY_REQUIRED",
             });
+        }
+        // Guests are also counted per network, because the device id above is
+        // just a header they chose. Without this, rotating it mints unlimited
+        // search quota and every search costs an Amazon credit.
+        if (!userId) {
+            const network = await consumeGuestIpSearch(request.ip);
+            if (!network.allowed) {
+                return reply.status(429).send({
+                    error: "This network has used its guest searches for today. Sign up for your own allowance.",
+                    code: "NETWORK_LIMIT_REACHED",
+                });
+            }
         }
         // Spend the quota first. If this returns null the user is out of budget
         // and no scraping happens at all.
@@ -88,6 +105,9 @@ export async function searchRoutes(app) {
             detail: o.detail,
             durationMs: o.durationMs,
         })));
+        // Keep what we just scraped. Adding one of these to a list or tracking it
+        // then needs no scrape at all — see cacheSearchResults.
+        await cacheSearchResults(outcomes.flatMap((o) => o.products));
         return {
             keyword,
             quota,
@@ -111,7 +131,9 @@ export async function searchRoutes(app) {
                 status: outcome.status,
                 // Deliberately user-facing text, not the raw error — the raw detail
                 // goes to the health log, which is where debugging belongs.
-                message: outcome.status === "success" ? null : friendlyMessage(outcome.status),
+                message: outcome.status === "success"
+                    ? null
+                    : friendlyMessage(outcome.status),
                 products: outcome.products,
             })),
         };
@@ -213,7 +235,10 @@ export async function searchRoutes(app) {
     // Lets the reward flow be exercised without a real ad and without AdMob
     // configured. Refuses to run in production, because it is exactly the hole
     // the SSV callback above exists to close.
-    app.post("/search/rewarded", { preHandler: requireAuth }, async (request, reply) => {
+    app.post("/search/rewarded", {
+        preHandler: requireAuth,
+        config: { rateLimit: SENSITIVE_LIMIT },
+    }, async (request, reply) => {
         if (process.env.NODE_ENV === "production") {
             return reply.status(403).send({
                 error: "Rewards are granted by AdMob verification, not by the client.",

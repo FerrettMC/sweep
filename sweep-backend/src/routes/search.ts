@@ -14,8 +14,10 @@ import { optionalAuth, requireAuth } from "../lib/auth.js";
 import { recordCheck } from "../lib/health.js";
 import { pickHighlights } from "../lib/highlights.js";
 import { cacheSearchResults } from "../lib/priceChecker.js";
+import { SCRAPE_LIMIT, SENSITIVE_LIMIT } from "../lib/rateLimit.js";
 import { prisma } from "../lib/prisma.js";
 import {
+  consumeGuestIpSearch,
   consumeGuestSearch,
   consumeUserSearch,
   getGuestQuota,
@@ -37,127 +39,150 @@ const RESULTS_PER_RETAILER = 4;
 
 export async function searchRoutes(app: FastifyInstance) {
   // ---- compiled search ----
-  app.get("/search", { preHandler: optionalAuth }, async (request, reply) => {
-    const query = (request.query ?? {}) as { q?: string; retailers?: string };
+  app.get(
+    "/search",
+    {
+      preHandler: optionalAuth,
+      config: { rateLimit: SCRAPE_LIMIT },
+    },
+    async (request, reply) => {
+      const query = (request.query ?? {}) as { q?: string; retailers?: string };
 
-    const keyword = (query.q ?? "").trim();
-    if (!keyword) {
-      return reply.status(400).send({ error: "Missing search term" });
-    }
-    if (keyword.length > MAX_KEYWORD_LENGTH) {
-      return reply.status(400).send({
-        error: `Search term must be ${MAX_KEYWORD_LENGTH} characters or fewer`,
-      });
-    }
+      const keyword = (query.q ?? "").trim();
+      if (!keyword) {
+        return reply.status(400).send({ error: "Missing search term" });
+      }
+      if (keyword.length > MAX_KEYWORD_LENGTH) {
+        return reply.status(400).send({
+          error: `Search term must be ${MAX_KEYWORD_LENGTH} characters or fewer`,
+        });
+      }
 
-    // Optional retailer filter, so a client can re-run just the tile that
-    // failed without spending a fresh search on all five.
-    const only = parseRetailers(query.retailers);
-    if (only === "invalid") {
-      return reply.status(400).send({ error: "Unknown retailer in filter" });
-    }
+      // Optional retailer filter, so a client can re-run just the tile that
+      // failed without spending a fresh search on all five.
+      const only = parseRetailers(query.retailers);
+      if (only === "invalid") {
+        return reply.status(400).send({ error: "Unknown retailer in filter" });
+      }
 
-    const userId = request.userId;
-    const deviceId = request.guestDeviceId;
+      const userId = request.userId;
+      const deviceId = request.guestDeviceId;
 
-    if (!userId && !deviceId) {
-      return reply.status(401).send({
-        error: "Sign in or send a device id to search.",
-        code: "IDENTIFY_REQUIRED",
-      });
-    }
+      if (!userId && !deviceId) {
+        return reply.status(401).send({
+          error: "Sign in or send a device id to search.",
+          code: "IDENTIFY_REQUIRED",
+        });
+      }
 
-    // Spend the quota first. If this returns null the user is out of budget
-    // and no scraping happens at all.
-    const quota = userId
-      ? await consumeUserSearch(userId)
-      : await consumeGuestSearch(deviceId!);
+      // Guests are also counted per network, because the device id above is
+      // just a header they chose. Without this, rotating it mints unlimited
+      // search quota and every search costs an Amazon credit.
+      if (!userId) {
+        const network = await consumeGuestIpSearch(request.ip);
+        if (!network.allowed) {
+          return reply.status(429).send({
+            error:
+              "This network has used its guest searches for today. Sign up for your own allowance.",
+            code: "NETWORK_LIMIT_REACHED",
+          });
+        }
+      }
 
-    if (!quota) {
-      const current = userId
-        ? await getUserQuota(userId)
-        : await getGuestQuota(deviceId!);
+      // Spend the quota first. If this returns null the user is out of budget
+      // and no scraping happens at all.
+      const quota = userId
+        ? await consumeUserSearch(userId)
+        : await consumeGuestSearch(deviceId!);
 
-      return reply.status(429).send({
-        error: userId
-          ? "You've used all your searches for today."
-          : "Guests get one search a day. Sign up for more.",
-        code: "SEARCH_LIMIT_REACHED",
-        quota: current,
-        canWatchAd: current?.canWatchAd ?? false,
-        isGuest: !userId,
-      });
-    }
+      if (!quota) {
+        const current = userId
+          ? await getUserQuota(userId)
+          : await getGuestQuota(deviceId!);
 
-    // Skip retailers that plainly don't sell what's being searched for — no
-    // point asking a clothing site about earbuds. General stores are always
-    // included, and an unclassifiable query includes everyone.
-    const routing = routeQuery(keyword, only);
+        return reply.status(429).send({
+          error: userId
+            ? "You've used all your searches for today."
+            : "Guests get one search a day. Sign up for more.",
+          code: "SEARCH_LIMIT_REACHED",
+          quota: current,
+          canWatchAd: current?.canWatchAd ?? false,
+          isGuest: !userId,
+        });
+      }
 
-    // Amazon is split out of the synchronous path: Bright Data's free tier can
-    // take up to ~3 minutes, and making the user stare at a spinner that long
-    // for four retailers that answered in 3 seconds is the wrong trade.
-    const requested = routing.retailers;
-    const fastRetailers = requested.filter((r) => r !== "amazon");
-    const wantsAmazon = requested.includes("amazon");
+      // Skip retailers that plainly don't sell what's being searched for — no
+      // point asking a clothing site about earbuds. General stores are always
+      // included, and an unclassifiable query includes everyone.
+      const routing = routeQuery(keyword, only);
 
-    const amazonJobId = wantsAmazon
-      ? startAmazonSearch(keyword, RESULTS_PER_RETAILER)
-      : null;
+      // Amazon is split out of the synchronous path: Bright Data's free tier can
+      // take up to ~3 minutes, and making the user stare at a spinner that long
+      // for four retailers that answered in 3 seconds is the wrong trade.
+      const requested = routing.retailers;
+      const fastRetailers = requested.filter((r) => r !== "amazon");
+      const wantsAmazon = requested.includes("amazon");
 
-    const outcomes = await searchAllRetailers(
-      keyword,
-      RESULTS_PER_RETAILER,
-      fastRetailers,
-    );
+      const amazonJobId = wantsAmazon
+        ? startAmazonSearch(keyword, RESULTS_PER_RETAILER)
+        : null;
 
-    // Search results are real scrape outcomes, so they feed health monitoring
-    // exactly like scheduled checks do. Without this, a retailer that only
-    // breaks on search would stay invisible.
-    await Promise.all(
-      outcomes.map((o) =>
-        recordCheck({
-          retailer: o.retailer,
-          status: o.status,
-          detail: o.detail,
-          durationMs: o.durationMs,
-        }),
-      ),
-    );
+      const outcomes = await searchAllRetailers(
+        keyword,
+        RESULTS_PER_RETAILER,
+        fastRetailers,
+      );
 
-    // Keep what we just scraped. Adding one of these to a list or tracking it
-    // then needs no scrape at all — see cacheSearchResults.
-    await cacheSearchResults(outcomes.flatMap((o) => o.products));
+      // Search results are real scrape outcomes, so they feed health monitoring
+      // exactly like scheduled checks do. Without this, a retailer that only
+      // breaks on search would stay invisible.
+      await Promise.all(
+        outcomes.map((o) =>
+          recordCheck({
+            retailer: o.retailer,
+            status: o.status,
+            detail: o.detail,
+            durationMs: o.durationMs,
+          }),
+        ),
+      );
 
-    return {
-      keyword,
-      quota,
-      // The few results worth showing above the per-store columns. Computed
-      // here so "cheapest" means the same thing everywhere, and so Amazon
-      // arriving late can be folded into the same ranking client-side.
-      highlights: pickHighlights(outcomes.flatMap((o) => o.products)),
-      // What we decided the query was about, and who we skipped because of it.
-      // Sent so the UI can explain an absent store rather than leaving a hole.
-      categories: routing.categories,
-      skipped: routing.skipped.map((retailer) => ({
-        retailer,
-        label: RETAILER_LABELS[retailer],
-      })),
-      // Present when Amazon is still running. The client polls
-      // /search/amazon/:id and slots the results in when they arrive.
-      amazonJobId,
-      results: outcomes.map((outcome) => ({
-        retailer: outcome.retailer,
-        label: RETAILER_LABELS[outcome.retailer],
-        status: outcome.status,
-        // Deliberately user-facing text, not the raw error — the raw detail
-        // goes to the health log, which is where debugging belongs.
-        message:
-          outcome.status === "success" ? null : friendlyMessage(outcome.status),
-        products: outcome.products,
-      })),
-    };
-  });
+      // Keep what we just scraped. Adding one of these to a list or tracking it
+      // then needs no scrape at all — see cacheSearchResults.
+      await cacheSearchResults(outcomes.flatMap((o) => o.products));
+
+      return {
+        keyword,
+        quota,
+        // The few results worth showing above the per-store columns. Computed
+        // here so "cheapest" means the same thing everywhere, and so Amazon
+        // arriving late can be folded into the same ranking client-side.
+        highlights: pickHighlights(outcomes.flatMap((o) => o.products)),
+        // What we decided the query was about, and who we skipped because of it.
+        // Sent so the UI can explain an absent store rather than leaving a hole.
+        categories: routing.categories,
+        skipped: routing.skipped.map((retailer) => ({
+          retailer,
+          label: RETAILER_LABELS[retailer],
+        })),
+        // Present when Amazon is still running. The client polls
+        // /search/amazon/:id and slots the results in when they arrive.
+        amazonJobId,
+        results: outcomes.map((outcome) => ({
+          retailer: outcome.retailer,
+          label: RETAILER_LABELS[outcome.retailer],
+          status: outcome.status,
+          // Deliberately user-facing text, not the raw error — the raw detail
+          // goes to the health log, which is where debugging belongs.
+          message:
+            outcome.status === "success"
+              ? null
+              : friendlyMessage(outcome.status),
+          products: outcome.products,
+        })),
+      };
+    },
+  );
 
   // ---- poll the Amazon leg of a search ----
   //
@@ -288,7 +313,10 @@ export async function searchRoutes(app: FastifyInstance) {
   // the SSV callback above exists to close.
   app.post(
     "/search/rewarded",
-    { preHandler: requireAuth },
+    {
+      preHandler: requireAuth,
+      config: { rateLimit: SENSITIVE_LIMIT },
+    },
     async (request, reply) => {
       if (process.env.NODE_ENV === "production") {
         return reply.status(403).send({

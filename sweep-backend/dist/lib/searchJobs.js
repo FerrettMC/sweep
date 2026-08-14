@@ -14,6 +14,7 @@
 // nothing but a re-run. If this ever runs multi-instance, jobs would need to
 // move to Postgres or Redis so a poll can't hit the wrong instance.
 import { recordCheck } from "./health.js";
+import { cacheSearchResults } from "./priceChecker.js";
 import { adapters } from "./scrapers/index.js";
 /** Bright Data's own polling gives up around 200s; leave room past that. */
 const JOB_TIMEOUT_MS = 240_000;
@@ -46,6 +47,9 @@ async function run(job, limit) {
         if (result.status === "success") {
             job.status = "success";
             job.products = result.data;
+            // Cache here rather than in the polling route, so results are kept even
+            // if the client gives up waiting before Bright Data comes back.
+            await cacheSearchResults(result.data);
         }
         else {
             job.status = result.status;

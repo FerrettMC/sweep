@@ -6,15 +6,14 @@
 // Tier caps are checked here against the wallet in the database, never against
 // anything the client sends.
 import { requireAuth } from "../lib/auth.js";
-import { recordCheck } from "../lib/health.js";
+import { checkProduct } from "../lib/priceChecker.js";
+import { resolveProduct } from "../lib/resolveProduct.js";
+import { SCRAPE_LIMIT } from "../lib/rateLimit.js";
 import { prisma } from "../lib/prisma.js";
 import { consumeManualCheck, getManualCheckState } from "../lib/quota.js";
-import { checkProduct, upsertScrapedProduct } from "../lib/priceChecker.js";
-import { adapters } from "../lib/scrapers/index.js";
-import { normalizeProductUrl } from "../lib/scrapers/url.js";
-import { isValidTimezone, nextCheckAt, normalizeCheckHours, } from "../lib/schedule.js";
-import { RETAILER_LABELS, isRetailer } from "../lib/scrapers/types.js";
-import { effectiveTier, historyCutoff, limitsFor } from "../lib/tiers.js";
+import { isValidTimezone, nextCheckAt, nextIntervalCheckAt, normalizeCheckHours, normalizeCheckMinute, } from "../lib/schedule.js";
+import { effectiveTier, historyCutoff, limitsFor, maxCheckMinute, } from "../lib/tiers.js";
+import { awardFirstTrack } from "../lib/xp.js";
 export async function productRoutes(app) {
     // ---- list everything the user tracks ----
     app.get("/products", { preHandler: requireAuth }, async (request, reply) => {
@@ -34,6 +33,9 @@ export async function productRoutes(app) {
                 addedAt: t.addedAt,
                 customThreshold: t.customThreshold,
                 lastNotifiedAt: t.lastNotifiedAt,
+                // What it cost when they started, so the list can show movement since
+                // rather than just today's number in isolation.
+                priceAtTracking: t.priceAtTracking,
                 product: serializeProduct(t.product),
             })),
             limits: {
@@ -46,7 +48,10 @@ export async function productRoutes(app) {
     // ---- start tracking ----
     // Accepts either a pasted product url, or a retailer + retailerId pair as
     // returned by compiled search.
-    app.post("/products/track", { preHandler: requireAuth }, async (request, reply) => {
+    app.post("/products/track", {
+        preHandler: requireAuth,
+        config: { rateLimit: SCRAPE_LIMIT },
+    }, async (request, reply) => {
         const userId = request.userId;
         const body = (request.body ?? {});
         const wallet = await prisma.wallet.findUnique({ where: { userId } });
@@ -55,7 +60,9 @@ export async function productRoutes(app) {
         const limits = limitsFor(wallet);
         // Cap check happens before any scraping — no point spending a call the
         // user isn't allowed to use.
-        const trackedCount = await prisma.trackedProduct.count({ where: { userId } });
+        const trackedCount = await prisma.trackedProduct.count({
+            where: { userId },
+        });
         if (trackedCount >= limits.maxTrackedProducts) {
             return reply.status(403).send({
                 error: `Your plan tracks up to ${limits.maxTrackedProducts} products.`,
@@ -64,80 +71,16 @@ export async function productRoutes(app) {
                 tier: effectiveTier(wallet),
             });
         }
-        // Resolve what we're being asked to track.
-        let url;
-        let retailer;
-        if (body.url) {
-            // Handles missing schemes, share/short links, and tracking params — see
-            // lib/scrapers/url.ts for why each of those matters.
-            const normalized = await normalizeProductUrl(String(body.url));
-            if (!normalized.ok) {
-                return reply.status(400).send(normalized.reason === "unsupported"
-                    ? {
-                        error: `Sweep doesn't support ${normalized.detail} yet. Try Amazon, Walmart, Best Buy, Target or eBay.`,
-                        code: "UNSUPPORTED_RETAILER",
-                        host: normalized.detail,
-                    }
-                    : {
-                        error: "That doesn't look like a product link.",
-                        code: "INVALID_URL",
-                        detail: normalized.detail,
-                    });
-            }
-            url = normalized.value.url;
-            retailer = normalized.value.retailer;
-        }
-        else if (body.retailer && body.retailerId) {
-            if (!isRetailer(body.retailer)) {
-                return reply.status(400).send({ error: `Unknown retailer: ${body.retailer}` });
-            }
-            retailer = body.retailer;
-            url = adapters[body.retailer].productUrl(String(body.retailerId));
-        }
-        else {
+        // Resolve what we're being asked to track. Same helper the list route
+        // uses — it knows to look up a stored url by (retailer, retailerId)
+        // rather than synthesizing one, which is what broke Best Buy.
+        const resolved = await resolveProduct(body);
+        if (!resolved.ok) {
             return reply
-                .status(400)
-                .send({ error: "Provide either a url, or a retailer and retailerId" });
+                .status(resolved.status)
+                .send({ error: resolved.error, code: resolved.code });
         }
-        if (!isRetailer(retailer)) {
-            return reply.status(400).send({ error: `Unknown retailer: ${retailer}` });
-        }
-        // If this product is already in the shared cache and was checked recently,
-        // reuse it rather than scraping again — that's the entire point of the
-        // shared cache, and it makes tracking a popular item free.
-        const existing = await prisma.product.findFirst({
-            where: { retailer, url },
-        });
-        const isFresh = existing?.lastCheckedAt &&
-            Date.now() - existing.lastCheckedAt.getTime() < 30 * 60 * 1000;
-        let product = existing;
-        if (!isFresh) {
-            const result = await adapters[retailer].scrapeProduct(url);
-            // Tracking is a real scrape, so it feeds health monitoring like any
-            // other. Without this, a retailer that only fails on product pages
-            // stays invisible — which is exactly how Best Buy's rate limiting
-            // hid from the health board.
-            await recordCheck({
-                retailer,
-                status: result.status,
-                productId: existing?.id ?? null,
-                detail: result.status === "success" ? null : result.detail,
-                durationMs: result.durationMs,
-            });
-            if (result.status !== "success") {
-                return reply.status(502).send({
-                    error: result.status === "blocked"
-                        ? `${RETAILER_LABELS[retailer]} is blocking price checks right now. Try again later.`
-                        : `Couldn't read that ${RETAILER_LABELS[retailer]} page right now. Try again in a moment.`,
-                    code: result.status === "blocked" ? "RETAILER_BLOCKED" : "SCRAPE_FAILED",
-                    retailer,
-                });
-            }
-            product = await upsertScrapedProduct(result.data);
-        }
-        if (!product) {
-            return reply.status(502).send({ error: "Couldn't resolve that product" });
-        }
+        const product = resolved.product;
         // Apply the schedule chosen in the confirm dialog, if one was sent.
         if (body.checkHours !== undefined && limits.fixedCheckTimes) {
             const normalized = normalizeCheckHours(body.checkHours, limits.checkTimesPerDay);
@@ -155,18 +98,32 @@ export async function productRoutes(app) {
                 where: { userId },
                 data: {
                     checkHours: normalized.hours,
-                    ...(body.timezone !== undefined ? { timezone: body.timezone } : {}),
+                    ...(body.timezone !== undefined
+                        ? { timezone: body.timezone }
+                        : {}),
                 },
             });
         }
         // Idempotent: tracking something twice is a no-op, not an error.
         const tracked = await prisma.trackedProduct.upsert({
             where: { userId_productId: { userId, productId: product.id } },
-            create: { userId, productId: product.id },
+            create: {
+                userId,
+                productId: product.id,
+                // Snapshot the price now so "since you started" has an anchor.
+                priceAtTracking: product.currentPrice,
+            },
+            // Deliberately NOT updated on re-track: the anchor should stay the
+            // moment they first started watching, not reset each time they revisit.
             update: {},
             include: { product: true },
         });
+        // First-ever track is worth a small nudge — it's the moment the app starts
+        // being useful, and it gives a brand-new leaderboard entry something to
+        // show other than zero.
+        const firstTrackAward = await awardFirstTrack(userId);
         return reply.status(201).send({
+            xpAwarded: firstTrackAward,
             tracked: {
                 id: tracked.id,
                 addedAt: tracked.addedAt,
@@ -181,58 +138,29 @@ export async function productRoutes(app) {
     // the right item before committing a tracking slot to it. The result is
     // written into the shared Product cache regardless — we paid for the scrape,
     // and the next person to paste the same link gets it free.
-    app.post("/products/preview", { preHandler: requireAuth }, async (request, reply) => {
+    app.post("/products/preview", {
+        preHandler: requireAuth,
+        config: { rateLimit: SCRAPE_LIMIT },
+    }, async (request, reply) => {
         const userId = request.userId;
         const { url: rawUrl } = (request.body ?? {});
         if (!rawUrl) {
             return reply.status(400).send({ error: "Paste a product link first." });
         }
-        const normalized = await normalizeProductUrl(String(rawUrl));
-        if (!normalized.ok) {
-            return reply.status(400).send(normalized.reason === "unsupported"
-                ? {
-                    error: `Sweep doesn't support ${normalized.detail} yet. Try Amazon, Walmart, Best Buy, Target or eBay.`,
-                    code: "UNSUPPORTED_RETAILER",
-                    host: normalized.detail,
-                }
-                : {
-                    error: "That doesn't look like a product link.",
-                    code: "INVALID_URL",
-                });
+        const resolved = await resolveProduct({ url: rawUrl });
+        if (!resolved.ok) {
+            return reply
+                .status(resolved.status)
+                .send({ error: resolved.error, code: resolved.code });
         }
-        const { url, retailer } = normalized.value;
-        const existing = await prisma.product.findFirst({ where: { retailer, url } });
-        const isFresh = existing?.lastCheckedAt &&
-            Date.now() - existing.lastCheckedAt.getTime() < 30 * 60 * 1000;
-        let product = existing;
-        if (!isFresh) {
-            const result = await adapters[retailer].scrapeProduct(url);
-            await recordCheck({
-                retailer,
-                status: result.status,
-                productId: existing?.id ?? null,
-                detail: result.status === "success" ? null : result.detail,
-                durationMs: result.durationMs,
-            });
-            if (result.status !== "success") {
-                return reply.status(502).send({
-                    error: result.status === "blocked"
-                        ? `${RETAILER_LABELS[retailer]} is blocking price checks right now. Try again later.`
-                        : `Couldn't read that ${RETAILER_LABELS[retailer]} page. Check the link and try again.`,
-                    code: result.status === "blocked" ? "RETAILER_BLOCKED" : "SCRAPE_FAILED",
-                    retailer,
-                });
-            }
-            product = await upsertScrapedProduct(result.data);
-        }
-        if (!product) {
-            return reply.status(502).send({ error: "Couldn't resolve that product" });
-        }
+        const product = resolved.product;
         const wallet = await prisma.wallet.findUnique({ where: { userId } });
         if (!wallet)
             return reply.status(404).send({ error: "No wallet for user" });
         const limits = limitsFor(wallet);
-        const trackedCount = await prisma.trackedProduct.count({ where: { userId } });
+        const trackedCount = await prisma.trackedProduct.count({
+            where: { userId },
+        });
         const alreadyTracking = await prisma.trackedProduct.findUnique({
             where: { userId_productId: { userId, productId: product.id } },
         });
@@ -244,7 +172,8 @@ export async function productRoutes(app) {
             limits: {
                 maxTrackedProducts: limits.maxTrackedProducts,
                 used: trackedCount,
-                canTrack: alreadyTracking !== null || trackedCount < limits.maxTrackedProducts,
+                canTrack: alreadyTracking !== null ||
+                    trackedCount < limits.maxTrackedProducts,
                 checkTimesPerDay: limits.checkTimesPerDay,
                 fixedCheckTimes: limits.fixedCheckTimes,
                 checkIntervalMinutes: limits.checkIntervalMinutes,
@@ -269,50 +198,81 @@ export async function productRoutes(app) {
         const limits = limitsFor(wallet);
         return {
             checkHours: wallet.checkHours,
+            checkMinute: wallet.checkMinute,
             timezone: wallet.timezone,
             maxCheckTimes: limits.checkTimesPerDay,
+            maxCheckMinute: maxCheckMinute(effectiveTier(wallet)),
             fixedCheckTimes: limits.fixedCheckTimes,
+            canSetCheckMinute: limits.canSetCheckMinute,
             checkIntervalMinutes: limits.checkIntervalMinutes,
             nextCheckAt: limits.fixedCheckTimes
                 ? nextCheckAt(wallet.checkHours, wallet.timezone)
-                : null,
+                : nextIntervalCheckAt(limits.checkIntervalMinutes, wallet.checkMinute, wallet.timezone),
             tier: effectiveTier(wallet),
         };
     });
     app.put("/me/schedule", { preHandler: requireAuth }, async (request, reply) => {
         const userId = request.userId;
-        const { checkHours, timezone } = (request.body ?? {});
+        const { checkHours, checkMinute, timezone } = (request.body ?? {});
         const wallet = await prisma.wallet.findUnique({ where: { userId } });
         if (!wallet)
             return reply.status(404).send({ error: "No wallet for user" });
         const limits = limitsFor(wallet);
-        // Paid tiers run on a rolling interval, so there are no fixed times to set.
-        if (!limits.fixedCheckTimes) {
+        const tier = effectiveTier(wallet);
+        if (timezone !== undefined && !isValidTimezone(timezone)) {
+            return reply
+                .status(400)
+                .send({ error: "Unrecognised timezone", code: "INVALID_TIMEZONE" });
+        }
+        const data = {};
+        if (timezone !== undefined)
+            data.timezone = timezone;
+        if (limits.fixedCheckTimes) {
+            // Answer the question they actually asked. Falling through to the
+            // checkHours validator here replies "checkHours must be an array",
+            // which explains nothing to someone who sent a minute offset.
+            if (checkMinute !== undefined && checkHours === undefined) {
+                return reply.status(400).send({
+                    error: "Your plan picks whole hours to check at, not a minute offset. Upgrade to choose exact timing.",
+                    code: "SCHEDULE_NOT_APPLICABLE",
+                });
+            }
+            // The count cap is the load guarantee — enforced here, never client-side.
+            const normalized = normalizeCheckHours(checkHours, limits.checkTimesPerDay);
+            if (!normalized.ok) {
+                return reply
+                    .status(400)
+                    .send({ error: normalized.error, code: "INVALID_SCHEDULE" });
+            }
+            data.checkHours = normalized.hours;
+        }
+        else if (limits.canSetCheckMinute && checkMinute !== undefined) {
+            // Interval tiers don't pick hours — they pick where in each interval the
+            // check lands, e.g. every 2 hours at :35.
+            const normalized = normalizeCheckMinute(checkMinute, maxCheckMinute(tier));
+            if (!normalized.ok) {
+                return reply
+                    .status(400)
+                    .send({ error: normalized.error, code: "INVALID_SCHEDULE" });
+            }
+            data.checkMinute = normalized.minute;
+        }
+        else if (checkMinute === undefined && checkHours !== undefined) {
             return reply.status(400).send({
-                error: `Your plan checks every ${limits.checkIntervalMinutes} minutes automatically.`,
+                error: `Your plan checks automatically every ${limits.checkIntervalMinutes} minutes. You can choose the minute it lands on.`,
                 code: "SCHEDULE_NOT_APPLICABLE",
             });
         }
-        // The count cap is the load guarantee — enforced here, never client-side.
-        const normalized = normalizeCheckHours(checkHours, limits.checkTimesPerDay);
-        if (!normalized.ok) {
-            return reply.status(400).send({ error: normalized.error, code: "INVALID_SCHEDULE" });
-        }
-        if (timezone !== undefined && !isValidTimezone(timezone)) {
-            return reply.status(400).send({ error: "Unrecognised timezone", code: "INVALID_TIMEZONE" });
-        }
-        const updated = await prisma.wallet.update({
-            where: { userId },
-            data: {
-                checkHours: normalized.hours,
-                ...(timezone !== undefined ? { timezone: timezone } : {}),
-            },
-        });
+        const updated = await prisma.wallet.update({ where: { userId }, data });
         return {
             checkHours: updated.checkHours,
+            checkMinute: updated.checkMinute,
             timezone: updated.timezone,
             maxCheckTimes: limits.checkTimesPerDay,
-            nextCheckAt: nextCheckAt(updated.checkHours, updated.timezone),
+            maxCheckMinute: maxCheckMinute(tier),
+            nextCheckAt: limits.fixedCheckTimes
+                ? nextCheckAt(updated.checkHours, updated.timezone)
+                : nextIntervalCheckAt(limits.checkIntervalMinutes, updated.checkMinute, updated.timezone),
         };
     });
     // ---- stop tracking ----
@@ -365,7 +325,9 @@ export async function productRoutes(app) {
                 ? { id: tracked.id, customThreshold: tracked.customThreshold }
                 : null,
             historyWindow: {
-                days: cutoff ? Math.round((Date.now() - cutoff.getTime()) / 86_400_000) : null,
+                days: cutoff
+                    ? Math.round((Date.now() - cutoff.getTime()) / 86_400_000)
+                    : null,
                 shown: history.length,
                 total: totalPoints,
             },
@@ -380,9 +342,9 @@ export async function productRoutes(app) {
             return reply.status(404).send({ error: "No wallet for user" });
         if (!limitsFor(wallet).customThresholds) {
             return reply.status(403).send({
-                error: "Custom alert thresholds are an Ultimate feature.",
+                error: "Custom alert thresholds need Pro or Ultimate.",
                 code: "TIER_REQUIRED",
-                requiredTier: "ultimate",
+                requiredTier: "pro",
             });
         }
         // Clearing the threshold is legitimate; anything else must be a sane
@@ -415,7 +377,10 @@ export async function productRoutes(app) {
     //   free     — 10 a day
     //   pro      — unlimited count, one every 30 minutes
     //   ultimate — unlimited
-    app.post("/products/:id/refresh", { preHandler: requireAuth }, async (request, reply) => {
+    app.post("/products/:id/refresh", {
+        preHandler: requireAuth,
+        config: { rateLimit: SCRAPE_LIMIT },
+    }, async (request, reply) => {
         const userId = request.userId;
         const tracked = await prisma.trackedProduct.findFirst({
             where: { userId, productId: request.params.id },
