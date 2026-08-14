@@ -12,6 +12,7 @@ import { Button, ErrorBanner, Loading, Screen, SectionTitle } from "@/components
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { APP_VERSION, PRIVACY_URL, SUPPORT_EMAIL, supportMailto } from "@/constants/support";
 import { resetOnboarding } from "@/lib/onboarding";
+import { setPushRegistered, usePushRegistered } from "@/lib/pushStatus";
 import { type ThemeMode, useTheme, useThemedStyles } from "@/lib/theme";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import UsernameSheet from "@/components/UsernameSheet";
@@ -58,7 +59,8 @@ export default function ProfileScreen() {
   const [searchesLeft, setSearchesLeft] = useState<number | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [retailers, setRetailers] = useState<RetailerStatus[] | null>(null);
-  const [pushRegistered, setPushRegistered] = useState<boolean | null>(null);
+  // Shared, so enabling alerts here updates Home immediately.
+  const pushRegistered = usePushRegistered();
   const [pushNote, setPushNote] = useState<string | null>(null);
   const [enablingPush, setEnablingPush] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -130,6 +132,7 @@ export default function ProfileScreen() {
     setConfirmingDelete(false);
     try {
       await deleteAccount();
+      setPushRegistered(null);
       // The session is dead server-side; clearing it locally is what sends the
       // auth gate back to the sign-in screen.
       await supabase.auth.signOut();
@@ -145,6 +148,9 @@ export default function ProfileScreen() {
     // Deregister first: after signOut there's no token to authenticate the
     // delete, and a shared device would keep alerting the previous account.
     await deregisterPushNotifications();
+    // The next account to sign in on this device starts from "unknown", not
+    // from the previous user's answer.
+    setPushRegistered(null);
     await supabase.auth.signOut();
     await setGuestMode(false);
     router.replace("/auth");

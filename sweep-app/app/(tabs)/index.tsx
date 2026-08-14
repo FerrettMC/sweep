@@ -14,6 +14,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "r
 import { useFocusEffect, useRouter } from "expo-router";
 import { Loading, Screen, SectionTitle } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { setPushRegistered, usePushRegistered } from "@/lib/pushStatus";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import {
   getNotificationStatus,
@@ -43,7 +44,7 @@ export default function HomeScreen() {
   const [tier, setTier] = useState<string | null>(null);
   const [searchesLeft, setSearchesLeft] = useState<number | null>(null);
   const [isGuest, setIsGuest] = useState(false);
-  const [pushOn, setPushOn] = useState<boolean | null>(null);
+  const pushOn = usePushRegistered();
   const [downStores, setDownStores] = useState<
     { retailer: string; label: string; enabled?: boolean }[]
   >([]);
@@ -68,7 +69,7 @@ export default function HomeScreen() {
       setSearchesLeft(quota.quota.remaining);
       setIsGuest(quota.isGuest);
     }
-    setPushOn(push?.registered ?? null);
+    setPushRegistered(push?.registered ?? null);
     // Only the ones that aren't working — a healthy list has nothing to say.
     setDownStores((stores?.retailers ?? []).filter((r) => !r.available));
     setLoading(false);

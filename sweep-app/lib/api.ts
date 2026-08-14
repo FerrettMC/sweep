@@ -81,6 +81,19 @@ async function request<T>(
     }
   }
 
+  // A 401 when we *sent* a token means the session is dead — the account was
+  // deleted, the password changed, or it was revoked elsewhere. Supabase won't
+  // notice until its next refresh, which can be an hour away, and until then
+  // the app sits there showing a signed-in user whose every request fails.
+  //
+  // Signing out here fires onAuthStateChange, which the root layout already
+  // watches, so the user lands on the sign-in screen instead of a wall of
+  // errors. Guarded on `token` so a guest touching an authenticated endpoint
+  // is simply refused rather than bounced.
+  if (response.status === 401 && token) {
+    await supabase.auth.signOut().catch(() => {});
+  }
+
   if (!response.ok) {
     throw new ApiError(
       payload?.error ?? `Request failed (${response.status})`,

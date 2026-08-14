@@ -27,6 +27,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
@@ -43,6 +44,9 @@ export default function Onboarding() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { width } = useWindowDimensions();
+  // The header sat at a fixed 48px from the top, which on a punch-hole display
+  // puts Skip under the camera and its tap target partly off-screen.
+  const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList>(null);
 
   const [index, setIndex] = useState(0);
@@ -91,14 +95,20 @@ export default function Onboarding() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.top}>
+      <View style={[styles.top, { paddingTop: insets.top + spacing.md }]}>
         <View style={styles.dots}>
           {slides.map((slide, i) => (
             <View key={slide.key} style={[styles.dot, i === index && styles.dotOn]} />
           ))}
         </View>
         {/* Available from the first frame, not revealed at the end. */}
-        <Pressable onPress={finish} hitSlop={12}>
+        {/* Padded rather than bare text: a 13px word is a poor tap target, and
+            this is the control someone reaches for when they're impatient. */}
+        <Pressable
+          onPress={finish}
+          hitSlop={16}
+          style={({ pressed }) => [styles.skipButton, pressed && styles.skipPressed]}
+        >
           <Text style={styles.skip}>Skip</Text>
         </Pressable>
       </View>
@@ -336,7 +346,6 @@ const makeStyles = (colors: Palette) =>
       alignItems: "center",
       justifyContent: "space-between",
       paddingHorizontal: spacing.md,
-      paddingTop: spacing.xxl,
       paddingBottom: spacing.sm,
     },
     dots: { flexDirection: "row", gap: 6 },
@@ -347,6 +356,15 @@ const makeStyles = (colors: Palette) =>
       backgroundColor: colors.surfaceBorder,
     },
     dotOn: { backgroundColor: colors.accent, width: 18 },
+    skipButton: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: 10,
+      borderRadius: radius.pill,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+    },
+    skipPressed: { opacity: 0.7 },
     skip: { color: colors.textSecondary, fontSize: type.label.fontSize, fontWeight: "700" },
 
     slide: {

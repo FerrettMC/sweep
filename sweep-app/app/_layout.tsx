@@ -21,8 +21,8 @@ import OfflineBanner from "@/components/OfflineBanner";
 import { useIsOnline } from "@/lib/connection";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 import { syncUser } from "@/lib/api";
-import { isGuestMode } from "@/lib/guestMode";
-import { hasSeenOnboarding } from "@/lib/onboarding";
+import { loadGuestMode, useGuestMode } from "@/lib/guestMode";
+import { hasSeenOnboarding, useHasSeenOnboarding } from "@/lib/onboarding";
 import {
   parsePayload,
   registerForPushNotifications,
@@ -85,10 +85,12 @@ function RootNavigator() {
 
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
-  const [guest, setGuest] = useState(false);
+  // From the shared stores rather than local copies: writing either one has
+  // to re-run the gate below, or the two screens bounce off each other.
+  const guest = useGuestMode() ?? false;
   // Null until read from storage, so the gate can't bounce someone to /auth
   // before it knows whether they've seen the tour.
-  const [seenTour, setSeenTour] = useState<boolean | null>(null);
+  const seenTour = useHasSeenOnboarding();
 
   // Which user we've already synced, so re-renders and token refreshes don't
   // fire a redundant round trip on every auth event.
@@ -100,12 +102,13 @@ function RootNavigator() {
     async function bootstrap() {
       const [{ data }, guestMode] = await Promise.all([
         supabase.auth.getSession(),
-        isGuestMode(),
+        loadGuestMode(),
       ]);
       if (!active) return;
 
       setSignedIn(Boolean(data.session));
-      setGuest(guestMode);
+      // Nothing to set — loadGuestMode() populates the store the gate reads.
+      void guestMode;
       setReady(true);
 
       if (data.session?.user) void ensureSynced(data.session.user);
@@ -180,7 +183,8 @@ function RootNavigator() {
   }, [ready, signedIn, router]);
 
   useEffect(() => {
-    hasSeenOnboarding().then(setSeenTour).catch(() => setSeenTour(true));
+    // Populates the store; the gate re-runs when it lands.
+    void hasSeenOnboarding().catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -191,10 +195,16 @@ function RootNavigator() {
     const hasAccess = signedIn || guest;
 
     if (hasAccess) {
-      // Sitting on the auth screen with a session already — send them in.
-      // Deliberately does NOT redirect off the tour: replaying it from Profile
-      // is something a signed-in user does on purpose.
-      if (inAuth) router.replace("/(tabs)");
+      // Only a genuinely signed-in user gets bounced off the auth screen.
+      //
+      // Guests must be allowed to stay: "Create an account" is the entire
+      // upgrade path, and treating a guest as already-authenticated meant
+      // every one of those buttons navigated to /auth and was returned to the
+      // tabs before a frame rendered — which reads as a dead button.
+      //
+      // Also deliberately does NOT redirect off the tour: replaying it from
+      // Profile is something a signed-in user does on purpose.
+      if (inAuth && signedIn) router.replace("/(tabs)");
       return;
     }
 

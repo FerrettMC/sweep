@@ -9,6 +9,7 @@
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
+import ForgotPasswordSheet from "@/components/ForgotPasswordSheet";
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
@@ -26,6 +27,7 @@ export default function Auth() {
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
 
   function fail(text: string) {
     setIsError(true);
@@ -121,9 +123,32 @@ export default function Auth() {
       <Button label="Sign Up" onPress={signUp} busy={busy} />
       <Button label="Log In" onPress={signIn} variant="secondary" disabled={busy} />
 
+      {/* Below the buttons, not beside the password field: it's a recovery
+          path, not part of signing in, and it should be findable without
+          competing with the thing most people are here to do. */}
+      <Pressable
+        style={styles.forgotButton}
+        onPress={() => setForgotOpen(true)}
+        disabled={busy}
+        hitSlop={8}
+      >
+        <Text style={styles.forgotText}>Forgot your password?</Text>
+      </Pressable>
+
       <Pressable style={styles.guestButton} onPress={continueAsGuest} disabled={busy}>
         <Text style={styles.guestButtonText}>Continue as guest</Text>
       </Pressable>
+
+      <ForgotPasswordSheet
+        visible={forgotOpen}
+        initialEmail={email}
+        onClose={() => setForgotOpen(false)}
+        onDone={(text) => {
+          setIsError(false);
+          setMessage(text);
+          router.replace("/(tabs)");
+        }}
+      />
       <Text style={styles.guestNote}>
         Compare prices across {storeListPhrase()}
         in one search. Guests get one a day.
@@ -169,6 +194,12 @@ const makeStyles = (colors: Palette) =>
       paddingVertical: spacing.xs,
     },
     messageOk: { color: colors.success },
+    forgotButton: { paddingVertical: spacing.sm, alignItems: "center" },
+    forgotText: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      fontWeight: "600",
+    },
     guestButton: { paddingVertical: spacing.sm, alignItems: "center" },
     guestButtonText: {
       color: colors.textSecondary,
