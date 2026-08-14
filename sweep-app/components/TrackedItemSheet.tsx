@@ -109,7 +109,7 @@ export default function TrackedItemSheet({
         <View style={styles.sheet}>
           <View style={styles.grabber} />
 
-          <ScrollView contentContainerStyle={styles.content}>
+          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text style={styles.title} numberOfLines={2}>
               {item.product.title}
             </Text>

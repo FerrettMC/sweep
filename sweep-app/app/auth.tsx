@@ -16,7 +16,15 @@ import { supabase } from "@/lib/supabase";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Keyboard,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 export default function Auth() {
   const { colors } = useTheme();
@@ -35,39 +43,19 @@ export default function Auth() {
     setMessage(text);
   }
 
-  async function signUp() {
-    if (!validate()) return;
-
-    setBusy(true);
-    setMessage(null);
-
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    setBusy(false);
-
-    if (error) return fail(error.message);
-
-    if (data.session) {
-      // Signing up supersedes guest mode, so the flag doesn't linger and grant
-      // guest fallbacks to a real account.
-      await setGuestMode(false);
-      router.replace("/(tabs)");
-    } else {
-      setIsError(false);
-      setMessage("Check your email to confirm your account, then log in.");
-    }
-  }
-
-  async function signIn() {
-    if (!validate()) return;
-
-    setBusy(true);
-    setMessage(null);
-
+  /**
+   * Sign in with whatever is in the form.
+   *
+   * Split out from the button handler because signing up with an address that
+   * already has an account ends here too. `afterDuplicate` only changes the
+   * wording of a rejected password: we already know the account exists, so the
+   * usual "email or password is incorrect" would be vaguer than what we know.
+   */
+  async function attemptSignIn(afterDuplicate = false) {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    setBusy(false);
 
     if (error) {
       // Supabase returns the same "Invalid login credentials" whether the email
@@ -76,7 +64,11 @@ export default function Auth() {
       // reads as "your account is missing", which sends people to sign up
       // again and hit "already registered". Say what it actually means.
       if (/invalid login credentials/i.test(error.message)) {
-        return fail("Email or password is incorrect. Try 'Forgot your password?' below.");
+        return fail(
+          afterDuplicate
+            ? "You already have an account with that email, but that password doesn't match. Try 'Forgot your password?' below."
+            : "Email or password is incorrect. Try 'Forgot your password?' below.",
+        );
       }
       if (/email not confirmed/i.test(error.message)) {
         return fail("Confirm your email first — check your inbox for the link.");
@@ -86,6 +78,65 @@ export default function Auth() {
 
     await setGuestMode(false);
     router.replace("/(tabs)");
+  }
+
+  async function signUp() {
+    Keyboard.dismiss();
+    if (!validate()) return;
+
+    setBusy(true);
+    setMessage(null);
+
+    try {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) return fail(error.message);
+
+      // Supabase does not error on a duplicate email — it returns a
+      // success-shaped response with no session, identical to a genuine new
+      // signup, so nobody can probe which addresses have accounts. The one
+      // tell is that `identities` comes back empty.
+      //
+      // At that point we know the account exists and we are holding an email
+      // and password the person just typed, so we sign them in rather than
+      // asking them to retype nothing and press a different button. If the
+      // password is right they are simply in; if not, they get a message that
+      // says which half was wrong.
+      if (data.user && data.user.identities?.length === 0) {
+        return await attemptSignIn(true);
+      }
+
+      if (data.session) {
+        // Signing up supersedes guest mode, so the flag doesn't linger and
+        // grant guest fallbacks to a real account.
+        await setGuestMode(false);
+        router.replace("/(tabs)");
+      } else {
+        setIsError(false);
+        setMessage("Check your email to confirm your account, then log in.");
+      }
+    } catch {
+      // Without this the screen locks: a throw would skip setBusy(false) and
+      // leave every button on the page disabled with no way back.
+      fail("Couldn't reach Sweep. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function signIn() {
+    Keyboard.dismiss();
+    if (!validate()) return;
+
+    setBusy(true);
+    setMessage(null);
+
+    try {
+      await attemptSignIn();
+    } catch {
+      fail("Couldn't reach Sweep. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function continueAsGuest() {
@@ -108,7 +159,17 @@ export default function Auth() {
   }
 
   return (
-    <View style={styles.container}>
+    // Scrollable rather than a centred View: with the keyboard up the window
+    // shrinks, and a fixed centred column silently pushes its bottom controls
+    // underneath the keyboard where taps land on keys instead of buttons.
+    // keyboardShouldPersistTaps is what makes a button reachable on the FIRST
+    // tap — the default lets the keyboard swallow that tap to dismiss itself.
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+    >
       <Text style={styles.title}>Sweep</Text>
       <Text style={styles.subtitle}>Your online shopping buddy</Text>
 
@@ -179,15 +240,17 @@ export default function Auth() {
         Compare prices across {storeListPhrase()} in one search. Guests get one
         a day.
       </Text>
-    </View>
+    </ScrollView>
   );
 }
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
+    screen: { flex: 1, backgroundColor: colors.background },
     container: {
-      flex: 1,
-      backgroundColor: colors.background,
+      // flexGrow, not flex: the column still centres when it fits, but is free
+      // to grow taller than the viewport and scroll once the keyboard is up.
+      flexGrow: 1,
       justifyContent: "center",
       padding: spacing.xl,
       gap: spacing.sm,

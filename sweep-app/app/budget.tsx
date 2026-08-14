@@ -142,6 +142,7 @@ export default function BudgetScreen() {
   return (
     <Screen>
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl

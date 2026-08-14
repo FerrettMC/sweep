@@ -7,6 +7,7 @@
 import Constants from "expo-constants";
 import { markReachable, markUnreachable } from "./connection";
 import { getDeviceId } from "./deviceId";
+import { currentLanguage } from "./i18n";
 import { supabase } from "./supabase";
 
 /**
@@ -50,6 +51,10 @@ async function request<T>(
   // Guests are identified by device. Sent even when signed in so the server
   // could reconcile a guest's history on signup later.
   headers["x-device-id"] = await getDeviceId();
+  // The server generates plan copy and error messages itself, so it has to know
+  // which language to write them in. Its own choice, not the phone's, since a
+  // user who overrode the device language meant it here too.
+  headers["Accept-Language"] = currentLanguage();
 
   let response: Response;
   try {

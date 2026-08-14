@@ -167,6 +167,7 @@ export default function ListsScreen() {
   return (
     <Screen>
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl

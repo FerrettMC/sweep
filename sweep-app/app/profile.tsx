@@ -14,6 +14,7 @@ import { APP_VERSION, PRIVACY_URL, SUPPORT_EMAIL, supportMailto } from "@/consta
 import { resetOnboarding } from "@/lib/onboarding";
 import { setPushRegistered, usePushRegistered } from "@/lib/pushStatus";
 import { type ThemeMode, useTheme, useThemedStyles } from "@/lib/theme";
+import { LANGUAGES, setLanguage, useLanguage, useTranslate } from "@/lib/i18n";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import UsernameSheet from "@/components/UsernameSheet";
 import {
@@ -42,6 +43,8 @@ interface RetailerStatus {
 
 export default function ProfileScreen() {
   const { colors, mode, setMode } = useTheme();
+  const t = useTranslate();
+  const language = useLanguage();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
 
@@ -280,6 +283,33 @@ export default function ProfileScreen() {
                   />
                   <Text style={[styles.themeLabel, selected && styles.themeLabelOn]}>
                     {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <SectionTitle>{t("profile.language")}</SectionTitle>
+          <Text style={styles.sectionBlurb}>{t("profile.languageHint")}</Text>
+          <View style={styles.themeRow}>
+            {LANGUAGES.map((item) => {
+              const selected = language === item.code;
+              return (
+                <Pressable
+                  key={item.code}
+                  onPress={() => setLanguage(item.code)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  style={({ pressed }) => [
+                    styles.themeOption,
+                    selected && styles.themeOptionOn,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={[styles.themeLabel, selected && styles.themeLabelOn]}>
+                    {item.label}
                   </Text>
                 </Pressable>
               );

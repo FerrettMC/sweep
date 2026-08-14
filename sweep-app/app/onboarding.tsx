@@ -36,6 +36,7 @@ import { getPlans } from "@/lib/api";
 import { markOnboardingSeen } from "@/lib/onboarding";
 import { isGuestMode } from "@/lib/guestMode";
 import { supabase } from "@/lib/supabase";
+import LanguageMenu, { LanguageButton } from "@/components/LanguageMenu";
 
 type Styles = ReturnType<typeof makeStyles>;
 
@@ -53,6 +54,9 @@ export default function Onboarding() {
   // Real free-tier numbers, so the tour can't promise something the server
   // then refuses. Falls back to prose if the API isn't reachable.
   const [freeLimits, setFreeLimits] = useState<string[] | null>(null);
+  // Offered here and not only in Profile, because someone who cannot read the
+  // tour cannot get through the tour to reach Profile.
+  const [languageOpen, setLanguageOpen] = useState(false);
 
   useEffect(() => {
     getPlans()
@@ -96,6 +100,8 @@ export default function Onboarding() {
   return (
     <View style={styles.screen}>
       <View style={[styles.top, { paddingTop: insets.top + spacing.md }]}>
+        <LanguageButton onPress={() => setLanguageOpen(true)} />
+
         <View style={styles.dots}>
           {slides.map((slide, i) => (
             <View key={slide.key} style={[styles.dot, i === index && styles.dotOn]} />
@@ -112,6 +118,8 @@ export default function Onboarding() {
           <Text style={styles.skip}>Skip</Text>
         </Pressable>
       </View>
+
+      <LanguageMenu visible={languageOpen} onClose={() => setLanguageOpen(false)} />
 
       <FlatList
         ref={listRef}
@@ -348,7 +356,7 @@ const makeStyles = (colors: Palette) =>
       paddingHorizontal: spacing.md,
       paddingBottom: spacing.sm,
     },
-    dots: { flexDirection: "row", gap: 6 },
+    dots: { flexDirection: "row", gap: 6, flex: 1, justifyContent: "center" },
     dot: {
       width: 6,
       height: 6,

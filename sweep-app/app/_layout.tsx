@@ -23,6 +23,7 @@ import { setPushRegistered } from "@/lib/pushStatus";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 import { syncUser } from "@/lib/api";
 import { loadGuestMode, useGuestMode } from "@/lib/guestMode";
+import { loadLanguage } from "@/lib/i18n";
 import { hasSeenOnboarding, useHasSeenOnboarding } from "@/lib/onboarding";
 import {
   parsePayload,
@@ -101,9 +102,12 @@ function RootNavigator() {
     let active = true;
 
     async function bootstrap() {
+      // Language is loaded before the first paint so the app never flashes
+      // English at someone who chose Spanish.
       const [{ data }, guestMode] = await Promise.all([
         supabase.auth.getSession(),
         loadGuestMode(),
+        loadLanguage(),
       ]);
       if (!active) return;
 

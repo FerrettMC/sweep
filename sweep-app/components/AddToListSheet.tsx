@@ -133,7 +133,7 @@ export default function AddToListSheet({ product, onClose, onAdded }: Props) {
         <View style={styles.sheet}>
           <View style={styles.grabber} />
 
-          <ScrollView contentContainerStyle={styles.content}>
+          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text style={styles.heading}>Add to a list</Text>
             <Text style={styles.product} numberOfLines={2}>
               {product.title}
