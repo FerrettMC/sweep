@@ -10,7 +10,8 @@
 
 import type { FastifyInstance } from "fastify";
 import { optionalAuth, requireAuth } from "../lib/auth.js";
-import { FEATURE_GROUP_LABELS, getPlans } from "../lib/plans.js";
+import { featureGroupLabels, getPlans } from "../lib/plans.js";
+import { localeFrom } from "../lib/i18n.js";
 import { effectiveTier } from "../lib/tiers.js";
 import { SENSITIVE_LIMIT } from "../lib/rateLimit.js";
 import { prisma } from "../lib/prisma.js";
@@ -32,9 +33,13 @@ export async function leaderboardRoutes(app: FastifyInstance) {
       ? await prisma.wallet.findUnique({ where: { userId } })
       : null;
 
+    // Read per request, not cached: the same server answers English and
+    // Spanish callers at the same time.
+    const locale = localeFrom(request.headers["accept-language"]);
+
     return {
-      plans: getPlans(),
-      groupLabels: FEATURE_GROUP_LABELS,
+      plans: getPlans(locale),
+      groupLabels: featureGroupLabels(locale),
       currentTier: wallet ? effectiveTier(wallet) : null,
     };
   });

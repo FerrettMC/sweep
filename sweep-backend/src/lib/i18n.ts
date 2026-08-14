@@ -145,6 +145,21 @@ const STRINGS = {
     "push.radarTitle": "Radar: {keyword}",
     "push.radarTarget": "{price} at {store} — under your {target} target.",
     "push.radarBest": "{price} at {store} — the cheapest we've seen.",
+
+    // ---- feature group headings ----
+    "group.tracking": "Price tracking",
+    "group.search": "Multi-store search",
+    "group.budget": "Budget tracker",
+    "group.lists": "Lists & wishlists",
+    "group.extras": "Community",
+
+    // ---- current-plan summary line ----
+    "summary.line": "{products} products · {cadence} · {searches}",
+    "summary.cadenceTimes": "checked up to {count}× a day",
+    "summary.cadenceHourly": "checked up to hourly",
+    "summary.cadenceHours": "checked up to every {hours}h",
+    "summary.searches": "{count} searches a day",
+    "summary.searchesOne": "{count} search a day",
   },
 
   es: {
@@ -268,6 +283,21 @@ const STRINGS = {
     "push.radarTitle": "Radar: {keyword}",
     "push.radarTarget": "{price} en {store} — por debajo de tu objetivo de {target}.",
     "push.radarBest": "{price} en {store} — el más barato que hemos visto.",
+
+    // ---- feature group headings ----
+    "group.tracking": "Seguimiento de precios",
+    "group.search": "Búsqueda en varias tiendas",
+    "group.budget": "Control de gastos",
+    "group.lists": "Listas y favoritos",
+    "group.extras": "Comunidad",
+
+    // ---- current-plan summary line ----
+    "summary.line": "{products} productos · {cadence} · {searches}",
+    "summary.cadenceTimes": "revisados hasta {count}× al día",
+    "summary.cadenceHourly": "revisados hasta cada hora",
+    "summary.cadenceHours": "revisados hasta cada {hours} h",
+    "summary.searches": "{count} búsquedas al día",
+    "summary.searchesOne": "{count} búsqueda al día",
   },
 } satisfies Record<Locale, Record<string, string>>;
 

@@ -9,6 +9,7 @@
 // thing on the pricing screen and enforce another in the API.
 
 import { TIERS, TIER_LIMITS, type Tier, type TierLimits } from "./tiers.js";
+import { type Locale, type StringKey, t } from "./i18n.js";
 
 export interface PlanPricing {
   monthly: number | null;
@@ -92,28 +93,30 @@ const PRICING: Record<Tier, PlanPricing> = {
 };
 
 /** Badge on the card. Free earns none — it isn't competing for the sale. */
-const BADGES: Record<Tier, string | null> = {
-  free: null,
-  pro: "MOST POPULAR",
-  ultimate: "BEST VALUE",
-};
+function badgeFor(tier: Tier, locale: Locale): string | null {
+  if (tier === "pro") return t(locale, "plan.badge.popular");
+  if (tier === "ultimate") return t(locale, "plan.badge.value");
+  return null;
+}
 
-const NAMES: Record<Tier, { name: string; tagline: string }> = {
-  free: { name: "Free", tagline: "Everything you need to start saving" },
-  pro: { name: "Pro", tagline: "For people who shop deliberately" },
-  ultimate: { name: "Ultimate", tagline: "Every price, checked constantly" },
-};
-
-export function getPlans(): Plan[] {
+/**
+ * Every plan, written in the caller's language.
+ *
+ * The locale is threaded down rather than read from a global because this runs
+ * per request: two people on different languages can be served concurrently,
+ * and a module-level "current language" would hand one of them the other's.
+ */
+export function getPlans(locale: Locale = "en"): Plan[] {
   return TIERS.map((tier) => ({
     tier,
-    ...NAMES[tier],
+    name: t(locale, `plan.${tier}.name`),
+    tagline: t(locale, `plan.${tier}.tagline`),
     pricing: PRICING[tier],
-    badge: BADGES[tier],
-    summary: summaryFor(tier),
-    upgrades: upgradesFor(tier),
-    unlocks: unlocksFor(tier),
-    features: featuresFor(tier),
+    badge: badgeFor(tier, locale),
+    summary: summaryFor(tier, locale),
+    upgrades: upgradesFor(tier, locale),
+    unlocks: unlocksFor(tier, locale),
+    features: featuresFor(tier, locale),
     // Pro is the one most people should be on: it's the jump that removes the
     // limits people actually hit, without Ultimate's price.
     highlighted: tier === "pro",
@@ -133,9 +136,12 @@ function previousTier(tier: Tier): Tier | null {
  * Derived from TIER_LIMITS like everything else here, so a cap can't move in
  * the backend and leave the pricing screen advertising the old number.
  */
-const DIALS: { label: string; value: (limits: TierLimits) => string }[] = [
+const DIALS: {
+  label: StringKey;
+  value: (limits: TierLimits, locale: Locale) => string;
+}[] = [
   {
-    label: "Products tracked",
+    label: "dial.products",
     value: (l) => String(l.maxTrackedProducts),
   },
   {
@@ -143,81 +149,101 @@ const DIALS: { label: string; value: (limits: TierLimits) => string }[] = [
     // price that hasn't moved in weeks genuinely is checked less often. A
     // ceiling is the promise we can actually keep, so a ceiling is what we
     // print — including here, where the short form is most tempting to round.
-    label: "Price checks",
-    value: (l) =>
+    label: "dial.checks",
+    value: (l, locale) =>
       l.fixedCheckTimes
-        ? `Up to ${l.checkTimesPerDay}× a day`
+        ? t(locale, "dial.upToTimes", { count: l.checkTimesPerDay })
         : l.checkIntervalMinutes === 60
-          ? "Up to hourly"
+          ? t(locale, "dial.upToHourly")
           : l.checkIntervalMinutes >= 60
-            ? `Up to every ${l.checkIntervalMinutes / 60} hours`
-            : `Up to every ${l.checkIntervalMinutes} min`,
+            ? t(locale, "dial.upToHours", { hours: l.checkIntervalMinutes / 60 })
+            : t(locale, "dial.upToMinutes", { minutes: l.checkIntervalMinutes }),
   },
   {
-    label: "Searches a day",
+    label: "dial.searches",
     value: (l) => String(l.searchesPerDay),
   },
   {
-    label: "Manual checks",
-    value: (l) =>
+    label: "dial.manual",
+    value: (l, locale) =>
       l.manualChecksPerDay !== null
-        ? `${l.manualChecksPerDay} a day`
+        ? t(locale, "dial.perDay", { count: l.manualChecksPerDay })
         : l.manualCheckCooldownMinutes !== null
-          ? `Every ${l.manualCheckCooldownMinutes} min`
-          : "Unlimited",
+          ? t(locale, "dial.everyMinutes", { minutes: l.manualCheckCooldownMinutes })
+          : t(locale, "dial.unlimited"),
   },
   {
-    label: "Results per store",
-    value: (l) =>
+    label: "dial.results",
+    value: (l, locale) =>
       l.resultsPerRetailer.min === l.resultsPerRetailer.max
         ? String(l.resultsPerRetailer.max)
-        : `up to ${l.resultsPerRetailer.max}, your choice`,
+        : t(locale, "dial.resultsChoice", { max: l.resultsPerRetailer.max }),
   },
   {
-    label: "Deal Radar",
-    value: (l) =>
+    label: "dial.radar",
+    value: (l, locale) =>
       l.savedSearchIntervalMinutes === 0
-        ? `${l.maxSavedSearches}, manual`
-        : `${l.maxSavedSearches}, up to every ${l.savedSearchIntervalMinutes / 60}h`,
+        ? t(locale, "dial.radarManual", { count: l.maxSavedSearches })
+        : t(locale, "dial.radarAuto", {
+            count: l.maxSavedSearches,
+            hours: l.savedSearchIntervalMinutes / 60,
+          }),
   },
   {
-    label: "Sweep this deal",
-    value: (l) => (l.sweepsPerDay === 0 ? "—" : `${l.sweepsPerDay} a day`),
+    label: "dial.sweep",
+    value: (l, locale) =>
+      l.sweepsPerDay === 0
+        ? t(locale, "dial.none")
+        : t(locale, "dial.perDay", { count: l.sweepsPerDay }),
   },
   {
-    label: "Price history",
-    value: (l) => (l.historyDays === null ? "Forever" : `${l.historyDays} days`),
+    label: "dial.history",
+    value: (l, locale) =>
+      l.historyDays === null
+        ? t(locale, "dial.forever")
+        : t(locale, "dial.days", { days: l.historyDays }),
   },
   {
-    label: "Lists",
-    value: (l) => `${l.maxLists} × ${l.maxItemsPerList} items`,
+    label: "dial.lists",
+    value: (l, locale) =>
+      t(locale, "dial.listsValue", { lists: l.maxLists, items: l.maxItemsPerList }),
   },
 ];
 
-function summaryFor(tier: Tier): string {
+function summaryFor(tier: Tier, locale: Locale): string {
   const l = TIER_LIMITS[tier];
   const cadence = l.fixedCheckTimes
-    ? `checked up to ${l.checkTimesPerDay}× a day`
+    ? t(locale, "summary.cadenceTimes", { count: l.checkTimesPerDay })
     : l.checkIntervalMinutes === 60
-      ? "checked up to hourly"
-      : `checked up to every ${l.checkIntervalMinutes / 60}h`;
-  const searches = `${l.searchesPerDay} ${l.searchesPerDay === 1 ? "search" : "searches"} a day`;
-  return `${l.maxTrackedProducts} products · ${cadence} · ${searches}`;
+      ? t(locale, "summary.cadenceHourly")
+      : t(locale, "summary.cadenceHours", { hours: l.checkIntervalMinutes / 60 });
+  // Singular and plural are separate keys, not an English "s" bolted on: other
+  // languages don't pluralise by suffix, and some don't split at one.
+  const searches = t(
+    locale,
+    l.searchesPerDay === 1 ? "summary.searchesOne" : "summary.searches",
+    { count: l.searchesPerDay },
+  );
+  return t(locale, "summary.line", {
+    products: l.maxTrackedProducts,
+    cadence,
+    searches,
+  });
 }
 
-function upgradesFor(tier: Tier): PlanUpgrade[] {
+function upgradesFor(tier: Tier, locale: Locale): PlanUpgrade[] {
   const limits = TIER_LIMITS[tier];
   const previous = previousTier(tier);
   const before = previous ? TIER_LIMITS[previous] : null;
 
   return DIALS.flatMap((dial) => {
-    const to = dial.value(limits);
-    const from = before ? dial.value(before) : null;
+    const to = dial.value(limits, locale);
+    const from = before ? dial.value(before, locale) : null;
     // On a paid tier, a dial that didn't move isn't an upgrade — it's noise,
     // and noise is what made the old screen unreadable. Free keeps all of
     // them, since there's no "before" and they're simply what you get.
     if (from !== null && from === to) return [];
-    return [{ label: dial.label, from, to }];
+    return [{ label: t(locale, dial.label), from, to }];
   });
 }
 
@@ -229,135 +255,159 @@ function upgradesFor(tier: Tier): PlanUpgrade[] {
  * labels carry their numbers, like "Track 20 products") never match a label
  * from the tier below and so are correctly left to `upgrades` instead.
  */
-function unlocksFor(tier: Tier): string[] {
+function unlocksFor(tier: Tier, locale: Locale): string[] {
   const previous = previousTier(tier);
   if (!previous) return [];
 
   const before = new Map(
-    featuresFor(previous).map((feature) => [feature.label, feature.included]),
+    featuresFor(previous, locale).map((feature) => [feature.label, feature.included]),
   );
 
-  return featuresFor(tier)
+  return featuresFor(tier, locale)
     .filter((feature) => feature.included && before.get(feature.label) === false)
     .map((feature) => feature.label);
 }
 
-function featuresFor(tier: Tier): PlanFeature[] {
+function featuresFor(tier: Tier, locale: Locale): PlanFeature[] {
   const l = TIER_LIMITS[tier];
 
   // "Up to" is deliberate and it is not weasel wording — adaptive backoff means
   // a product that hasn't moved in weeks genuinely IS checked less often. The
   // promise we can actually keep is a ceiling, so that's what we state.
   const checkCadence = l.fixedCheckTimes
-    ? `Checked up to ${l.checkTimesPerDay}× a day`
+    ? t(locale, "plan.checkedTimes", { count: l.checkTimesPerDay })
     : l.checkIntervalMinutes >= 60
-      ? `Checked up to every ${l.checkIntervalMinutes / 60} hour${l.checkIntervalMinutes === 60 ? "" : "s"}`
-      : `Checked up to every ${l.checkIntervalMinutes} minutes`;
+      ? l.checkIntervalMinutes === 60
+        ? t(locale, "plan.checkedHourly")
+        : t(locale, "plan.checkedHours", { hours: l.checkIntervalMinutes / 60 })
+      : t(locale, "plan.checkedMinutes", { minutes: l.checkIntervalMinutes });
 
   return [
     // ---- tracking ----
-    { group: "tracking", included: true, label: `Track ${l.maxTrackedProducts} products` },
+    {
+      group: "tracking",
+      included: true,
+      label: t(locale, "plan.trackProducts", { count: l.maxTrackedProducts }),
+    },
     { group: "tracking", included: true, label: checkCadence },
     {
       group: "tracking",
       included: true,
       label:
         l.historyDays === null
-          ? "Full price history"
-          : `${l.historyDays}-day price history`,
+          ? t(locale, "plan.historyFull")
+          : t(locale, "plan.historyDays", { days: l.historyDays }),
     },
-    {
-      group: "tracking",
-      included: true,
-      label: "Checked more often while a price is actually moving",
-    },
-    {
-      group: "tracking",
-      included: true,
-      label: "Every tracked item checked at least once a day, guaranteed",
-    },
+    { group: "tracking", included: true, label: t(locale, "plan.adaptive") },
+    { group: "tracking", included: true, label: t(locale, "plan.dailyFloor") },
     {
       group: "tracking",
       included: true,
       label:
         l.manualChecksPerDay !== null
-          ? `${l.manualChecksPerDay} manual price checks a day`
+          ? t(locale, "plan.manualChecks", { count: l.manualChecksPerDay })
           : l.manualCheckCooldownMinutes !== null
-            ? `Manual checks every ${l.manualCheckCooldownMinutes} minutes`
-            : "Unlimited manual price checks",
+            ? t(locale, "plan.manualCooldown", { minutes: l.manualCheckCooldownMinutes })
+            : t(locale, "plan.manualUnlimited"),
     },
-    { group: "tracking", included: true, label: "Price-drop alerts" },
+    { group: "tracking", included: true, label: t(locale, "plan.dropAlerts") },
     {
       group: "tracking",
       included: l.customThresholds,
-      label: "Custom alert thresholds (“only below $X”)",
+      label: t(locale, "plan.thresholds"),
     },
-    { group: "tracking", included: l.priorityQueue, label: "Priority check queue" },
+    {
+      group: "tracking",
+      included: l.priorityQueue,
+      label: t(locale, "plan.priorityQueue"),
+    },
 
     // ---- search ----
     {
       group: "search",
       included: true,
-      label: `${l.searchesPerDay} multi-store ${l.searchesPerDay === 1 ? "search" : "searches"} a day`,
+      label: t(
+        locale,
+        l.searchesPerDay === 1 ? "plan.searchesOne" : "plan.searches",
+        { count: l.searchesPerDay },
+      ),
     },
-    { group: "search", included: true, label: "Compare every store at once" },
+    { group: "search", included: true, label: t(locale, "plan.compareAll") },
     {
       group: "search",
       included: true,
       label:
         l.resultsPerRetailer.min === l.resultsPerRetailer.max
-          ? `${l.resultsPerRetailer.max} results per store`
-          : `Choose ${l.resultsPerRetailer.min}–${l.resultsPerRetailer.max} results per store`,
+          ? t(locale, "plan.resultsFixed", { count: l.resultsPerRetailer.max })
+          : t(locale, "plan.resultsChoose", {
+              min: l.resultsPerRetailer.min,
+              max: l.resultsPerRetailer.max,
+            }),
     },
-    { group: "search", included: !l.showAds, label: "No ads" },
+    { group: "search", included: !l.showAds, label: t(locale, "plan.noAds") },
     {
       group: "search",
       included: true,
-      label: `Deal Radar — watch ${l.maxSavedSearches} ${l.maxSavedSearches === 1 ? "search" : "searches"} for a price you name`,
+      label: t(
+        locale,
+        l.maxSavedSearches === 1 ? "plan.radarCountOne" : "plan.radarCount",
+        { count: l.maxSavedSearches },
+      ),
     },
     {
       group: "search",
       included: l.savedSearchIntervalMinutes > 0,
       label:
         l.savedSearchIntervalMinutes > 0
-          ? `Radars checked for you, up to every ${l.savedSearchIntervalMinutes / 60} hours`
-          : "Radars checked automatically (you refresh them yourself)",
+          ? t(locale, "plan.radarAuto", { hours: l.savedSearchIntervalMinutes / 60 })
+          : t(locale, "plan.radarManual"),
     },
     {
       group: "search",
       included: l.sweepsPerDay > 0,
       label:
         l.sweepsPerDay > 0
-          ? `"Sweep this deal" ${l.sweepsPerDay}× a day`
-          : `"Sweep this deal" — is it really a sale, and is it cheaper elsewhere?`,
+          ? t(locale, "plan.sweepCount", { count: l.sweepsPerDay })
+          : t(locale, "plan.sweepNone"),
     },
 
     // ---- budget ----
-    { group: "budget", included: true, label: "Unlimited expense logging" },
+    { group: "budget", included: true, label: t(locale, "plan.budgetLogging") },
     {
       group: "budget",
       included: true,
       label:
         l.budgetHistoryMonths === null
-          ? "Full spending history"
-          : `${l.budgetHistoryMonths} months of spending history`,
+          ? t(locale, "plan.budgetFull")
+          : t(locale, "plan.budgetMonths", { months: l.budgetHistoryMonths }),
     },
-    { group: "budget", included: l.customCategories, label: "Custom categories" },
-    { group: "budget", included: true, label: "Monthly budget with overspend warnings" },
-  { group: "budget", included: l.budgetLimits, label: "Per-category limits" },
-    { group: "budget", included: l.budgetExport, label: "Export to CSV" },
+    {
+      group: "budget",
+      included: l.customCategories,
+      label: t(locale, "plan.budgetCategories"),
+    },
+    { group: "budget", included: true, label: t(locale, "plan.budgetOverall") },
+    {
+      group: "budget",
+      included: l.budgetLimits,
+      label: t(locale, "plan.budgetLimits"),
+    },
+    { group: "budget", included: l.budgetExport, label: t(locale, "plan.budgetExport") },
 
     // ---- lists ----
     {
       group: "lists",
       included: true,
-      label: `${l.maxLists} ${l.maxLists === 1 ? "list" : "lists"}, ${l.maxItemsPerList} items each`,
+      label: t(locale, l.maxLists === 1 ? "plan.listsOne" : "plan.lists", {
+        lists: l.maxLists,
+        items: l.maxItemsPerList,
+      }),
     },
-    { group: "lists", included: l.shareableLists, label: "Shareable gift links" },
+    { group: "lists", included: l.shareableLists, label: t(locale, "plan.shareLinks") },
 
     // ---- extras ----
-    { group: "extras", included: true, label: "XP, badges and leaderboard" },
-    { group: "extras", included: true, label: "Best Deals Found feed" },
+    { group: "extras", included: true, label: t(locale, "plan.xp") },
+    { group: "extras", included: true, label: t(locale, "plan.dealsFeed") },
   ];
 }
 
@@ -371,10 +421,14 @@ function savingPercent(monthly: number, yearly: number): number {
   return Math.round(((fullYear - yearly) / fullYear) * 100);
 }
 
-export const FEATURE_GROUP_LABELS: Record<PlanFeature["group"], string> = {
-  tracking: "Price tracking",
-  search: "Multi-store search",
-  budget: "Budget tracker",
-  lists: "Lists & wishlists",
-  extras: "Community",
-};
+export function featureGroupLabels(
+  locale: Locale = "en",
+): Record<PlanFeature["group"], string> {
+  return {
+    tracking: t(locale, "group.tracking"),
+    search: t(locale, "group.search"),
+    budget: t(locale, "group.budget"),
+    lists: t(locale, "group.lists"),
+    extras: t(locale, "group.extras"),
+  };
+}

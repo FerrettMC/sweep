@@ -1,6 +1,7 @@
 // src/test-i18n.ts — translation parity and lookup.
 //   npm run test:i18n     (no server or database needed)
 import { LOCALES, STRINGS, allKeys, localeFrom, t } from "./lib/i18n.js";
+import { featureGroupLabels, getPlans } from "./lib/plans.js";
 
 let pass = 0, fail = 0;
 const check = (l: string, ok: boolean, d?: unknown) => {
@@ -64,6 +65,37 @@ console.log("\n— interpolation —");
 check("substitutes values", t("es", "err.trackLimit", { limit: 20 }).includes("20"));
 check("translates, not just passes through", t("es", "err.searchLimit") !== t("en", "err.searchLimit"));
 check("unknown locale key falls back to English", t("es", "plan.free.name") === "Gratis");
+
+console.log("\n— the generated plans screen is actually translated —");
+const en = getPlans("en");
+const es = getPlans("es");
+
+// Every user-visible string the plans endpoint emits, flattened.
+const stringsOf = (plans: ReturnType<typeof getPlans>) =>
+  plans.flatMap((p) => [
+    p.name, p.tagline, p.summary, p.badge ?? "",
+    ...p.upgrades.flatMap((u) => [u.label, u.from ?? "", u.to]),
+    ...p.unlocks,
+    ...p.features.map((f) => f.label),
+  ]);
+
+const esStrings = stringsOf(es).concat(Object.values(featureGroupLabels("es")));
+check("same shape in both locales", stringsOf(en).length === stringsOf(es).length);
+
+// Words that could only come from an untranslated English template. A hit here
+// means a code path builds its string with a literal instead of a key.
+// "manual" is deliberately absent: it is spelled the same in Spanish, so it
+// would flag a correctly translated string forever.
+const giveaways = /\b(day|days|Track|Checked|Choose|search|searches|store|Unlimited|Forever|month|months|list|lists|items|price|history|Full|hourly|every|your choice)\b/;
+const leaks = esStrings.filter((v) => v && giveaways.test(v));
+check("no English left in the Spanish plans", leaks.length === 0, leaks.slice(0, 12));
+
+check("group headings translated",
+  featureGroupLabels("es").tracking !== featureGroupLabels("en").tracking);
+check("numbers survive translation",
+  es.some((p) => /\d/.test(p.summary)), es.map((p) => p.summary));
+check("pricing is not localised away",
+  en.every((p, i) => p.pricing.monthly === es[i].pricing.monthly));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
