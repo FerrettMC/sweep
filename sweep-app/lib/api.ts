@@ -189,6 +189,10 @@ export interface Highlight {
 export interface SearchResponse {
   keyword: string;
   quota: Quota;
+  /** How many results per store this search actually used. */
+  resultsPerRetailer?: number;
+  /** What this tier may choose. min === max means no choice. */
+  resultsRange?: { min: number; max: number; default: number };
   /** The few results worth showing above the per-store columns. */
   highlights: Highlight[];
   /** What the server decided the query was about. */
@@ -244,9 +248,15 @@ export function getQuota() {
   return request<{ quota: Quota; isGuest: boolean; tier: string }>("/search/quota");
 }
 
-export function search(keyword: string, retailers?: string[]) {
+export function search(
+  keyword: string,
+  retailers?: string[],
+  resultsPerRetailer?: number,
+) {
   const params = new URLSearchParams({ q: keyword });
   if (retailers?.length) params.set("retailers", retailers.join(","));
+  // A preference, not an instruction — the server clamps it to the tier.
+  if (resultsPerRetailer) params.set("results", String(resultsPerRetailer));
   return request<SearchResponse>(`/search?${params}`);
 }
 

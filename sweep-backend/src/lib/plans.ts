@@ -167,6 +167,13 @@ const DIALS: { label: string; value: (limits: TierLimits) => string }[] = [
           : "Unlimited",
   },
   {
+    label: "Results per store",
+    value: (l) =>
+      l.resultsPerRetailer.min === l.resultsPerRetailer.max
+        ? String(l.resultsPerRetailer.max)
+        : `up to ${l.resultsPerRetailer.max}, your choice`,
+  },
+  {
     label: "Deal Radar",
     value: (l) =>
       l.savedSearchIntervalMinutes === 0
@@ -294,6 +301,14 @@ function featuresFor(tier: Tier): PlanFeature[] {
       label: `${l.searchesPerDay} multi-store ${l.searchesPerDay === 1 ? "search" : "searches"} a day`,
     },
     { group: "search", included: true, label: "Compare every store at once" },
+    {
+      group: "search",
+      included: true,
+      label:
+        l.resultsPerRetailer.min === l.resultsPerRetailer.max
+          ? `${l.resultsPerRetailer.max} results per store`
+          : `Choose ${l.resultsPerRetailer.min}–${l.resultsPerRetailer.max} results per store`,
+    },
     { group: "search", included: !l.showAds, label: "No ads" },
     {
       group: "search",

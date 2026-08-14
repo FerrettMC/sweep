@@ -91,6 +91,10 @@ export default function SearchScreen() {
   const [showWhy, setShowWhy] = useState(false);
   const [listTarget, setListTarget] = useState<ListTarget | null>(null);
   const sweep = useSweep();
+  // Null until a search tells us what this tier allows. Persisted so the choice
+  // survives a restart — it's a preference, not a per-search decision.
+  const [resultsRange, setResultsRange] = useState<{ min: number; max: number } | null>(null);
+  const [resultsPref, setResultsPref] = useState<number | null>(null);
 
   // Bumped on each new search so an in-flight poll from the previous one can
   // tell it's stale and stop writing results into the current view.
@@ -125,7 +129,9 @@ export default function SearchScreen() {
     }, []),
   );
 
-  async function onSearch() {
+  // Takes an explicit count so changing the picker can re-run immediately,
+  // without waiting for the state update to land.
+  async function onSearch(overrideResults?: number) {
     const trimmed = keyword.trim();
     if (!trimmed || searching) return;
 
@@ -138,7 +144,11 @@ export default function SearchScreen() {
     setSkipped([]);
 
     try {
-      const response = await runSearch(trimmed);
+      const response = await runSearch(
+        trimmed,
+        undefined,
+        overrideResults ?? resultsPref ?? undefined,
+      );
       setQuota(response.quota);
 
       const fast: Section[] = response.results.map((result) => ({
@@ -156,6 +166,13 @@ export default function SearchScreen() {
       listRef.current?.getScrollResponder()?.scrollTo({ y: 0, animated: false });
 
       setHighlights(response.highlights);
+      if (response.resultsRange && response.resultsRange.min !== response.resultsRange.max) {
+        setResultsRange(response.resultsRange);
+        if (resultsPref === null) setResultsPref(response.resultsPerRetailer ?? null);
+      } else {
+        // Free tier has no choice; don't show a picker with one option.
+        setResultsRange(null);
+      }
       setSkipped(response.skipped);
 
       // A finished search is the natural interstitial moment — the user has
@@ -347,14 +364,14 @@ export default function SearchScreen() {
           placeholderTextColor={colors.textTertiary}
           value={keyword}
           onChangeText={setKeyword}
-          onSubmitEditing={onSearch}
+          onSubmitEditing={() => void onSearch()}
           returnKeyType="search"
           autoCapitalize="none"
           autoCorrect={false}
         />
         <Button
           label="Search"
-          onPress={onSearch}
+          onPress={() => void onSearch()}
           busy={searching}
           disabled={!keyword.trim() || outOfSearches}
           compact
@@ -448,6 +465,41 @@ export default function SearchScreen() {
                 // Only worth explaining while there are results to try it on.
                 showHint={sections.length > 0}
               />
+
+              {/*
+                Only shown when the tier actually has a choice — a picker with
+                one option is just a label that looks tappable. Changing it
+                re-runs the search, which costs a search from the daily
+                allowance, so the count is stated plainly rather than hidden
+                behind a menu.
+              */}
+              {resultsRange && (
+                <View style={styles.resultsPicker}>
+                  <Text style={styles.resultsLabel}>Results per store</Text>
+                  <View style={styles.resultsOptions}>
+                    {Array.from(
+                      { length: resultsRange.max - resultsRange.min + 1 },
+                      (_, i) => resultsRange.min + i,
+                    ).map((count) => {
+                      const on = (resultsPref ?? 4) === count;
+                      return (
+                        <Pressable
+                          key={count}
+                          onPress={() => {
+                            setResultsPref(count);
+                            if (keyword.trim()) void onSearch(count);
+                          }}
+                          style={[styles.resultsChip, on && styles.resultsChipOn]}
+                        >
+                          <Text style={[styles.resultsChipText, on && styles.resultsChipTextOn]}>
+                            {count}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
               {highlights.length > 0 && (
                 <View style={styles.highlightBlock}>
                   <Text style={styles.highlightHeading}>Top picks</Text>
@@ -685,6 +737,35 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.xs,
       flex: 1,
     },
+      resultsPicker: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+    },
+    resultsLabel: {
+      flex: 1,
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+    },
+    resultsOptions: { flexDirection: "row", gap: 5 },
+    resultsChip: {
+      minWidth: 32,
+      alignItems: "center",
+      paddingVertical: 5,
+      paddingHorizontal: 8,
+      borderRadius: radius.sm,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      backgroundColor: colors.surface,
+    },
+    resultsChipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+    resultsChipText: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      fontWeight: "800",
+    },
+    resultsChipTextOn: { color: colors.background },
     highlightBlock: { gap: spacing.sm, marginTop: spacing.sm },
     highlightHeading: {
       color: colors.textPrimary,

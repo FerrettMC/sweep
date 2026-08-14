@@ -7,21 +7,9 @@
 // worth looking at: it ranks judgement, not spending, and every point is
 // computed server-side from price history rather than claimed by a client.
 
-import { useCallback, useState } from "react";
-import { Ionicons } from "@expo/vector-icons";
-import {
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-import { useFocusEffect } from "expo-router";
-import { Button, Loading, Screen, SectionTitle } from "@/components/ui";
-import { type Palette, radius, spacing, type } from "@/constants/theme";
-import { useTheme, useThemedStyles } from "@/lib/theme";
+import { Loading, Screen, SectionTitle } from "@/components/ui";
 import UsernameSheet from "@/components/UsernameSheet";
+import { type Palette, radius, spacing, type } from "@/constants/theme";
 import {
   type Badge,
   type LeaderboardEntry,
@@ -31,6 +19,18 @@ import {
   getMyXp,
 } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/format";
+import { useTheme, useThemedStyles } from "@/lib/theme";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 // Bronze and silver are fixed metals; gold borrows the accent, so this has to
 // be built per-palette rather than frozen at module load.
@@ -108,7 +108,11 @@ export default function LeaderboardScreen() {
                   <Text style={styles.levelName} numberOfLines={1}>
                     {me.name}
                   </Text>
-                  <Ionicons name="pencil" size={12} color={colors.textTertiary} />
+                  <Ionicons
+                    name="pencil"
+                    size={12}
+                    color={colors.textTertiary}
+                  />
                 </Pressable>
               </View>
               <View style={styles.rankPill}>
@@ -139,10 +143,14 @@ export default function LeaderboardScreen() {
           >
             <Ionicons name="person-outline" size={16} color={colors.accent} />
             <Text style={styles.nameNudgeText}>
-              You're showing as <Text style={styles.bold}>{me.name}</Text>. Pick a
-              username.
+              You're showing as <Text style={styles.bold}>{me.name}</Text>. Pick
+              a username.
             </Text>
-            <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} />
+            <Ionicons
+              name="chevron-forward"
+              size={14}
+              color={colors.textTertiary}
+            />
           </Pressable>
         )}
 
@@ -161,10 +169,17 @@ export default function LeaderboardScreen() {
                 <Ionicons
                   name={badge.icon as never}
                   size={20}
-                  color={badge.earned ? tierColor(colors)[badge.tier] : colors.textTertiary}
+                  color={
+                    badge.earned
+                      ? tierColor(colors)[badge.tier]
+                      : colors.textTertiary
+                  }
                 />
                 <Text
-                  style={[styles.badgeLabel, !badge.earned && styles.badgeLabelLocked]}
+                  style={[
+                    styles.badgeLabel,
+                    !badge.earned && styles.badgeLabelLocked,
+                  ]}
                   numberOfLines={1}
                 >
                   {badge.label}
@@ -178,12 +193,12 @@ export default function LeaderboardScreen() {
         </View>
 
         <View style={styles.section}>
-          <SectionTitle>Top deal hunters</SectionTitle>
+          <SectionTitle>Top Sweepers</SectionTitle>
           {entries.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyText}>
-                Nobody's on the board yet. Track something and you'll earn XP the
-                first time it drops below its average.
+                Nobody's on the board yet. Track something and you'll earn XP
+                the first time it drops below its average.
               </Text>
             </View>
           ) : (
@@ -197,7 +212,9 @@ export default function LeaderboardScreen() {
                     entry.isMe && styles.rowMe,
                   ]}
                 >
-                  <Text style={[styles.rank, entry.rank <= 3 && styles.rankTop]}>
+                  <Text
+                    style={[styles.rank, entry.rank <= 3 && styles.rankTop]}
+                  >
                     {entry.rank}
                   </Text>
                   <View style={styles.nameCol}>
@@ -222,7 +239,7 @@ export default function LeaderboardScreen() {
               <View style={[styles.row, styles.rowMe]}>
                 <Text style={styles.rank}>{me.rank}</Text>
                 <Text style={[styles.name, styles.nameMe]} numberOfLines={1}>
-                  {me.name}  (you)
+                  {me.name} (you)
                 </Text>
                 <Text style={styles.lvl}>Lv {me.level}</Text>
                 <Text style={styles.xp}>{me.xp}</Text>
@@ -281,7 +298,11 @@ function reasonLabel(reason: string) {
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
-    content: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xxl },
+    content: {
+      padding: spacing.md,
+      gap: spacing.lg,
+      paddingBottom: spacing.xxl,
+    },
     levelCard: {
       backgroundColor: colors.surface,
       borderRadius: radius.md,
@@ -290,9 +311,18 @@ const makeStyles = (colors: Palette) =>
       padding: spacing.md,
       gap: spacing.sm,
     },
-    levelTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    levelTop: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
     levelLeft: { flex: 1, gap: 1 },
-    nameRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
+    nameRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      marginTop: 2,
+    },
     levelName: {
       color: colors.textSecondary,
       fontSize: type.label.fontSize,
@@ -315,15 +345,26 @@ const makeStyles = (colors: Palette) =>
       paddingHorizontal: spacing.md,
       paddingVertical: 6,
     },
-    rankPillText: { color: colors.accent, fontSize: type.heading.fontSize, fontWeight: "900" },
+    rankPillText: {
+      color: colors.accent,
+      fontSize: type.heading.fontSize,
+      fontWeight: "900",
+    },
     progressTrack: {
       height: 7,
       borderRadius: radius.pill,
       backgroundColor: colors.surfaceRaised,
       overflow: "hidden",
     },
-    progressFill: { height: "100%", backgroundColor: colors.accent, borderRadius: radius.pill },
-    progressText: { color: colors.textSecondary, fontSize: type.caption.fontSize },
+    progressFill: {
+      height: "100%",
+      backgroundColor: colors.accent,
+      borderRadius: radius.pill,
+    },
+    progressText: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+    },
 
     nameNudge: {
       flexDirection: "row",
@@ -335,7 +376,11 @@ const makeStyles = (colors: Palette) =>
       borderColor: colors.accentMuted,
       padding: spacing.md,
     },
-    nameNudgeText: { flex: 1, color: colors.textSecondary, fontSize: type.label.fontSize },
+    nameNudgeText: {
+      flex: 1,
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+    },
     bold: { color: colors.textPrimary, fontWeight: "800" },
     nameCard: {
       backgroundColor: colors.surface,
@@ -345,7 +390,11 @@ const makeStyles = (colors: Palette) =>
       padding: spacing.md,
       gap: spacing.sm,
     },
-    nameLabel: { color: colors.textPrimary, fontSize: type.body.fontSize, fontWeight: "700" },
+    nameLabel: {
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+      fontWeight: "700",
+    },
     nameInput: {
       backgroundColor: colors.background,
       borderWidth: 1,
@@ -416,7 +465,12 @@ const makeStyles = (colors: Palette) =>
       width: 26,
     },
     rankTop: { color: colors.accent },
-    name: { flex: 1, color: colors.textPrimary, fontSize: type.body.fontSize, fontWeight: "600" },
+    name: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+      fontWeight: "600",
+    },
     nameMe: { fontWeight: "800" },
     lvl: { color: colors.textTertiary, fontSize: type.caption.fontSize },
     xp: {
@@ -435,9 +489,20 @@ const makeStyles = (colors: Palette) =>
       paddingVertical: 10,
     },
     historyText: { flex: 1, gap: 1 },
-    historyTitle: { color: colors.textPrimary, fontSize: type.label.fontSize, fontWeight: "600" },
-    historyDetail: { color: colors.textTertiary, fontSize: type.caption.fontSize },
-    historyXp: { color: colors.success, fontSize: type.body.fontSize, fontWeight: "800" },
+    historyTitle: {
+      color: colors.textPrimary,
+      fontSize: type.label.fontSize,
+      fontWeight: "600",
+    },
+    historyDetail: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+    },
+    historyXp: {
+      color: colors.success,
+      fontSize: type.body.fontSize,
+      fontWeight: "800",
+    },
 
     empty: {
       backgroundColor: colors.surface,

@@ -36,10 +36,29 @@ import {
   isRetailer,
 } from "../lib/scrapers/types.js";
 import { getSearchJob, startAmazonSearch } from "../lib/searchJobs.js";
-import { effectiveTier } from "../lib/tiers.js";
+import { effectiveTier, limitsFor } from "../lib/tiers.js";
 
 const MAX_KEYWORD_LENGTH = 120;
+/** Fallback for callers with no wallet (guests). */
 const RESULTS_PER_RETAILER = 4;
+
+/**
+ * How many results this search should return per store.
+ *
+ * Clamped to the tier's range server-side. The client sends a preference, not
+ * an instruction — a request for 20 results from a free account would be a
+ * request to spend someone else's money, since Bright Data bills per Amazon
+ * result.
+ */
+function resolveResultCount(
+  requested: unknown,
+  limits: { resultsPerRetailer: { min: number; max: number; default: number } },
+): number {
+  const range = limits.resultsPerRetailer;
+  const asked = Number(requested);
+  if (!Number.isFinite(asked)) return range.default;
+  return Math.min(range.max, Math.max(range.min, Math.round(asked)));
+}
 
 export async function searchRoutes(app: FastifyInstance) {
   // ---- compiled search ----
@@ -50,7 +69,11 @@ export async function searchRoutes(app: FastifyInstance) {
       config: { rateLimit: SCRAPE_LIMIT },
     },
     async (request, reply) => {
-      const query = (request.query ?? {}) as { q?: string; retailers?: string };
+      const query = (request.query ?? {}) as {
+        q?: string;
+        retailers?: string;
+        results?: string;
+      };
 
       const keyword = (query.q ?? "").trim();
       if (!keyword) {
@@ -127,15 +150,19 @@ export async function searchRoutes(app: FastifyInstance) {
       const fastRetailers = requested.filter((r) => r !== "amazon");
       const wantsAmazon = requested.includes("amazon");
 
+      // Guests have no wallet and no choice; the fallback is the free count.
+      const searchWallet = userId
+        ? await prisma.wallet.findUnique({ where: { userId } })
+        : null;
+      const perRetailer = searchWallet
+        ? resolveResultCount(query.results, limitsFor(searchWallet))
+        : RESULTS_PER_RETAILER;
+
       const amazonJobId = wantsAmazon
-        ? startAmazonSearch(keyword, RESULTS_PER_RETAILER)
+        ? startAmazonSearch(keyword, perRetailer)
         : null;
 
-      const outcomes = await searchAllRetailers(
-        keyword,
-        RESULTS_PER_RETAILER,
-        fastRetailers,
-      );
+      const outcomes = await searchAllRetailers(keyword, perRetailer, fastRetailers);
 
       // Search results are real scrape outcomes, so they feed health monitoring
       // exactly like scheduled checks do. Without this, a retailer that only

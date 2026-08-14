@@ -86,6 +86,19 @@ export interface TierLimits {
   // free radar searches the same stores with the same target price, the
   // user just has to press refresh. Crippling what free users can look for
   // would leave them holding a feature that exists and does nothing.
+  /**
+   * Results returned per store in a compiled search.
+   *
+   * `min === max` means the tier has no choice. Fewer results is a legitimate
+   * preference, not just a downgrade: a compiled search fans out to every
+   * store, and a smaller number comes back faster.
+   *
+   * Costs money on Amazon specifically — Bright Data bills per RESULT on the
+   * search endpoint, so eight results is twice the credits of four. That's why
+   * the ceiling rises with the tier rather than being generous to everyone.
+   */
+  resultsPerRetailer: { min: number; max: number; default: number };
+
   /** How many standing searches this tier may keep. */
   maxSavedSearches: number;
   /**
@@ -147,6 +160,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     customCategories: false,
     budgetExport: false,
     sweepsPerDay: 0,
+    resultsPerRetailer: { min: 4, max: 4, default: 4 },
     maxSavedSearches: 1,
     savedSearchIntervalMinutes: 0,
     radarRefreshesPerDay: 2,
@@ -181,6 +195,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     customCategories: true,
     budgetExport: true,
     sweepsPerDay: 1,
+    resultsPerRetailer: { min: 3, max: 6, default: 4 },
     maxSavedSearches: 5,
     savedSearchIntervalMinutes: 12 * 60,
     radarRefreshesPerDay: 20,
@@ -218,6 +233,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     customCategories: true,
     budgetExport: true,
     sweepsPerDay: 3,
+    resultsPerRetailer: { min: 3, max: 8, default: 4 },
     maxSavedSearches: 15,
     savedSearchIntervalMinutes: 6 * 60,
     // Deliberately a number, not unlimited: see radarRefreshesPerDay.
