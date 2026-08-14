@@ -90,7 +90,16 @@ async function request<T>(
   // watches, so the user lands on the sign-in screen instead of a wall of
   // errors. Guarded on `token` so a guest touching an authenticated endpoint
   // is simply refused rather than bounced.
-  if (response.status === 401 && token) {
+  //
+  // Belt and braces alongside the server returning 403 for a failed re-auth:
+  // a response that names a specific failure is answering the request, not
+  // rejecting the session, and must never sign anyone out.
+  if (
+    response.status === 401 &&
+    token &&
+    payload?.code !== "PASSWORD_INCORRECT" &&
+    payload?.code !== "PASSWORD_REQUIRED"
+  ) {
     await supabase.auth.signOut().catch(() => {});
   }
 
