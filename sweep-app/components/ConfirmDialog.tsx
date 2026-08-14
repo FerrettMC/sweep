@@ -12,7 +12,15 @@
 // forms you fill in, and a decision shouldn't look like an input.
 
 import { Ionicons } from "@expo/vector-icons";
-import { Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Image,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 
@@ -29,6 +37,19 @@ export interface ConfirmContent {
   cancelLabel: string;
   /** Red confirm button, for anything destructive. */
   destructive?: boolean;
+  /**
+   * Optional field the user must fill before confirming — a password, say.
+   *
+   * Re-authenticating in the same dialog matters for irreversible actions: a
+   * signed-in session proves the phone was signed in, not that its owner is
+   * the one tapping. Splitting it across two modals would just get dismissed.
+   */
+  input?: {
+    value: string;
+    onChangeText: (text: string) => void;
+    placeholder: string;
+    secure?: boolean;
+  };
 }
 
 interface Props {
@@ -50,6 +71,7 @@ export default function ConfirmDialog({ content, onConfirm, onCancel }: Props) {
     confirmLabel,
     cancelLabel,
     destructive,
+    input,
   } = content;
 
   return (
@@ -93,6 +115,20 @@ export default function ConfirmDialog({ content, onConfirm, onCancel }: Props) {
             </View>
           )}
 
+          {input && (
+            <TextInput
+              style={styles.input}
+              value={input.value}
+              onChangeText={input.onChangeText}
+              placeholder={input.placeholder}
+              placeholderTextColor={colors.textTertiary}
+              secureTextEntry={input.secure}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoFocus
+            />
+          )}
+
           <View style={styles.actions}>
             <Pressable
               onPress={onCancel}
@@ -106,10 +142,12 @@ export default function ConfirmDialog({ content, onConfirm, onCancel }: Props) {
             </Pressable>
             <Pressable
               onPress={onConfirm}
+              disabled={Boolean(input) && !input!.value}
               style={({ pressed }) => [
                 styles.button,
                 destructive ? styles.confirmDanger : styles.confirm,
                 pressed && styles.pressed,
+                Boolean(input) && !input!.value && styles.confirmDisabled,
               ]}
             >
               <Text style={destructive ? styles.confirmDangerText : styles.confirmText}>
@@ -216,6 +254,19 @@ const makeStyles = (colors: Palette) =>
       fontSize: type.body.fontSize,
       fontWeight: "700",
     },
+    input: {
+      alignSelf: "stretch",
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 12,
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+      marginTop: spacing.sm,
+    },
+    confirmDisabled: { opacity: 0.4 },
     confirm: { backgroundColor: colors.accent, borderColor: colors.accent },
     confirmText: {
       color: colors.background,

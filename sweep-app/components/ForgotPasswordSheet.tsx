@@ -30,7 +30,12 @@ import {
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase";
+
+/** Supabase allows 6–10; don't hard-code the project's current choice. */
+const MIN_CODE_LENGTH = 6;
+const MAX_CODE_LENGTH = 10;
 
 interface Props {
   visible: boolean;
@@ -48,6 +53,9 @@ export default function ForgotPasswordSheet({
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  // Anchored near the top rather than the bottom: every field in here needs the
+  // keyboard, and a bottom sheet ends up underneath it.
+  const insets = useSafeAreaInsets();
 
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState(initialEmail);
@@ -90,7 +98,10 @@ export default function ForgotPasswordSheet({
   }
 
   async function confirm() {
-    if (code.trim().length < 6) return setError("Enter the 6-digit code from the email.");
+    // Supabase's OTP length is a project setting (6–10), so don't assume six.
+    if (code.trim().length < MIN_CODE_LENGTH) {
+      return setError("Enter the full code from the email.");
+    }
     if (password.length < 8) return setError("Passwords need at least 8 characters.");
 
     setBusy(true);
@@ -117,10 +128,9 @@ export default function ForgotPasswordSheet({
   }
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={[styles.backdrop, { paddingTop: insets.top + spacing.lg }]}>
         <View style={styles.sheet}>
-          <View style={styles.grabber} />
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text style={styles.heading}>
               {step === "email" ? "Reset your password" : "Check your email"}
@@ -129,7 +139,7 @@ export default function ForgotPasswordSheet({
             {step === "email" ? (
               <>
                 <Text style={styles.body}>
-                  We'll email you a six-digit code. It's valid for one hour.
+                  We'll email you a code. It's valid for one hour.
                 </Text>
                 <TextInput
                   style={styles.input}
@@ -152,11 +162,15 @@ export default function ForgotPasswordSheet({
                 <TextInput
                   style={[styles.input, styles.codeInput]}
                   value={code}
-                  onChangeText={(t) => setCode(t.replace(/[^0-9]/g, "").slice(0, 6))}
-                  placeholder="000000"
+                  // Alphanumeric and generously long: the token format is a
+                  // project setting, and silently truncating a valid code is a
+                  // maddening failure — it just says "that didn't work".
+                  onChangeText={(t) => setCode(t.replace(/\s/g, "").slice(0, MAX_CODE_LENGTH))}
+                  placeholder="Code from email"
                   placeholderTextColor={colors.textTertiary}
-                  keyboardType="number-pad"
-                  maxLength={6}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  maxLength={MAX_CODE_LENGTH}
                   autoFocus
                 />
                 <TextInput
@@ -198,22 +212,21 @@ export default function ForgotPasswordSheet({
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
-    backdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: "flex-end" },
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.scrim,
+      justifyContent: "flex-start",
+      paddingHorizontal: spacing.md,
+    },
+    // A floating card, not a sheet: it sits above the keyboard rather than
+    // being pushed off-screen by it.
     sheet: {
       backgroundColor: colors.background,
-      borderTopLeftRadius: radius.lg,
-      borderTopRightRadius: radius.lg,
-      maxHeight: "85%",
-      borderTopWidth: 1,
+      borderRadius: radius.lg,
+      maxHeight: "75%",
+      borderWidth: 1,
       borderColor: colors.surfaceBorder,
-    },
-    grabber: {
-      alignSelf: "center",
-      width: 38,
-      height: 4,
-      borderRadius: radius.pill,
-      backgroundColor: colors.surfaceBorder,
-      marginTop: spacing.sm,
+      overflow: "hidden",
     },
     content: { padding: spacing.md, gap: spacing.sm },
     heading: {
@@ -238,9 +251,9 @@ const makeStyles = (colors: Palette) =>
       fontSize: type.body.fontSize,
     },
     codeInput: {
-      fontSize: 24,
+      fontSize: 22,
       fontWeight: "800",
-      letterSpacing: 8,
+      letterSpacing: 4,
       textAlign: "center",
     },
     link: {

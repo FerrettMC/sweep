@@ -54,6 +54,7 @@ export default function ProfileScreen() {
   // advertised Pro at 10 searches a day months after the cap moved to 30.
   const [planSummary, setPlanSummary] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchesLeft, setSearchesLeft] = useState<number | null>(null);
@@ -128,10 +129,11 @@ export default function ProfileScreen() {
   }
 
   async function onDeleteAccount() {
+    if (!deletePassword) return setError("Enter your password to confirm.");
     setDeleting(true);
     setConfirmingDelete(false);
     try {
-      await deleteAccount();
+      await deleteAccount(deletePassword);
       setPushRegistered(null);
       // The session is dead server-side; clearing it locally is what sends the
       // auth gate back to the sign-in screen.
@@ -140,6 +142,7 @@ export default function ProfileScreen() {
       router.replace("/auth");
     } catch (err) {
       setDeleting(false);
+      setDeletePassword("");
       setError((err as ApiError).message);
     }
   }
@@ -412,12 +415,21 @@ export default function ProfileScreen() {
                 title: "Delete your account?",
                 body: "This erases your tracked products, lists, budget, radars and XP. It cannot be undone.",
                 subject: email ? { title: email, caption: "This account" } : undefined,
+                input: {
+                  value: deletePassword,
+                  onChangeText: setDeletePassword,
+                  placeholder: "Your password",
+                  secure: true,
+                },
                 confirmLabel: "Delete forever",
                 cancelLabel: "Keep my account",
               }
             : null
         }
-        onCancel={() => setConfirmingDelete(false)}
+        onCancel={() => {
+          setConfirmingDelete(false);
+          setDeletePassword("");
+        }}
         onConfirm={onDeleteAccount}
       />
     </Screen>

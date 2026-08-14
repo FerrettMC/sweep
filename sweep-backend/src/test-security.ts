@@ -36,6 +36,12 @@ check("auth is required", (await call(null, "DELETE", "/me", { confirm: true }))
 const noConfirm = await call(token, "DELETE", "/me", {});
 check("a missing confirmation is refused", noConfirm.status === 400 && noConfirm.body.code === "CONFIRMATION_REQUIRED", noConfirm.body);
 
+// A valid token proves the phone was signed in, not who is holding it now.
+const noPassword = await call(token, "DELETE", "/me", { confirm: true });
+check("a token alone can't delete the account", noPassword.status === 400 && noPassword.body.code === "PASSWORD_REQUIRED", noPassword.body);
+const wrongPassword = await call(token, "DELETE", "/me", { confirm: true, password: "not-the-password" });
+check("a wrong password is refused with 403, not 401", wrongPassword.status === 403 && wrongPassword.body.code === "PASSWORD_INCORRECT", wrongPassword.body);
+
 // Give the account something to lose.
 await prisma.list.create({ data: { userId, name: "doomed list" } });
 await prisma.budgetEntry.create({ data: { userId, amount: 500, category: "Other" } });
@@ -47,7 +53,7 @@ const before = {
 };
 check("the account has data to erase", before.lists > 0 && before.budget > 0 && before.radars > 0, before);
 
-const del = await call(token, "DELETE", "/me", { confirm: true });
+const del = await call(token, "DELETE", "/me", { confirm: true, password: "sweep-test-password-123" });
 check("deletion succeeds", del.status === 200 && del.body.ok === true, del.body);
 check("it reports what it removed", typeof del.body.deleted === "object", del.body.deleted);
 

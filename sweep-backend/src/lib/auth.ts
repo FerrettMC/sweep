@@ -75,3 +75,27 @@ function isValidDeviceId(value: string) {
     value,
   );
 }
+
+/**
+ * Confirm a password belongs to an email, without disturbing the caller's
+ * session.
+ *
+ * Used to re-authenticate before irreversible actions. A bearer token proves a
+ * device was signed in at some point; it does not prove who is holding that
+ * device now, which is exactly the gap that matters when the action is
+ * "delete everything, permanently".
+ *
+ * Deliberately its own client: signInWithPassword mutates the session on the
+ * instance it's called on, and the shared one is used to VERIFY tokens for
+ * every request. Reusing it would let one user's password check disturb
+ * everyone else's auth.
+ */
+export async function verifyPassword(email: string, password: string) {
+  const client = createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_ANON_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  );
+  const { error } = await client.auth.signInWithPassword({ email, password });
+  return { error };
+}

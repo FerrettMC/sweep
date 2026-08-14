@@ -6,16 +6,16 @@
 // state change, which also covers confirming by email and restoring a
 // persisted session — paths that never pass through this screen.
 
-import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { useRouter } from "expo-router";
 import ForgotPasswordSheet from "@/components/ForgotPasswordSheet";
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
-import { useTheme, useThemedStyles } from "@/lib/theme";
 import { storeListPhrase } from "@/lib/format";
 import { setGuestMode } from "@/lib/guestMode";
 import { supabase } from "@/lib/supabase";
+import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useRouter } from "expo-router";
+import { useState } from "react";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 export default function Auth() {
   const { colors } = useTheme();
@@ -62,10 +62,26 @@ export default function Auth() {
     setBusy(true);
     setMessage(null);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
     setBusy(false);
 
-    if (error) return fail(error.message);
+    if (error) {
+      // Supabase returns the same "Invalid login credentials" whether the email
+      // is unknown or the password is wrong — deliberately, so the form can't
+      // be used to find out who has an account. Passed through verbatim it
+      // reads as "your account is missing", which sends people to sign up
+      // again and hit "already registered". Say what it actually means.
+      if (/invalid login credentials/i.test(error.message)) {
+        return fail("Email or password is incorrect. Try 'Forgot your password?' below.");
+      }
+      if (/email not confirmed/i.test(error.message)) {
+        return fail("Confirm your email first — check your inbox for the link.");
+      }
+      return fail(error.message);
+    }
 
     await setGuestMode(false);
     router.replace("/(tabs)");
@@ -117,11 +133,18 @@ export default function Auth() {
       />
 
       {message && (
-        <Text style={[styles.message, !isError && styles.messageOk]}>{message}</Text>
+        <Text style={[styles.message, !isError && styles.messageOk]}>
+          {message}
+        </Text>
       )}
 
       <Button label="Sign Up" onPress={signUp} busy={busy} />
-      <Button label="Log In" onPress={signIn} variant="secondary" disabled={busy} />
+      <Button
+        label="Log In"
+        onPress={signIn}
+        variant="secondary"
+        disabled={busy}
+      />
 
       {/* Below the buttons, not beside the password field: it's a recovery
           path, not part of signing in, and it should be findable without
@@ -135,7 +158,11 @@ export default function Auth() {
         <Text style={styles.forgotText}>Forgot your password?</Text>
       </Pressable>
 
-      <Pressable style={styles.guestButton} onPress={continueAsGuest} disabled={busy}>
+      <Pressable
+        style={styles.guestButton}
+        onPress={continueAsGuest}
+        disabled={busy}
+      >
         <Text style={styles.guestButtonText}>Continue as guest</Text>
       </Pressable>
 
@@ -150,8 +177,8 @@ export default function Auth() {
         }}
       />
       <Text style={styles.guestNote}>
-        Compare prices across {storeListPhrase()}
-        in one search. Guests get one a day.
+        Compare prices across {storeListPhrase()} in one search. Guests get one
+        a day.
       </Text>
     </View>
   );
