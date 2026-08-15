@@ -98,6 +98,14 @@ export const en = {
     tooShort: "Password must be at least 6 characters.",
     guestNote:
       "Compare prices across {{stores}} in one search. Guests get one a day.",
+    confirmTitle: "Confirm your email",
+    confirmBody:
+      "We sent a link to {{email}}. Open it, then come back and log in.",
+    confirmBlocked:
+      "That link hasn't been opened yet. Check your inbox (and spam) for the email from Sweep.",
+    resend: "Resend email",
+    resent: "Sent again — check your inbox.",
+    resendFailed: "Couldn't resend just yet. Wait a minute and try again.",
   },
 
   reset: {
@@ -638,6 +646,15 @@ export const es: Translations = {
     tooShort: "La contraseña debe tener al menos 6 caracteres.",
     guestNote:
       "Compara precios en {{stores}} con una sola búsqueda. Los invitados tienen una al día.",
+    confirmTitle: "Confirma tu correo",
+    confirmBody:
+      "Te enviamos un enlace a {{email}}. Ábrelo y luego vuelve para entrar.",
+    confirmBlocked:
+      "Todavía no has abierto el enlace. Revisa tu bandeja (y spam) por el correo de Sweep.",
+    resend: "Reenviar correo",
+    resent: "Enviado de nuevo — revisa tu bandeja.",
+    resendFailed:
+      "No se pudo reenviar todavía. Espera un minuto e inténtalo otra vez.",
   },
 
   reset: {

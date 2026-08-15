@@ -33,6 +33,42 @@ export async function legalRoutes(app: FastifyInstance) {
     reply.type("text/html; charset=utf-8");
     return reply.send(page("Delete your account", deletionBody()));
   });
+
+  // Where Supabase sends people after they click the link in a confirmation
+  // email. Without somewhere real to land, the redirect falls back to whatever
+  // Site URL is configured — which was localhost, so every tester who
+  // confirmed their address hit a dead page on their phone.
+  //
+  // Supabase has already done the verifying by the time the browser gets here.
+  // This page exists purely to say so and to get the person back into the app,
+  // which is the step a web-shaped auth flow leaves out on mobile.
+  app.get("/confirmed", async (_request, reply) => {
+    reply.type("text/html; charset=utf-8");
+    return reply.send(page("Email confirmed", confirmedBody()));
+  });
+}
+
+function confirmedBody() {
+  return `
+  <h1>Email confirmed</h1>
+  <p>
+    Thanks — your ${APP_NAME} account is ready. Head back to the app and log in
+    with the email and password you signed up with.
+  </p>
+  <p>
+    <a class="cta" href="sweep://">Open ${APP_NAME}</a>
+  </p>
+  <p class="note">
+    If that button does nothing, just switch to the ${APP_NAME} app yourself —
+    the confirmation has already gone through, and this page has nothing left
+    to do.
+  </p>
+  <p class="note">
+    Didn't sign up for ${APP_NAME}? You can ignore this. An address can't be
+    used until it is confirmed, and nothing further will be sent to it.
+  </p>
+
+  <p><a href="/privacy">Privacy policy</a></p>`;
 }
 
 function privacyBody() {
@@ -246,11 +282,15 @@ function page(title: string, body: string) {
   ul, ol { padding-left: 22px; }
   li { margin: 6px 0; }
   a { color: #C24A22; }
+  /* Big enough to hit with a thumb — this page is only ever read on a phone. */
+  .cta { display: inline-block; margin: 8px 0 4px; padding: 13px 22px; border-radius: 10px;
+         background: #C24A22; color: #fff; font-weight: 700; text-decoration: none; }
   footer { margin-top: 48px; border-top: 1px solid #e3e3e6; padding-top: 16px; color: #6b6b73; font-size: 13px; }
   @media (prefers-color-scheme: dark) {
     body { color: #ededf0; background: #0d0d0d; }
     .updated, .note, footer { color: #9a9aa2; }
     .brand, a { color: #E4733F; }
+    .cta { background: #E4733F; color: #16161a; }
     footer { border-top-color: #2a2a2a; }
   }
 </style>

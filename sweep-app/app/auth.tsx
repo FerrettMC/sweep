@@ -39,6 +39,12 @@ export default function Auth() {
   const [isError, setIsError] = useState(true);
   const [busy, setBusy] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
+  // Set when an account exists but hasn't been confirmed. Drives a panel
+  // rather than another line of message text: the old flow said "check your
+  // email" after signup and then said almost the same thing again when Log In
+  // was pressed, which reads as the button doing nothing.
+  const [awaitingConfirm, setAwaitingConfirm] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
 
   function fail(text: string) {
     setIsError(true);
@@ -73,7 +79,8 @@ export default function Auth() {
         );
       }
       if (/email not confirmed/i.test(error.message)) {
-        return fail(t("auth.notConfirmed"));
+        setAwaitingConfirm(email.trim());
+        return fail(t("auth.confirmBlocked"));
       }
       return fail(error.message);
     }
@@ -113,8 +120,10 @@ export default function Auth() {
         await setGuestMode(false);
         router.replace("/(tabs)");
       } else {
+        // No session means the project requires email confirmation.
+        setAwaitingConfirm(email.trim());
         setIsError(false);
-        setMessage(t("auth.checkEmail"));
+        setMessage(null);
       }
     } catch {
       // Without this the screen locks: a throw would skip setBusy(false) and
@@ -138,6 +147,24 @@ export default function Auth() {
       fail(t("auth.offline"));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function resendConfirmation() {
+    if (!awaitingConfirm) return;
+    setResending(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: awaitingConfirm,
+      });
+      setIsError(Boolean(error));
+      // Supabase rate-limits resends; saying so beats a raw provider error.
+      setMessage(error ? t("auth.resendFailed") : t("auth.resent"));
+    } catch {
+      fail(t("auth.offline"));
+    } finally {
+      setResending(false);
     }
   }
 
@@ -193,6 +220,22 @@ export default function Auth() {
         onChangeText={setPassword}
         textContentType="password"
       />
+
+      {awaitingConfirm && (
+        <View style={styles.confirmPanel}>
+          <Text style={styles.confirmTitle}>{t("auth.confirmTitle")}</Text>
+          <Text style={styles.confirmBody}>
+            {t("auth.confirmBody", { email: awaitingConfirm })}
+          </Text>
+          <Button
+            label={t("auth.resend")}
+            onPress={resendConfirmation}
+            busy={resending}
+            variant="secondary"
+            compact
+          />
+        </View>
+      )}
 
       {message && (
         <Text style={[styles.message, !isError && styles.messageOk]}>
@@ -276,6 +319,25 @@ const makeStyles = (colors: Palette) =>
       padding: spacing.md,
       color: colors.textPrimary,
       fontSize: 16,
+    },
+    confirmPanel: {
+      gap: 6,
+      padding: spacing.md,
+      borderRadius: radius.md,
+      backgroundColor: colors.accentMuted,
+      borderWidth: 1,
+      borderColor: colors.accent,
+    },
+    confirmTitle: {
+      color: colors.textPrimary,
+      fontSize: type.label.fontSize,
+      fontWeight: "800",
+    },
+    confirmBody: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      lineHeight: 18,
+      marginBottom: 4,
     },
     message: {
       color: colors.danger,
