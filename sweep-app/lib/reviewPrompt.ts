@@ -16,23 +16,16 @@
 // before you know if I'm any good", which earns one-star reviews from people
 // who were only annoyed by the dialog.
 //
-// Hence: at least a day of ownership, at least a couple of products tracked,
-// asked on the act of tracking another one, and never again either way.
+// Hence: at least a day of ownership, asked on the act of tracking something,
+// and never again either way. The rules themselves live in reviewGate.ts as a
+// pure function, so "only ever once" is tested rather than asserted.
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as StoreReview from "expo-store-review";
+import { shouldAskForReview } from "./reviewGate";
 
 const FIRST_SEEN_KEY = "sweep.review.firstSeen";
 const ASKED_KEY = "sweep.review.asked";
-
-/** Long enough to have formed an opinion. */
-const MIN_AGE_MS = 24 * 60 * 60 * 1000;
-
-/**
- * Tracking one product could be curiosity. A second is a habit, and a habit is
- * what we're asking them to vouch for.
- */
-const MIN_TRACKED = 2;
 
 /**
  * Stamp the install date. Safe to call on every launch — only the first sticks.
@@ -70,19 +63,30 @@ export async function hasAsked(): Promise<boolean> {
  */
 export async function maybeAskForReview(trackedCount: number): Promise<boolean> {
   try {
-    if (trackedCount < MIN_TRACKED) return false;
+    // The cheap disqualifier first, so the common path costs one read.
     if (await hasAsked()) return false;
 
-    const firstSeen = Number(await AsyncStorage.getItem(FIRST_SEEN_KEY));
-    if (!firstSeen || Date.now() - firstSeen < MIN_AGE_MS) return false;
+    const stored = await AsyncStorage.getItem(FIRST_SEEN_KEY);
+    const firstSeenAt = stored ? Number(stored) : null;
 
-    // Both checks: availability is the platform, hasAction is whether a review
-    // flow can actually be reached from here.
-    if (!(await StoreReview.isAvailableAsync())) return false;
-    if (!(await StoreReview.hasAction())) return false;
+    // Availability is the platform; hasAction is whether a review flow can
+    // actually be reached from here. Only asked once the cheap checks pass.
+    const cheap = shouldAskForReview({
+      trackedCount,
+      firstSeenAt: Number.isFinite(firstSeenAt) ? firstSeenAt : null,
+      alreadyAsked: false,
+      reviewAvailable: true,
+      now: Date.now(),
+    });
+    if (!cheap.ask) return false;
 
-    // Written before the call, not after. If requestReview throws or the app is
-    // killed while the sheet is up, we still don't ask a second time.
+    const reviewAvailable =
+      (await StoreReview.isAvailableAsync()) && (await StoreReview.hasAction());
+    if (!reviewAvailable) return false;
+
+    // Written before the call, not after, and only after every check has
+    // passed. If requestReview throws or the app is killed while the sheet is
+    // up, we have still spent our one ask and will not come back.
     await AsyncStorage.setItem(ASKED_KEY, String(Date.now()));
     await StoreReview.requestReview();
     return true;
