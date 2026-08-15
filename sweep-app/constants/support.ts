@@ -20,7 +20,7 @@ import { API_URL } from "@/lib/api";
  * TODO before launch: point this at a real inbox and use the same address on
  * the Play Store listing. They have to match — Google checks.
  */
-export const SUPPORT_EMAIL = "benju.support@gmail.com";
+export const SUPPORT_EMAIL = "support@sweepshopping.com";
 
 export const APP_VERSION = Constants.expoConfig?.version ?? "dev";
 

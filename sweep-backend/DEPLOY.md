@@ -51,7 +51,7 @@ And set these fresh:
 
 ```
 NODE_ENV=production
-SUPPORT_EMAIL=benju.support@gmail.com
+SUPPORT_EMAIL=support@sweepshopping.com
 SCHEDULER_ENABLED=true
 LOG_LEVEL=info
 ```
