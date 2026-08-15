@@ -93,6 +93,14 @@ the billing flow goes in.
   installs from the Store. That fingerprint only exists after the first Play
   Console upload — so wire the credentials then, not before. There are currently
   no OAuth clients in `google-services.json` at all.
+- **Ads are declared as "No" in Play Console.** True today: `ADS_ENABLED` in
+  `lib/ads.ts` is false and no ad SDK is in the build. When ads are restored,
+  update that declaration in the *same* release — shipping ads under a "no ads"
+  declaration is a policy violation, and declaring ads early puts a "Contains
+  ads" badge on the listing that costs installs for nothing.
+- **Play reviewer account**: `play-review@sweepshopping.com`, Pro tier. Play
+  reuses these credentials on every future update review, so don't delete it or
+  change the password without updating Play Console.
 - **Spanish for backend error messages.** ~84 strings in
   `sweep-backend/src/routes/`. The whole app is translated; these only surface
   on failures. Keys live in `sweep-backend/src/lib/i18n.ts` already, and
