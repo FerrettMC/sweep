@@ -11,6 +11,7 @@
 import type { FastifyInstance } from "fastify";
 import { verifySsvCallback } from "../lib/admobSsv.js";
 import { optionalAuth, requireAuth } from "../lib/auth.js";
+import { cooldownRemaining } from "../lib/scrapers/cooldown.js";
 import { recordCheck } from "../lib/health.js";
 import { pickHighlights } from "../lib/highlights.js";
 import { cacheSearchResults } from "../lib/priceChecker.js";
@@ -398,13 +399,19 @@ export async function searchRoutes(app: FastifyInstance) {
         const total = rows.reduce((sum, r) => sum + r._count._all, 0);
         const ok = rows.find((r) => r.status === "success")?._count._all ?? 0;
         const enabled = isRetailerEnabled(retailer);
+        // A retailer in cooldown is unavailable right now regardless of what
+        // the last hour's success rate says — we are deliberately not calling
+        // it, so reporting it as working would be wrong.
+        const cooling = cooldownRemaining(retailer);
 
         return {
           retailer,
           label: RETAILER_LABELS[retailer],
           // No data is not the same as broken — a quiet hour shouldn't grey
           // out a healthy retailer.
-          available: enabled && (total === 0 || ok > 0),
+          available: enabled && cooling === 0 && (total === 0 || ok > 0),
+          /** Seconds until we'll try this retailer again, when paused. */
+          cooldownSeconds: cooling > 0 ? Math.ceil(cooling / 1000) : null,
           successRate: !enabled ? null : total === 0 ? null : ok / total,
           enabled,
         };

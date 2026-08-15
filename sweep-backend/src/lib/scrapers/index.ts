@@ -11,8 +11,16 @@ import { asosProductUrl, scrapeAsosProduct, searchAsos } from "./asos.js";
 import { neweggProductUrl, scrapeNeweggProduct, searchNewegg } from "./newegg.js";
 import { scrapeWalmartProduct, searchWalmart, walmartProductUrl } from "./walmart.js";
 import { type Category, classifyQuery } from "../categories.js";
-import { RETAILERS, isRetailer, type Retailer, type ScrapeResult, type ScrapedProduct } from "./types.js";
+import {
+  RETAILERS,
+  fail,
+  isRetailer,
+  type Retailer,
+  type ScrapeResult,
+  type ScrapedProduct,
+} from "./types.js";
 import { throttled } from "./rateGate.js";
+import { cooldownRemaining, noteBlocked, noteSuccess } from "./cooldown.js";
 
 interface RetailerAdapter {
   search(keyword: string, limit: number): Promise<ScrapeResult<ScrapedProduct[]>>;
@@ -153,13 +161,42 @@ export const adapters: Record<Retailer, RetailerAdapter> = Object.fromEntries(
       {
         ...adapter,
         search: (keyword: string, limit: number) =>
-          throttled(retailer, () => adapter.search(keyword, limit)),
+          guarded(retailer, () => adapter.search(keyword, limit)),
         scrapeProduct: (url: string) =>
-          throttled(retailer, () => adapter.scrapeProduct(url)),
+          guarded(retailer, () => adapter.scrapeProduct(url)),
       },
     ],
   ),
 ) as Record<Retailer, RetailerAdapter>;
+
+/**
+ * Pacing plus the circuit breaker, in that order.
+ *
+ * The cooldown check comes first and deliberately skips the rate gate: a
+ * request we aren't going to send shouldn't wait for a slot, and shouldn't
+ * consume one that a healthy retailer could use.
+ */
+async function guarded<T>(
+  retailer: Retailer,
+  work: () => Promise<ScrapeResult<T>>,
+): Promise<ScrapeResult<T>> {
+  const cooling = cooldownRemaining(retailer);
+  if (cooling > 0) {
+    // Reported as "blocked" rather than "failed" because that is what it is —
+    // the store refused us, and we're still respecting that refusal. The app
+    // already knows how to show a blocked store.
+    return fail<T>(
+      "blocked",
+      `cooling down for ${Math.ceil(cooling / 1000)}s after being blocked`,
+      0,
+    );
+  }
+
+  const result = await throttled(retailer, work);
+  if (result.status === "blocked") noteBlocked(retailer);
+  else if (result.status === "success") noteSuccess(retailer);
+  return result;
+}
 
 export async function searchAllRetailers(
   keyword: string,
