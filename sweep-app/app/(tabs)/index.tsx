@@ -17,6 +17,7 @@ import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { setPushRegistered, usePushRegistered } from "@/lib/pushStatus";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
+import StoreTroubleSheet from "@/components/StoreTroubleSheet";
 import {
   getNotificationStatus,
   getQuota,
@@ -38,6 +39,7 @@ export default function HomeScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const t = useTranslate();
+  const [storeHelpOpen, setStoreHelpOpen] = useState(false);
   const router = useRouter();
 
   const [tracked, setTracked] = useState<TrackedProduct[]>([]);
@@ -208,36 +210,6 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* ---- everything that isn't a tab ---- */}
-        {/*
-          Only rendered when something is actually down. A permanent "all
-          stores healthy" panel would be noise 99% of the time, and it would
-          train people to ignore the one time it matters.
-        */}
-        {downStores.length > 0 && (
-          <View style={styles.storesDown}>
-            <View style={styles.storesDownHead}>
-              <Ionicons name="build-outline" size={15} color={colors.warning} />
-              <Text style={styles.storesDownTitle}>
-                {downStores.length === 1
-                  ? `${downStores[0].label} is unavailable`
-                  : `${downStores.length} stores are unavailable`}
-              </Text>
-            </View>
-            <Text style={styles.storesDownBody}>
-              {/*
-                Two different situations, and saying the wrong one is a small
-                lie. A store we switched off isn't "having trouble" — we can't
-                reach it at all and are working on that. A store that's failing
-                checks usually recovers on its own within the hour.
-              */}
-              {downStores.every((s) => s.enabled === false)
-                ? `We can't reach ${downStores.map((s) => s.label).join(" or ")} from our servers right now. We're working on it — everything else is searching normally.`
-                : `${downStores.map((s) => s.label).join(", ")} ${downStores.length === 1 ? "is" : "are"} having trouble. This is usually temporary and fixes itself; the other stores are unaffected.`}
-            </Text>
-          </View>
-        )}
-
         <View style={styles.section}>
           <SectionTitle>{t("home.shortcuts")}</SectionTitle>
           <View style={styles.shortcutGrid}>
@@ -262,7 +234,7 @@ export default function HomeScreen() {
             <Shortcut
               icon="trophy-outline"
               label={t("home.leaderboard")}
-              hint="XP & ranks"
+              hint={t("home.leaderboardHint")}
               onPress={() => router.push("/leaderboard")}
             />
             <Shortcut
@@ -272,7 +244,50 @@ export default function HomeScreen() {
               onPress={() => router.push("/profile")}
             />
           </View>
+
+          {/* Small and quiet, but always present. A store dropping out looks
+              like our bug from the outside, and someone who thinks the app is
+              broken stops trusting the prices that are fine. */}
+          <Pressable
+            onPress={() => setStoreHelpOpen(true)}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.storeHelp,
+              downStores.length > 0 && styles.storeHelpDown,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name={
+                downStores.length > 0 ? "build-outline" : "help-circle-outline"
+              }
+              size={15}
+              color={downStores.length > 0 ? colors.warning : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.storeHelpText,
+                downStores.length > 0 && styles.storeHelpTextDown,
+              ]}
+            >
+              {downStores.length === 0
+                ? t("storeTrouble.button")
+                : downStores.length === 1
+                  ? t("storeTrouble.buttonDownOne", { store: downStores[0].label })
+                  : t("storeTrouble.buttonDownMany", { count: downStores.length })}
+            </Text>
+          </Pressable>
         </View>
+
+        <StoreTroubleSheet
+          visible={storeHelpOpen}
+          downStores={downStores}
+          onClose={() => setStoreHelpOpen(false)}
+          onSeeStatus={() => {
+            setStoreHelpOpen(false);
+            router.push("/profile");
+          }}
+        />
 
         {/* ---- plan ---- */}
         <Pressable
@@ -494,6 +509,29 @@ const makeStyles = (colors: Palette) =>
     },
     actionBody: { color: colors.textSecondary, fontSize: type.caption.fontSize },
 
+    storeHelp: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      alignSelf: "center",
+      marginTop: spacing.sm,
+      paddingVertical: 8,
+      paddingHorizontal: spacing.md,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      backgroundColor: colors.surface,
+    },
+    // When something is down the same control carries the warning, so there
+    // is one place that answers "is a store missing?" instead of two.
+    storeHelpDown: { borderColor: colors.warning, backgroundColor: colors.surfaceRaised },
+    storeHelpText: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      fontWeight: "600",
+    },
+    storeHelpTextDown: { color: colors.textPrimary, fontWeight: "700" },
     shortcutGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
     shortcut: {
       // Two per row, accounting for the gap between them.
@@ -534,26 +572,6 @@ const makeStyles = (colors: Palette) =>
       letterSpacing: 0.6,
     },
     planUnknown: { color: colors.textTertiary },
-    storesDown: {
-      backgroundColor: colors.surface,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.warning,
-      padding: spacing.md,
-      gap: 5,
-    },
-    storesDownHead: { flexDirection: "row", alignItems: "center", gap: 6 },
-    storesDownTitle: {
-      flex: 1,
-      color: colors.textPrimary,
-      fontSize: type.label.fontSize,
-      fontWeight: "800",
-    },
-    storesDownBody: {
-      color: colors.textSecondary,
-      fontSize: type.caption.fontSize,
-      lineHeight: 16,
-    },
     planTier: {
       color: colors.textPrimary,
       fontSize: type.heading.fontSize,

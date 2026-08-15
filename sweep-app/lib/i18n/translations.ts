@@ -133,12 +133,6 @@ export const en = {
     createAccount: "Create an account",
     alertsOff: "Price alerts are off",
     alertsOffBody: "You won't hear about a drop while it's still live.",
-    storeDownOne: "{{store}} is unavailable",
-    storeDownMany: "{{count}} stores are unavailable",
-    storeDisabled:
-      "We can't reach {{stores}} from our servers right now. We're working on it — everything else is searching normally.",
-    storeFailing:
-      "{{stores}} is having trouble. This is usually temporary and fixes itself; the other stores are unaffected.",
     heroBody:
       "Search once and see {{stores}} side by side — so you know who's actually cheapest before you buy.",
     heroOneSearch: "Every store, one search",
@@ -153,6 +147,7 @@ export const en = {
     profileHint: "Account & stores",
     tagline: "Your online shopping buddy",
     heroTitle: "What are you shopping for?",
+    leaderboardHint: "XP & ranks",
   },
 
   search: {
@@ -519,6 +514,27 @@ export const en = {
     hidePassword: "Hide password",
     showPassword: "Show password",
   },
+  storeTrouble: {
+    button: "Retailer not working?",
+    heading: "Retailer not working?",
+    intro:
+      "Some stores block automated price checks from time to time. When that happens, that store drops out of your results — but nothing is wrong with Sweep or your account.",
+    blocking:
+      "Stores can block us without warning. It's aimed at bots in general, not at you.",
+    temporary:
+      "It's usually short-lived and clears up on its own, often within the hour.",
+    others:
+      "Every other store keeps working, and your tracked prices keep updating.",
+    footnote:
+      "If a store stays missing for more than a day, email us — that's worth knowing about.",
+    seeStatus: "See store status",
+    buttonDownOne: "{{store}} is unavailable",
+    buttonDownMany: "{{count}} stores unavailable",
+    allWorking: "All stores are working right now.",
+    downNow: "Not working right now",
+    reasonDisabled: "We can't reach it from our servers — we're on it",
+    reasonFailing: "Failing checks — usually fixes itself",
+  },
 };
 
 /** The shape every language must provide. */
@@ -654,12 +670,6 @@ export const es: Translations = {
     createAccount: "Crear una cuenta",
     alertsOff: "Las alertas de precio están apagadas",
     alertsOffBody: "No te enterarás de una bajada mientras siga activa.",
-    storeDownOne: "{{store}} no está disponible",
-    storeDownMany: "{{count}} tiendas no están disponibles",
-    storeDisabled:
-      "Ahora mismo no podemos conectar con {{stores}} desde nuestros servidores. Estamos en ello — todo lo demás busca con normalidad.",
-    storeFailing:
-      "{{stores}} está teniendo problemas. Suele ser temporal y se arregla solo; las demás tiendas no se ven afectadas.",
     heroBody:
       "Busca una vez y ve {{stores}} lado a lado — así sabes quién es más barato antes de comprar.",
     heroOneSearch: "Todas las tiendas, una búsqueda",
@@ -675,6 +685,7 @@ export const es: Translations = {
     profileHint: "Cuenta y tiendas",
     tagline: "Tu compañero de compras online",
     heroTitle: "¿Qué estás buscando?",
+    leaderboardHint: "XP y rangos",
   },
 
   search: {
@@ -1044,6 +1055,27 @@ export const es: Translations = {
     noPrice: "Sin precio",
     hidePassword: "Ocultar contraseña",
     showPassword: "Mostrar contraseña",
+  },
+  storeTrouble: {
+    button: "¿Una tienda no funciona?",
+    heading: "¿Una tienda no funciona?",
+    intro:
+      "Algunas tiendas bloquean las consultas automáticas de precios de vez en cuando. Cuando pasa, esa tienda desaparece de tus resultados — pero no le ocurre nada a Sweep ni a tu cuenta.",
+    blocking:
+      "Las tiendas pueden bloquearnos sin avisar. Va contra los bots en general, no contra ti.",
+    temporary:
+      "Suele durar poco y se arregla solo, muchas veces en menos de una hora.",
+    others:
+      "El resto de tiendas siguen funcionando y tus precios seguidos se siguen actualizando.",
+    footnote:
+      "Si una tienda sigue sin aparecer más de un día, escríbenos — nos interesa saberlo.",
+    seeStatus: "Ver estado de tiendas",
+    buttonDownOne: "{{store}} no está disponible",
+    buttonDownMany: "{{count}} tiendas no disponibles",
+    allWorking: "Todas las tiendas funcionan ahora mismo.",
+    downNow: "No funcionan ahora mismo",
+    reasonDisabled: "No podemos llegar desde nuestros servidores — estamos en ello",
+    reasonFailing: "Fallan las comprobaciones — suele arreglarse solo",
   },
 };
 
