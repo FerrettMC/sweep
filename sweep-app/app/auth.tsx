@@ -16,8 +16,9 @@ import { supabase } from "@/lib/supabase";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  AppState,
   Keyboard,
   Pressable,
   ScrollView,
@@ -54,6 +55,40 @@ export default function Auth() {
   const [viewportHeight, setViewportHeight] = useState(0);
   const [contentHeight, setContentHeight] = useState(0);
   const scrollable = contentHeight > viewportHeight;
+
+  // Confirming happens in a browser, so the moment that matters is the user
+  // coming back to the app. Retrying the sign-in then turns "confirm, switch
+  // back, type it all again" into "confirm, switch back, you're in" — without
+  // deep links, which email clients handle unevenly, or PKCE, which breaks if
+  // the link is opened on a different device.
+  //
+  // The credentials are already in this screen's state; nothing is stored.
+  const credentials = useRef({ email: "", password: "" });
+  credentials.current = { email, password };
+
+  useEffect(() => {
+    if (!awaitingConfirm) return;
+
+    const subscription = AppState.addEventListener("change", async (state) => {
+      if (state !== "active") return;
+      const { email: address, password: secret } = credentials.current;
+      if (!address || !secret) return;
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: address,
+        password: secret,
+      });
+      // Still unconfirmed is the expected case on most returns — say nothing
+      // rather than nagging someone who just switched apps for a second.
+      if (error || !data.session) return;
+
+      setAwaitingConfirm(null);
+      await setGuestMode(false);
+      router.replace("/(tabs)");
+    });
+
+    return () => subscription.remove();
+  }, [awaitingConfirm, router]);
 
   function fail(text: string) {
     setIsError(true);
