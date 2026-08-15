@@ -190,6 +190,31 @@ function deletionBody() {
     handled within 30 days.
   </p>
 
+  <h2>Deleting some of your data, without deleting your account</h2>
+  <p>
+    You do not have to delete your whole account to remove something. Each of
+    these takes effect immediately and needs no request:
+  </p>
+  <ul>
+    <li><strong>A tracked product and its price alerts</strong> — open it from
+      Tracking and choose Stop tracking.</li>
+    <li><strong>A budget entry</strong> — press and hold it in Budget.</li>
+    <li><strong>A monthly budget or category limit</strong> — edit or clear it
+      in Budget.</li>
+    <li><strong>A list, or a single item on one</strong> — delete it in Lists.
+      Turning off sharing also invalidates the share link.</li>
+    <li><strong>A Deal Radar</strong> — delete it in Deal Radar.</li>
+    <li><strong>Your public username</strong> — change it in Profile; leaving
+      it blank shows you anonymously on the leaderboard.</li>
+    <li><strong>Push notification tokens</strong> — turn off price alerts in
+      Profile, or revoke the notification permission in Android settings.</li>
+  </ul>
+  <p class="note">
+    If you would rather we removed something for you, email
+    <a href="mailto:${SUPPORT_EMAIL}?subject=Delete%20some%20of%20my%20data">${SUPPORT_EMAIL}</a>
+    from the address you signed up with.
+  </p>
+
   <p><a href="/privacy">Privacy policy</a></p>`;
 }
 
