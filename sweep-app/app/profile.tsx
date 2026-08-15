@@ -11,6 +11,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Button, ErrorBanner, Loading, Screen, SectionTitle } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { APP_VERSION, PRIVACY_URL, SUPPORT_EMAIL, supportMailto } from "@/constants/support";
+import { storeListingUrl } from "@/lib/reviewPrompt";
 import { resetOnboarding } from "@/lib/onboarding";
 import { setPushRegistered, usePushRegistered } from "@/lib/pushStatus";
 import { type ThemeMode, useTheme, useThemedStyles } from "@/lib/theme";
@@ -363,6 +364,27 @@ export default function ProfileScreen() {
               <View style={styles.helpText}>
                 <Text style={styles.helpTitle}>{t("profile.emailSupport")}</Text>
                 <Text style={styles.helpSub}>{SUPPORT_EMAIL}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+            </Pressable>
+            {/* Opens the listing rather than the native review sheet. The
+                sheet is quota-limited and may show nothing at all, which from
+                a button someone deliberately pressed reads as broken. */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.helpRow,
+                styles.statusRowDivided,
+                pressed && styles.pressed,
+              ]}
+              onPress={() => {
+                const url = storeListingUrl();
+                if (url) void Linking.openURL(url);
+              }}
+            >
+              <Ionicons name="star-outline" size={18} color={colors.accent} />
+              <View style={styles.helpText}>
+                <Text style={styles.helpTitle}>{t("profile.rate")}</Text>
+                <Text style={styles.helpSub}>{t("profile.rateHint")}</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
             </Pressable>

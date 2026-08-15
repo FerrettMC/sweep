@@ -20,6 +20,7 @@ import {
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
+import { maybeAskForReview } from "@/lib/reviewPrompt";
 import { storeListPhrase } from "@/lib/format";
 import {
   ApiError,
@@ -201,7 +202,7 @@ export default function TrackingScreen() {
         disabled={atLimit}
         disabledReason={
           limits
-            ? `You're tracking ${limits.maxTrackedProducts} products — remove one to add another.`
+            ? t("tracking.limitBody", { count: limits.maxTrackedProducts })
             : undefined
         }
         onTracked={(added) => {
@@ -222,6 +223,11 @@ export default function TrackingScreen() {
               current ? { ...current, used: current.used + 1 } : current,
             );
           }
+
+          // A moment the app has just been useful, which is the only kind
+          // worth asking on. Fire-and-forget: it decides for itself whether
+          // this is the right time, and stays silent when it isn't.
+          void maybeAskForReview((tracked ?? []).length + (isNew ? 1 : 0));
 
           router.push(`/product/${added.product.id}`);
         }}

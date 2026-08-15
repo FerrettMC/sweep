@@ -25,6 +25,7 @@ import { useTranslate } from "@/lib/i18n";
 import { syncUser } from "@/lib/api";
 import { loadGuestMode, useGuestMode } from "@/lib/guestMode";
 import { loadLanguage } from "@/lib/i18n";
+import { noteAppOpened } from "@/lib/reviewPrompt";
 import { hasSeenOnboarding, useHasSeenOnboarding } from "@/lib/onboarding";
 import {
   parsePayload,
@@ -110,6 +111,10 @@ function RootNavigator() {
         supabase.auth.getSession(),
         loadGuestMode(),
         loadLanguage(),
+        // Starts the clock for the rating prompt. Only the first call sticks,
+        // so the wait is measured from install rather than from whenever the
+        // person first tracked something.
+        noteAppOpened(),
       ]);
       if (!active) return;
 

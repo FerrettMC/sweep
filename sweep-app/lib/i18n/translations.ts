@@ -238,6 +238,7 @@ export const en = {
       "This store is blocking price checks right now — showing the last known price.",
     checkFailed: "Last price check failed — showing the last known price.",
     addedToBudget: "Added to your budget.",
+    limitBody: "You're tracking {{count}} products — remove one to add another.",
   },
 
   budget: {
@@ -380,6 +381,8 @@ export const en = {
     createAccount: "Create an account",
     deleteBodyFull:
       "This erases your tracked products, lists, budget, radars and XP. It cannot be undone.",
+    rate: "Rate Sweep",
+    rateHint: "Leave a review on Google Play",
   },
 
   offline: {
@@ -778,6 +781,7 @@ export const es: Translations = {
       "Esta tienda está bloqueando las consultas ahora mismo — mostramos el último precio conocido.",
     checkFailed: "La última consulta falló — mostramos el último precio conocido.",
     addedToBudget: "Añadido a tus gastos.",
+    limitBody: "Estás siguiendo {{count}} productos — quita uno para añadir otro.",
   },
 
   budget: {
@@ -921,6 +925,8 @@ export const es: Translations = {
     createAccount: "Crear una cuenta",
     deleteBodyFull:
       "Esto borra tus productos seguidos, listas, gastos, radares y XP. No se puede deshacer.",
+    rate: "Valorar Sweep",
+    rateHint: "Deja una reseña en Google Play",
   },
 
   offline: {
