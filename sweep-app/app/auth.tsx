@@ -45,6 +45,15 @@ export default function Auth() {
   // was pressed, which reads as the button doing nothing.
   const [awaitingConfirm, setAwaitingConfirm] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
+  // Scrolling is only enabled when the content genuinely overflows. A
+  // ScrollView claims a touch as a scroll the moment the finger drifts a few
+  // pixels, which cancels the press underneath it — so on a screen that fits,
+  // buttons feel like they need to be jabbed precisely. Measuring both heights
+  // keeps the keyboard fix (reachable buttons on a shrunken viewport) without
+  // paying for it on every tap.
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const [contentHeight, setContentHeight] = useState(0);
+  const scrollable = contentHeight > viewportHeight;
 
   function fail(text: string) {
     setIsError(true);
@@ -198,6 +207,9 @@ export default function Auth() {
       contentContainerStyle={styles.container}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
+      scrollEnabled={scrollable}
+      onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
+      onContentSizeChange={(_width, height) => setContentHeight(height)}
     >
       <Text style={styles.title}>{t("auth.title")}</Text>
       <Text style={styles.subtitle}>{t("auth.subtitle")}</Text>
