@@ -91,7 +91,11 @@ app.setErrorHandler((error: Error & { statusCode?: number; code?: string }, requ
 
   reply.status(status).send({
     error: status >= 500 ? "Something went wrong. Try again." : error.message,
-    ...(error.code ? { code: error.code } : {}),
+    // Only codes we set deliberately on 4xx replies are ours to expose. A 500
+    // carries whatever the failing library used — Prisma's P2024, Postgres'
+    // 23505 — and those mean nothing to a user while telling anyone else more
+    // about our stack than they need.
+    ...(error.code && status < 500 ? { code: error.code } : {}),
   });
 });
 
