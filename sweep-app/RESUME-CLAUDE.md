@@ -40,63 +40,86 @@ protecting — commit before stepping away from anything you'd hate to redo.
 
 ---
 
-# Where we left off (14 Aug 2026)
+# Where we left off (15 Aug 2026)
 
-## In flight: multi-language support (English + Spanish)
+Everything below is committed. Both projects typecheck clean.
 
-Done:
+## Ready to publish
 
-- `sweep-app/lib/i18n/translations.ts` — 222 keys x 2 languages
-- `sweep-app/lib/i18n/index.ts` — observable language store, same pattern as the
-  theme store, so switching language re-renders the whole tree at once
-- `sweep-backend/src/lib/i18n.ts` — 113 keys x 2, plus `localeFrom()` for
-  parsing `Accept-Language`
-- `sweep-backend/src/test-i18n.ts` — parity test, `npm run test:i18n`, 18/18
-- Language pickers wired into Profile and Onboarding
-- `Accept-Language` sent from `lib/api.ts`; `loadLanguage()` runs at startup
+The code is done. Remaining work is Play Console, not the repo.
 
-Still to do:
+Pre-flight already verified:
 
-1. **Backend locale threading** — `plans.ts` should take a `Locale` and run its
-   generated feature lines, dial labels, names, taglines and badges through
-   `t()`. Then thread `localeFrom(request.headers["accept-language"])` into the
-   routes that return user-facing errors.
-2. **App screens** — roughly 300 hardcoded strings across ~32 screens still need
-   converting to `useTranslate()`.
+- EAS account `benju-studioss-team`, matching `app.json` owner
+- `app.json`, `eas.json` and `google-services.json` all tracked by git — EAS
+  builds from the git archive, so an untracked file is a file the build never
+  sees
+- Production profile carries `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_SUPABASE_URL`
+  and `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- `versionCode` is remote with auto-increment, so it cannot collide
 
-The backend half is self-contained and has a test, so it's the easier one to
-pick up cold.
+Build:
 
-## Also changed today, uncommitted
+```bash
+cd sweep-app
+npx eas-cli build --profile production --platform android
+```
 
-- **Keyboard handling.** Buttons were being pushed under the open keyboard, or
-  having their first tap eaten by a `ScrollView`. Fixed in `auth`, `budget`,
-  `lists`, `AddToListSheet`, `TrackedItemSheet`, `UsernameSheet`. The rule: any
-  `ScrollView` containing a `TextInput` needs
-  `keyboardShouldPersistTaps="handled"`, or the keyboard spends the first tap
-  dismissing itself instead of pressing the button.
-- **Signup with an existing email.** Supabase deliberately returns a
-  success-shaped response for a duplicate so nobody can probe which addresses
-  have accounts; the only tell is an empty `identities` array. We now detect it
-  and sign the person straight in with the credentials they already typed
-  instead of telling them to press a different button. Both handlers also got
-  `try/finally` — a throw used to leave every button on the screen permanently
-  disabled.
-- **Supabase config moved to env** (`EXPO_PUBLIC_SUPABASE_URL` /
-  `EXPO_PUBLIC_SUPABASE_ANON_KEY`), mirrored into all three `eas.json` profiles
-  and `.env`, with the previous literals kept as a fallback so a missing
-  variable can't ship an app nobody can sign into.
+First run asks to generate an Android keystore — say yes and let EAS keep it.
+Losing it means never being able to update the app under this package name.
 
-## Two things to remember
+## Pricing decisions (15 Aug 2026)
 
-- The **test account's password was reset** to a temporary value during
-  debugging. Change it via _Forgot your password?_ — it is not written down in
-  this repo on purpose.
-- Tests still run against the **production** Supabase project. The env change
-  above is what makes a separate scratch project possible; that's the fix.
+- **7-day free trial** on both Pro and Ultimate. Chosen over 14 to limit
+  exposure; the real cost of a trial user is Bright Data calls for Amazon, not
+  the sticker price, so extending later is cheap if conversion disappoints.
+  Trial length is a Play base-plan setting and can change without an app update.
+- **No custom refund policy.** Google self-serves refunds for 48 hours; past
+  that they arrive in Play Console for a case-by-case decision. A free trial is
+  the better answer to refund pressure anyway.
+- **Upgrades Pro to Ultimate use default time proration.** Play credits unused
+  Pro time automatically, so "upgrading is cheaper" needs no discount logic. No
+  promotional upgrade pricing at launch — discounting to existing subscribers
+  teaches people to wait for discounts before there is any conversion data.
 
-## Next up after languages
+Subscription products get created in Play Console *after* the first upload, then
+the billing flow goes in.
 
-Play Console ($25, Data Safety, content rating, listing copy), signed AAB via
-`eas build --profile production`, `SMTP_FROM` in Railway, Cloudflare Email
-Routing for `support@sweepshopping.com`, `npx expo install --fix`.
+## Deliberately deferred
+
+- **Google Sign-In.** Code is roughly 50 lines; the credentials are the work.
+  The trap: Play App Signing re-signs the AAB, so Google sees a different SHA-1
+  than the upload key, and sign-in fails with `DEVELOPER_ERROR` for everyone who
+  installs from the Store. That fingerprint only exists after the first Play
+  Console upload — so wire the credentials then, not before. There are currently
+  no OAuth clients in `google-services.json` at all.
+- **Spanish for backend error messages.** ~84 strings in
+  `sweep-backend/src/routes/`. The whole app is translated; these only surface
+  on failures. Keys live in `sweep-backend/src/lib/i18n.ts` already, and
+  `plans.ts` shows the pattern.
+- **`google-services.json` has a stale `com.anonymous.sweep` entry** from before
+  the package rename. Harmless; regenerate next time you are in Firebase.
+
+## Things worth remembering
+
+- **The rating prompt fires once per install**, a day after first launch, when
+  someone tracks a product. Rules are a pure function in `lib/reviewGate.ts`
+  with a test (`npm run test:review`) — Play's review API gives no callback and
+  silently shows nothing once its quota is spent, so nothing can branch on
+  whether it worked.
+- **Retailer cooldown**: one blocked response pauses that retailer app-wide for
+  2 minutes, doubling to 30 on repeats. In-memory per process, so a second
+  server instance would halve the effective pause. `npm run test:cooldown`.
+- **Server-translated copy needs stable ids.** Plan upgrades carry `id`
+  alongside the translated `label`; filtering on `label` breaks the moment
+  someone switches language. Bit us once already.
+- **Template-literal strings hide from translation sweeps.** Three were missed
+  that way — the store-down banner, a tracking-limit message, a shortcut hint.
+- Tests still run against the **production** Supabase project. The
+  `EXPO_PUBLIC_SUPABASE_*` env split is what makes a scratch project possible.
+
+## Next up
+
+Play Console: $25 account, Data Safety form, content rating questionnaire,
+store listing (7 images ready), then upload the AAB. After that: subscription
+products, Google Sign-In credentials, then ads and crash reporting.
