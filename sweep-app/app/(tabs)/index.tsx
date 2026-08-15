@@ -210,6 +210,41 @@ export default function HomeScreen() {
           </View>
         )}
 
+        {/* Above the shortcuts, where the store-down banner used to sit —
+            it's the same information, so it keeps the same place. Small and
+            quiet, but always present: a store dropping out looks like our
+            bug from the outside, and someone who thinks the app is broken
+            stops trusting the prices that are fine. */}
+        <Pressable
+          onPress={() => setStoreHelpOpen(true)}
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.storeHelp,
+            downStores.length > 0 && styles.storeHelpDown,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Ionicons
+            name={
+              downStores.length > 0 ? "build-outline" : "help-circle-outline"
+            }
+            size={15}
+            color={downStores.length > 0 ? colors.warning : colors.textSecondary}
+          />
+          <Text
+            style={[
+              styles.storeHelpText,
+              downStores.length > 0 && styles.storeHelpTextDown,
+            ]}
+          >
+            {downStores.length === 0
+              ? t("storeTrouble.button")
+              : downStores.length === 1
+                ? t("storeTrouble.buttonDownOne", { store: downStores[0].label })
+                : t("storeTrouble.buttonDownMany", { count: downStores.length })}
+          </Text>
+        </Pressable>
+
         <View style={styles.section}>
           <SectionTitle>{t("home.shortcuts")}</SectionTitle>
           <View style={styles.shortcutGrid}>
@@ -244,39 +279,6 @@ export default function HomeScreen() {
               onPress={() => router.push("/profile")}
             />
           </View>
-
-          {/* Small and quiet, but always present. A store dropping out looks
-              like our bug from the outside, and someone who thinks the app is
-              broken stops trusting the prices that are fine. */}
-          <Pressable
-            onPress={() => setStoreHelpOpen(true)}
-            hitSlop={8}
-            style={({ pressed }) => [
-              styles.storeHelp,
-              downStores.length > 0 && styles.storeHelpDown,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons
-              name={
-                downStores.length > 0 ? "build-outline" : "help-circle-outline"
-              }
-              size={15}
-              color={downStores.length > 0 ? colors.warning : colors.textSecondary}
-            />
-            <Text
-              style={[
-                styles.storeHelpText,
-                downStores.length > 0 && styles.storeHelpTextDown,
-              ]}
-            >
-              {downStores.length === 0
-                ? t("storeTrouble.button")
-                : downStores.length === 1
-                  ? t("storeTrouble.buttonDownOne", { store: downStores[0].label })
-                  : t("storeTrouble.buttonDownMany", { count: downStores.length })}
-            </Text>
-          </Pressable>
         </View>
 
         <StoreTroubleSheet
@@ -515,7 +517,6 @@ const makeStyles = (colors: Palette) =>
       justifyContent: "center",
       gap: 6,
       alignSelf: "center",
-      marginTop: spacing.sm,
       paddingVertical: 8,
       paddingHorizontal: spacing.md,
       borderRadius: radius.pill,
