@@ -28,6 +28,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import { Button, EmptyState, ErrorBanner, Loading, Screen } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import {
   ApiError,
   type RadarMatch,
@@ -44,6 +45,7 @@ export default function RadarScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
 
   const [searches, setSearches] = useState<SavedSearch[] | null>(null);
   const [limits, setLimits] = useState<{
@@ -160,13 +162,13 @@ export default function RadarScreen() {
         <View style={styles.explainer}>
           <View style={styles.compareRow}>
             <Ionicons name="search" size={15} color={colors.textSecondary} />
-            <Text style={styles.compareLabel}>Search</Text>
+            <Text style={styles.compareLabel}>{t("radar.searchLabel")}</Text>
             <Text style={styles.compareText}>you look, once, right now</Text>
           </View>
           <View style={styles.compareRow}>
             <Ionicons name="radio-outline" size={15} color={colors.accent} />
-            <Text style={[styles.compareLabel, styles.compareLabelOn]}>Radar</Text>
-            <Text style={styles.compareText}>Sweep keeps looking, for weeks</Text>
+            <Text style={[styles.compareLabel, styles.compareLabelOn]}>{t("radar.radarLabel")}</Text>
+            <Text style={styles.compareText}>{t("radar.radarMeans")}</Text>
           </View>
 
           <View style={styles.cadence}>
@@ -188,7 +190,7 @@ export default function RadarScreen() {
               style={styles.input}
               value={keyword}
               onChangeText={setKeyword}
-              placeholder="What are you looking for?"
+              placeholder={t("radar.whatFor")}
               placeholderTextColor={colors.textTertiary}
               maxLength={80}
             />
@@ -199,13 +201,13 @@ export default function RadarScreen() {
                   style={styles.targetInput}
                   value={target}
                   onChangeText={setTarget}
-                  placeholder="Target price (optional)"
+                  placeholder={t("radar.targetPrice")}
                   placeholderTextColor={colors.textTertiary}
                   keyboardType="decimal-pad"
                 />
               </View>
               <Button
-                label="Watch"
+                label={t("radar.watch")}
                 onPress={onCreate}
                 busy={creating}
                 disabled={keyword.trim().length < 2}
@@ -226,8 +228,8 @@ export default function RadarScreen() {
 
         {searches.length === 0 ? (
           <EmptyState
-            title="Nothing on the radar"
-            body="Add something above — 'airpods pro' under $180, say — and Sweep will look for it across every store."
+            title={t("radar.empty")}
+            body={t("radar.emptyBody")}
           />
         ) : (
           searches.map((search) => {
@@ -274,9 +276,9 @@ export default function RadarScreen() {
                   />
                   <Text style={styles.refreshText}>
                     {busyId === search.id
-                      ? "Checking every store…"
+                      ? t("radar.checking")
                       : outOfRefreshes
-                        ? "No refreshes left today"
+                        ? t("radar.noneLeft")
                         : "Refresh"}
                   </Text>
                   {refreshes && busyId !== search.id && (
@@ -338,8 +340,8 @@ export default function RadarScreen() {
           deleting && {
             icon: "trash-outline",
             destructive: true,
-            title: "Stop watching this?",
-            body: "Sweep will no longer look for it.",
+            title: t("radar.stopWatching"),
+            body: t("radar.stopBody"),
             subject: {
               title: deleting.keyword,
               caption:
@@ -347,8 +349,8 @@ export default function RadarScreen() {
                   ? `under ${formatPrice(deleting.targetPrice)}`
                   : "any notable price",
             },
-            confirmLabel: "Delete",
-            cancelLabel: "Keep it",
+            confirmLabel: t("common.delete"),
+            cancelLabel: t("radar.keepIt"),
           }
         }
         onCancel={() => setDeleting(null)}

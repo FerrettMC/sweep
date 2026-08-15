@@ -11,6 +11,7 @@ import { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import { formatChartDate, formatPrice, formatPriceShort } from "@/lib/format";
 
 export interface PricePoint {
@@ -34,6 +35,7 @@ export default function PriceChart({
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const chart = useMemo(
     () => buildChart(history, maxColumns),
     [history, maxColumns],
@@ -42,7 +44,7 @@ export default function PriceChart({
   if (!chart) {
     return (
       <View style={[styles.empty, { height }]}>
-        <Text style={styles.emptyTitle}>No price history yet</Text>
+        <Text style={styles.emptyTitle}>{t("priceChart.empty")}</Text>
         <Text style={styles.emptyBody}>
           Sweep records a point each time the price changes. Check back after the
           next scan.

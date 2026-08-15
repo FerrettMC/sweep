@@ -34,6 +34,7 @@ import { useTheme, useThemedStyles } from "@/lib/theme";
 import { storeListPhrase } from "@/lib/format";
 import { getPlans } from "@/lib/api";
 import { markOnboardingSeen } from "@/lib/onboarding";
+import { type Translate, useTranslate } from "@/lib/i18n";
 import { isGuestMode } from "@/lib/guestMode";
 import { supabase } from "@/lib/supabase";
 import LanguageMenu, { LanguageButton } from "@/components/LanguageMenu";
@@ -57,6 +58,7 @@ export default function Onboarding() {
   // Offered here and not only in Profile, because someone who cannot read the
   // tour cannot get through the tour to reach Profile.
   const [languageOpen, setLanguageOpen] = useState(false);
+  const t = useTranslate();
 
   useEffect(() => {
     getPlans()
@@ -68,8 +70,9 @@ export default function Onboarding() {
             // "—" means the tier doesn't get it at all; a green tick beside
             // that would be a lie, and this is the honesty slide.
             .filter((u) => u.to !== "—")
-            // Jargon to someone who hasn't opened the app yet.
-            .filter((u) => u.label !== "Manual checks")
+            // Jargon to someone who hasn't opened the app yet. Matched on the
+            // stable id, because `label` arrives in the user's language.
+            .filter((u) => u.id !== "dial.manual")
             .map((u) => `${u.label}: ${u.to}`),
         );
       })
@@ -89,7 +92,7 @@ export default function Onboarding() {
     router.replace(data.session || guest ? "/(tabs)" : "/auth");
   }, [router]);
 
-  const slides = buildSlides(styles, colors, freeLimits);
+  const slides = buildSlides(styles, colors, freeLimits, t);
   const isLast = index === slides.length - 1;
 
   function next() {
@@ -115,7 +118,7 @@ export default function Onboarding() {
           hitSlop={16}
           style={({ pressed }) => [styles.skipButton, pressed && styles.skipPressed]}
         >
-          <Text style={styles.skip}>Skip</Text>
+          <Text style={styles.skip}>{t("onboarding.skip")}</Text>
         </Pressable>
       </View>
 
@@ -142,10 +145,13 @@ export default function Onboarding() {
       />
 
       <View style={styles.bottom}>
-        <Button label={isLast ? "Get started" : "Next"} onPress={next} />
+        <Button
+          label={isLast ? t("onboarding.getStarted") : t("onboarding.next")}
+          onPress={next}
+        />
         {isLast && (
           <Pressable onPress={finish} hitSlop={8} style={styles.already}>
-            <Text style={styles.alreadyText}>I already have an account</Text>
+            <Text style={styles.alreadyText}>{t("onboarding.haveAccount")}</Text>
           </Pressable>
         )}
       </View>
@@ -167,13 +173,14 @@ function buildSlides(
   styles: Styles,
   colors: Palette,
   freeLimits: string[] | null,
+  t: Translate,
 ): Slide[] {
   return [
     {
       key: "welcome",
-      eyebrow: "WELCOME",
-      title: "Sweep",
-      body: "Your online shopping buddy. It finds the best price, watches it for you, and tells you when a sale is actually a sale.",
+      eyebrow: t("onboarding.welcomeEyebrow"),
+      title: t("onboarding.welcomeTitle"),
+      body: t("onboarding.welcomeBody"),
       visual: (
         <Image
           source={require("@/assets/images/splash-icon.png")}
@@ -184,38 +191,42 @@ function buildSlides(
     },
     {
       key: "find",
-      eyebrow: "FIND IT",
-      title: "Every store, one search",
-      body: `${storeListPhrase()} — all at once, with the cheapest and the biggest drop pulled to the top.`,
+      eyebrow: t("onboarding.findEyebrow"),
+      title: t("onboarding.findTitle"),
+      // The store list is built from live retailer status, so it stays a
+      // placeholder rather than being baked into the sentence.
+      body: t("onboarding.findBody", { stores: storeListPhrase() }),
       visual: <FindVisual styles={styles} colors={colors} />,
     },
     {
       key: "watch",
-      eyebrow: "WATCH IT",
-      title: "Never refresh a page again",
-      body: "Track something and Sweep checks it for you. Or set a Deal Radar — name a thing and a price, and it keeps looking until it finds one.",
+      eyebrow: t("onboarding.watchEyebrow"),
+      title: t("onboarding.watchTitle"),
+      body: t("onboarding.watchBody"),
       visual: <WatchVisual styles={styles} colors={colors} />,
     },
     {
       key: "judge",
-      eyebrow: "JUDGE IT",
-      title: "Is that sale even real?",
-      body: "Sweep keeps its own price history, so it can tell you when a big red discount badge is sitting on the price the item always costs.",
+      eyebrow: t("onboarding.judgeEyebrow"),
+      title: t("onboarding.judgeTitle"),
+      body: t("onboarding.judgeBody"),
       visual: <JudgeVisual styles={styles} colors={colors} />,
     },
     {
       key: "plan",
-      eyebrow: "PLAN IT",
-      title: "Lists and a budget",
-      body: "Save things to shareable lists for birthdays and holidays, and log what you spend so the month doesn't surprise you.",
+      eyebrow: t("onboarding.planEyebrow"),
+      title: t("onboarding.planTitle"),
+      body: t("onboarding.planBody"),
       visual: <PlanVisual styles={styles} colors={colors} />,
     },
     {
       key: "free",
-      eyebrow: "THE HONEST BIT",
-      title: "Free, genuinely",
-      body: "Every store, real alerts and a working budget cost nothing. Paid plans raise the limits and check more often — that's the whole difference.",
-      visual: <FreeVisual styles={styles} colors={colors} limits={freeLimits} />,
+      eyebrow: t("onboarding.freeEyebrow"),
+      title: t("onboarding.freeTitle"),
+      body: t("onboarding.freeBody"),
+      visual: (
+        <FreeVisual styles={styles} colors={colors} limits={freeLimits} t={t} />
+      ),
     },
   ];
 }
@@ -247,6 +258,7 @@ function FindVisual({ styles, colors }: { styles: Styles; colors: Palette }) {
 }
 
 function WatchVisual({ styles, colors }: { styles: Styles; colors: Palette }) {
+  const t = useTranslate();
   // A falling price, drawn as bars so it needs no charting library.
   const bars = [40, 44, 38, 41, 30, 26, 18];
   return (
@@ -266,7 +278,7 @@ function WatchVisual({ styles, colors }: { styles: Styles; colors: Palette }) {
       <View style={styles.notification}>
         <Ionicons name="notifications" size={15} color={colors.accent} />
         <View style={styles.notificationText}>
-          <Text style={styles.notificationTitle}>Price drop</Text>
+          <Text style={styles.notificationTitle}>{t("onboarding.mockPriceDrop")}</Text>
           <Text style={styles.notificationBody}>Down 17% to $148.99</Text>
         </View>
       </View>
@@ -297,6 +309,7 @@ function JudgeVisual({ styles, colors }: { styles: Styles; colors: Palette }) {
 }
 
 function PlanVisual({ styles, colors }: { styles: Styles; colors: Palette }) {
+  const t = useTranslate();
   return (
     <View style={styles.mock}>
       {["Mum's birthday", "Desk setup"].map((name, i) => (
@@ -308,7 +321,7 @@ function PlanVisual({ styles, colors }: { styles: Styles; colors: Palette }) {
       ))}
       <View style={styles.budget}>
         <View style={styles.budgetHead}>
-          <Text style={styles.budgetLabel}>This month</Text>
+          <Text style={styles.budgetLabel}>{t("onboarding.mockThisMonth")}</Text>
           <Text style={styles.budgetValue}>$212 of $400</Text>
         </View>
         <View style={styles.budgetTrack}>
@@ -323,15 +336,19 @@ function FreeVisual({
   styles,
   colors,
   limits,
+  t,
 }: {
   styles: Styles;
   colors: Palette;
   limits: string[] | null;
+  t: Translate;
 }) {
+  // The live list comes from the API already translated; these stand in only
+  // when it can't be reached.
   const lines = limits ?? [
-    "Track products across every store",
-    "Price-drop alerts",
-    "Lists, budget and Deal Radar",
+    t("onboarding.freeFallbackTrack"),
+    t("onboarding.freeFallbackAlerts"),
+    t("onboarding.freeFallbackTools"),
   ];
   return (
     <View style={styles.mock}>
@@ -341,7 +358,7 @@ function FreeVisual({
           <Text style={styles.freeText}>{line}</Text>
         </View>
       ))}
-      <Text style={styles.freeNote}>No card, no trial, no expiry.</Text>
+      <Text style={styles.freeNote}>{t("onboarding.freeNote")}</Text>
     </View>
   );
 }

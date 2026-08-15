@@ -27,6 +27,7 @@ import {
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import type { SaleVerdict, SweepAlternative, SweepResult } from "@/lib/api";
 import { formatPrice } from "@/lib/format";
 
@@ -59,6 +60,7 @@ export default function SweepSheet({
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   if (!visible) return null;
 
   const verdict = result ? VERDICT[result.sale.verdict] : null;
@@ -72,7 +74,7 @@ export default function SweepSheet({
           <ScrollView contentContainerStyle={styles.content}>
             <View style={styles.brandRow}>
               <Ionicons name="sparkles" size={15} color={colors.accent} />
-              <Text style={styles.brand}>SWEEP THIS DEAL</Text>
+              <Text style={styles.brand}>{t("sweep.brand")}</Text>
               {remaining !== null && (
                 <Text style={styles.remaining}>
                   {remaining} left today
@@ -86,7 +88,7 @@ export default function SweepSheet({
                 <Text style={styles.busyText}>
                   Checking every other store and this item's price history…
                 </Text>
-                <Text style={styles.busySub}>This takes a few seconds.</Text>
+                <Text style={styles.busySub}>{t("sweep.takesSeconds")}</Text>
               </View>
             )}
 
@@ -128,14 +130,14 @@ export default function SweepSheet({
                     result.sale.realPercentBelowTypical !== null && (
                       <View style={styles.claimRow}>
                         <View style={styles.claim}>
-                          <Text style={styles.claimLabel}>STORE CLAIMS</Text>
+                          <Text style={styles.claimLabel}>{t("sweep.storeClaimsLabel")}</Text>
                           <Text style={styles.claimValue}>
                             {result.sale.claimedPercentOff}% off
                           </Text>
                         </View>
                         <Ionicons name="arrow-forward" size={13} color={colors.textTertiary} />
                         <View style={styles.claim}>
-                          <Text style={styles.claimLabel}>ACTUALLY</Text>
+                          <Text style={styles.claimLabel}>{t("sweep.actuallyLabel")}</Text>
                           <Text
                             style={[
                               styles.claimValue,
@@ -156,7 +158,7 @@ export default function SweepSheet({
                 {/* ---- 2. cheaper elsewhere ---- */}
                 {result.cheaperElsewhere.length > 0 && (
                   <View style={styles.block}>
-                    <Text style={styles.blockTitle}>Cheaper elsewhere</Text>
+                    <Text style={styles.blockTitle}>{t("sweep.cheaperElsewhere")}</Text>
                     {result.cheaperElsewhere.map((alt) => (
                       <AlternativeRow key={alt.url} alt={alt} styles={styles} colors={colors} />
                     ))}
@@ -166,7 +168,7 @@ export default function SweepSheet({
                 {/* ---- 3. similar, explicitly hedged ---- */}
                 {result.similar.length > 0 && (
                   <View style={styles.block}>
-                    <Text style={styles.blockTitle}>Worth a look</Text>
+                    <Text style={styles.blockTitle}>{t("sweep.worthALook")}</Text>
                     <Text style={styles.blockNote}>
                       These cost less but we're not certain they're identical —
                       check the details before buying.
@@ -187,12 +189,12 @@ export default function SweepSheet({
                 {/* ---- 4. price context ---- */}
                 {result.history.points > 0 && (
                   <View style={styles.block}>
-                    <Text style={styles.blockTitle}>Its price history</Text>
+                    <Text style={styles.blockTitle}>{t("sweep.itsHistory")}</Text>
                     <View style={styles.statRow}>
-                      <Stat label="Now" value={formatPrice(result.product.price)} styles={styles} />
-                      <Stat label="Lowest" value={formatPrice(result.history.low)} styles={styles} />
-                      <Stat label="Typical" value={formatPrice(result.history.average)} styles={styles} />
-                      <Stat label="Checks" value={String(result.history.points)} styles={styles} />
+                      <Stat label={t("sweep.now")} value={formatPrice(result.product.price)} styles={styles} />
+                      <Stat label={t("sweep.lowest")} value={formatPrice(result.history.low)} styles={styles} />
+                      <Stat label={t("sweep.typical")} value={formatPrice(result.history.average)} styles={styles} />
+                      <Stat label={t("sweep.checks")} value={String(result.history.points)} styles={styles} />
                     </View>
                   </View>
                 )}
@@ -212,7 +214,7 @@ export default function SweepSheet({
           </ScrollView>
 
           <View style={styles.actions}>
-            <Button label="Done" onPress={onClose} variant="secondary" />
+            <Button label={t("common.done")} onPress={onClose} variant="secondary" />
           </View>
         </View>
       </View>

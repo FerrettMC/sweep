@@ -29,6 +29,7 @@ export const en = {
     searchesLeft: "{{count}} searches left today",
     searchLeft: "{{count}} search left today",
     noSearchesLeft: "No searches left today",
+    retryShort: "Retry",
   },
 
   tabs: {
@@ -49,6 +50,8 @@ export const en = {
       "Your online shopping buddy. It finds the best price, watches it for you, and tells you when a sale is actually a sale.",
     findEyebrow: "FIND IT",
     findTitle: "Every store, one search",
+    findBody:
+      "{{stores}} — all at once, with the cheapest and the biggest drop pulled to the top.",
     watchEyebrow: "WATCH IT",
     watchTitle: "Never refresh a page again",
     watchBody:
@@ -66,7 +69,12 @@ export const en = {
     freeBody:
       "Every store, real alerts and a working budget cost nothing. Paid plans raise the limits and check more often — that's the whole difference.",
     freeNote: "No card, no trial, no expiry.",
+    freeFallbackTrack: "Track products across every store",
+    freeFallbackAlerts: "Price-drop alerts",
+    freeFallbackTools: "Lists, budget and Deal Radar",
     language: "Language",
+    mockPriceDrop: "Price drop",
+    mockThisMonth: "This month",
   },
 
   auth: {
@@ -82,6 +90,14 @@ export const en = {
       "Email or password is incorrect. Try 'Forgot your password?' below.",
     notConfirmed: "Confirm your email first — check your inbox for the link.",
     needBoth: "Enter an email and password.",
+    title: "Sweep",
+    subtitle: "Your online shopping buddy",
+    accountExists:
+      "You already have an account with that email, but that password doesn't match. Try 'Forgot your password?' below.",
+    offline: "Couldn't reach Sweep. Check your connection and try again.",
+    tooShort: "Password must be at least 6 characters.",
+    guestNote:
+      "Compare prices across {{stores}} in one search. Guests get one a day.",
   },
 
   reset: {
@@ -99,6 +115,7 @@ export const en = {
     tooShort: "Passwords need at least 8 characters.",
     badCode: "That code didn't work. It may have expired — send a new one.",
     done: "Password changed. You're signed in.",
+    emailPlaceholder: "you@example.com",
   },
 
   home: {
@@ -122,6 +139,20 @@ export const en = {
       "We can't reach {{stores}} from our servers right now. We're working on it — everything else is searching normally.",
     storeFailing:
       "{{stores}} is having trouble. This is usually temporary and fixes itself; the other stores are unaffected.",
+    heroBody:
+      "Search once and see {{stores}} side by side — so you know who's actually cheapest before you buy.",
+    heroOneSearch: "Every store, one search",
+    searchesLeftShort: "{{count}} searches left today",
+    searchLeftShort: "{{count}} search left today",
+    biggestDrop: "BIGGEST DROP YOU'RE WATCHING",
+    watching: "YOU'RE WATCHING",
+    watchEmpty: "Found something? Paste its link to watch the price.",
+    needsAttention: "Needs attention",
+    guestBody: "Guests get one search a day and can't track prices.",
+    profile: "Profile",
+    profileHint: "Account & stores",
+    tagline: "Your online shopping buddy",
+    heroTitle: "What are you shopping for?",
   },
 
   search: {
@@ -143,6 +174,27 @@ export const en = {
     skipped: "Skipped {{stores}} — they don't sell this kind of thing.",
     amazonPending: "Amazon is still loading — it can take up to 3 minutes.",
     watchAd: "Watch ad for +1",
+    amazonSlow: "Amazon took too long — try again later.",
+    amazonExpired: "Amazon results expired — search again.",
+    amazonFailed: "Couldn't load Amazon results.",
+    signInForMore: "Sign in to unlock extra searches.",
+    adClosedEarly: "Ad closed early — no extra search this time.",
+    adDev: "Extra search unlocked (dev — no real ad).",
+    adFinishing: "Ad finished — unlocking your search…",
+    adUnlocked: "Extra search unlocked.",
+    adPending: "Reward is taking a moment to land. Pull to refresh shortly.",
+    searchesLeftShort: "{{count}} searches left today",
+    searchLeftShort: "{{count}} search left today",
+    fromAds: " · +{{count}} from ads",
+    noAdSearches: "No more ad searches today",
+    guestBanner:
+      "You're browsing as a guest — one search a day. Sign up to track prices and get drop alerts.",
+    createAccount: "Create account",
+    checkingStores: "Checking every store…",
+    emptyTitle: "One search, every store",
+    emptyBody:
+      "Search once and Sweep checks {{stores}} together, so you can see who's actually cheapest before you buy.",
+    noMatches: "No matches",
   },
 
   radar: {
@@ -170,6 +222,7 @@ export const en = {
     noMatch: "Nothing under your target right now.",
     stopWatching: "Stop watching this?",
     stopBody: "Sweep will no longer look for it.",
+    keepIt: "Keep it",
   },
 
   tracking: {
@@ -183,6 +236,13 @@ export const en = {
     keepTracking: "Keep tracking",
     loggedIt: "Added to your budget",
     stopToo: "Want to stop watching its price as well?",
+    emptyBody:
+      "Copy a product link from {{stores}} and paste it above. Sweep will watch the price and tell you when it drops.",
+    compareInstead: "Compare prices instead",
+    storeBlocking:
+      "This store is blocking price checks right now — showing the last known price.",
+    checkFailed: "Last price check failed — showing the last known price.",
+    addedToBudget: "Added to your budget.",
   },
 
   budget: {
@@ -207,6 +267,13 @@ export const en = {
     hint: "Tap an entry to edit it, hold to delete.",
     deleteTitle: "Delete this purchase?",
     perCategoryPro: "Set a limit per category with Pro",
+    edit: "Edit",
+    monthlyBudget: "Monthly budget",
+    nothingThisMonth: "Nothing was logged this month.",
+    deleteKeep: "Keep it",
+    amountPlaceholder: "0.00",
+    categoryPlaceholder: "Category name…",
+    noteOptional: "Note (optional)",
   },
 
   lists: {
@@ -223,6 +290,17 @@ export const en = {
     share: "Share",
     unshare: "Stop sharing",
     openItem: "Open",
+    sharingOff: "Sharing turned off. The old link no longer works.",
+    linkCopied: "Link copied.",
+    newListPlaceholder: "New list — e.g. Christmas 2026",
+    planIncludesOne: "Your plan includes 1 list.",
+    emptyBody:
+      "Build a gift list or wishlist, then share a link. Whoever you send it to sees live prices — and can mark off what they've bought, so nobody doubles up.",
+    pasteLink: "Paste a product link…",
+    add: "Add",
+    shareAgain: "Share again",
+    shareThis: "Share this list",
+    copyLink: "Copy link",
   },
 
   sweep: {
@@ -248,6 +326,10 @@ export const en = {
     save: "save {{amount}}",
     unreachable:
       "Couldn't reach {{stores}} this time — there may be cheaper options there.",
+    brand: "SWEEP THIS DEAL",
+    storeClaimsLabel: "STORE CLAIMS",
+    actuallyLabel: "ACTUALLY",
+    itsHistory: "Its price history",
   },
 
   profile: {
@@ -287,6 +369,22 @@ export const en = {
     enterPassword: "Enter your password to confirm.",
     thisAccount: "This account",
     changeUsername: "Change",
+    alertsOn: "Price-drop alerts are on.",
+    permissionDenied: "Permission denied. Enable notifications in system settings.",
+    enterPasswordConfirm: "Enter your password to confirm.",
+    browsingAsGuest: "Browsing as guest",
+    usernamePublic:
+      "Your username is public on the leaderboard. Your email never is.",
+    usernameAnon:
+      "You're anonymous on the leaderboard until you pick a username. Your email is never shown.",
+    alertsOnBody: "You'll get a push when something you track drops.",
+    alertsOffBody: "Turn these on so you hear about a drop while it's still live.",
+    serverUnreachable: "Couldn't reach the server.",
+    supportSubject: "Sweep support",
+    replaySub: "See how Sweep works again",
+    createAccount: "Create an account",
+    deleteBodyFull:
+      "This erases your tracked products, lists, budget, radars and XP. It cannot be undone.",
   },
 
   offline: {
@@ -298,6 +396,128 @@ export const en = {
     title: "That didn't go to plan",
     body: "Something in Sweep hit an error. Your tracked products, lists and budget are all stored on our servers, so nothing has been lost.",
     tellUs: "Tell us what happened",
+  },
+  deals: {
+    empty: "No deals yet",
+    emptyBody:
+      "When something anyone tracks falls well below its usual price, it shows up here — with credit to whoever found it first.",
+    createAccount: "Create an account",
+    trackSomething: "Track something",
+    youFound: "You found this",
+    formerMember: "Found by a former member",
+    tracking: "Tracking",
+  },
+  product: {
+    upToDate: "Already up to date — checked moments ago.",
+    checkedNow: "Price checked just now.",
+    loadFailed: "Couldn't load this product",
+    belowAverage: "{{percent}}% below its average — a genuinely good time to buy",
+    atAverage: "Right at its average price",
+    aboveAverage: "{{percent}}% above its average — worth waiting",
+    priceHistory: "Price history",
+    low: "Low",
+    average: "Average",
+    high: "High",
+    boughtThis: "I bought this",
+    stopTracking: "Stop tracking",
+    trackThis: "Track this product",
+    addedToBudget: "Added to your budget.",
+    checkNow: "Check price now",
+    checkNowLeft: "Check price now ({{count}} left today)",
+    lastChecked: "Last checked {{when}}",
+    lastCheckFailed: " · last check failed",
+  },
+  leaderboard: {
+    badges: "Badges",
+    topSweepers: "Top Sweepers",
+    howEarned: "How you earned it",
+    firstTrack: "First product tracked",
+    dealFound: "Deal found",
+  },
+  notFound: {
+    title: "Not found",
+    body: "This screen doesn't exist.",
+    goHome: "Go to tracking",
+  },
+  addLink: {
+    limitReached: "You've reached your tracking limit.",
+    placeholder: "Paste a product link…",
+    lookUp: "Look up",
+    pasteFromClipboard: "Paste from clipboard",
+  },
+  addToList: {
+    heading: "Add to a list",
+    loading: "Loading your lists…",
+    alreadyOnList: "Already on this list",
+    adding: "Adding…",
+    newListName: "New list name…",
+  },
+  appError: {
+    title: "That didn't go to plan",
+    tryAgain: "Try again",
+    tellUs: "Tell us what happened",
+    body:
+      "Something in Sweep hit an error. Your tracked products, lists and budget are all stored on our servers, so nothing has been lost.",
+  },
+  compare: {
+    hintPrefix: "Tap",
+    hintAction: "Compare",
+    hintSuffix: "on any result to line them up side by side.",
+    clear: "Clear",
+    cheapest: "Cheapest",
+    hintFull:
+      "Tap Compare on any result to line it up here against others, side by side.",
+  },
+  trackModal: {
+    already: "Already tracking this",
+    question: "Track this product?",
+    updateTimes: "Update times",
+    trackIt: "Track it",
+  },
+  username: {
+    change: "Change username",
+    choose: "Choose a username",
+    placeholder: "3–16 characters",
+  },
+  whyLimited: {
+    heading: "Why are searches limited?",
+    amazonBold: "Amazon costs actual money.",
+    restBold: "The rest cost patience.",
+    trackingBold: "Tracking is different.",
+    waysToGetMore: "Ways to get more",
+    gotIt: "Got it",
+    seePlans: "See plans",
+  },
+  priceChart: {
+    empty: "No price history yet",
+  },
+  trackedItem: {
+    thresholdHelp: "Enter a price like 49.99, or clear it to turn the alert off.",
+    alertBelow: "Alert me below",
+    stopTrackingThis: "Stop tracking this",
+  },
+  nav: {
+    radar: "Deal Radar",
+    budget: "Budget",
+    lists: "Lists",
+    plans: "Plans",
+    leaderboard: "Leaderboard",
+    profile: "Profile",
+  },
+  plans: {
+    monthly: "Monthly",
+    yearly: "Yearly",
+    yourPlan: "YOUR PLAN",
+    hideList: "Hide full list",
+    seeAll: "See all {{count}} features",
+  },
+  card: {
+    added: "Added",
+    compare: "Compare",
+    list: "List",
+    noPrice: "No price",
+    hidePassword: "Hide password",
+    showPassword: "Show password",
   },
 };
 
@@ -329,6 +549,7 @@ export const es: Translations = {
     searchesLeft: "Te quedan {{count}} búsquedas hoy",
     searchLeft: "Te queda {{count}} búsqueda hoy",
     noSearchesLeft: "No te quedan búsquedas hoy",
+    retryShort: "Reintentar",
   },
 
   tabs: {
@@ -349,6 +570,8 @@ export const es: Translations = {
       "Tu compañero de compras online. Encuentra el mejor precio, lo vigila por ti y te dice cuándo una oferta es de verdad.",
     findEyebrow: "ENCUÉNTRALO",
     findTitle: "Todas las tiendas, una búsqueda",
+    findBody:
+      "{{stores}} — todas a la vez, con la más barata y la mayor bajada arriba del todo.",
     watchEyebrow: "VIGÍLALO",
     watchTitle: "No vuelvas a recargar una página",
     watchBody:
@@ -366,7 +589,12 @@ export const es: Translations = {
     freeBody:
       "Todas las tiendas, alertas reales y un presupuesto que funciona no cuestan nada. Los planes de pago suben los límites y revisan más seguido: esa es toda la diferencia.",
     freeNote: "Sin tarjeta, sin prueba, sin caducidad.",
+    freeFallbackTrack: "Sigue productos en todas las tiendas",
+    freeFallbackAlerts: "Avisos de bajada de precio",
+    freeFallbackTools: "Listas, gastos y Radar de ofertas",
     language: "Idioma",
+    mockPriceDrop: "Bajada de precio",
+    mockThisMonth: "Este mes",
   },
 
   auth: {
@@ -382,6 +610,15 @@ export const es: Translations = {
       "El correo o la contraseña no son correctos. Prueba «¿Olvidaste tu contraseña?» abajo.",
     notConfirmed: "Confirma tu correo primero — busca el enlace en tu bandeja.",
     needBoth: "Escribe un correo y una contraseña.",
+    title: "Sweep",
+    subtitle: "Tu compañero de compras online",
+    accountExists:
+      "Ya tienes una cuenta con ese correo, pero esa contraseña no coincide. Prueba «¿Olvidaste tu contraseña?» abajo.",
+    offline:
+      "No se pudo conectar con Sweep. Revisa tu conexión e inténtalo de nuevo.",
+    tooShort: "La contraseña debe tener al menos 6 caracteres.",
+    guestNote:
+      "Compara precios en {{stores}} con una sola búsqueda. Los invitados tienen una al día.",
   },
 
   reset: {
@@ -399,6 +636,7 @@ export const es: Translations = {
     tooShort: "La contraseña necesita al menos 8 caracteres.",
     badCode: "Ese código no funcionó. Puede haber caducado — pide uno nuevo.",
     done: "Contraseña cambiada. Ya entraste.",
+    emailPlaceholder: "tu@ejemplo.com",
   },
 
   home: {
@@ -422,6 +660,21 @@ export const es: Translations = {
       "Ahora mismo no podemos conectar con {{stores}} desde nuestros servidores. Estamos en ello — todo lo demás busca con normalidad.",
     storeFailing:
       "{{stores}} está teniendo problemas. Suele ser temporal y se arregla solo; las demás tiendas no se ven afectadas.",
+    heroBody:
+      "Busca una vez y ve {{stores}} lado a lado — así sabes quién es más barato antes de comprar.",
+    heroOneSearch: "Todas las tiendas, una búsqueda",
+    searchesLeftShort: "Te quedan {{count}} búsquedas hoy",
+    searchLeftShort: "Te queda {{count}} búsqueda hoy",
+    biggestDrop: "LA MAYOR BAJADA QUE SIGUES",
+    watching: "ESTÁS SIGUIENDO",
+    watchEmpty: "¿Has visto algo? Pega su enlace para vigilar el precio.",
+    needsAttention: "Requiere atención",
+    guestBody:
+      "Los invitados tienen una búsqueda al día y no pueden seguir precios.",
+    profile: "Perfil",
+    profileHint: "Cuenta y tiendas",
+    tagline: "Tu compañero de compras online",
+    heroTitle: "¿Qué estás buscando?",
   },
 
   search: {
@@ -443,6 +696,29 @@ export const es: Translations = {
     skipped: "Omitimos {{stores}} — no venden este tipo de cosas.",
     amazonPending: "Amazon sigue cargando — puede tardar hasta 3 minutos.",
     watchAd: "Ver anuncio por +1",
+    amazonSlow: "Amazon tardó demasiado — inténtalo más tarde.",
+    amazonExpired: "Los resultados de Amazon caducaron — busca otra vez.",
+    amazonFailed: "No se pudieron cargar los resultados de Amazon.",
+    signInForMore: "Inicia sesión para desbloquear más búsquedas.",
+    adClosedEarly:
+      "Cerraste el anuncio antes de tiempo — esta vez no hay búsqueda extra.",
+    adDev: "Búsqueda extra desbloqueada (dev — sin anuncio real).",
+    adFinishing: "Anuncio terminado — desbloqueando tu búsqueda…",
+    adUnlocked: "Búsqueda extra desbloqueada.",
+    adPending:
+      "La recompensa está tardando un poco. Desliza para actualizar en un momento.",
+    searchesLeftShort: "Te quedan {{count}} búsquedas hoy",
+    searchLeftShort: "Te queda {{count}} búsqueda hoy",
+    fromAds: " · +{{count}} de anuncios",
+    noAdSearches: "No quedan búsquedas con anuncio hoy",
+    guestBanner:
+      "Estás como invitado — una búsqueda al día. Crea una cuenta para seguir precios y recibir avisos.",
+    createAccount: "Crear cuenta",
+    checkingStores: "Consultando todas las tiendas…",
+    emptyTitle: "Una búsqueda, todas las tiendas",
+    emptyBody:
+      "Busca una vez y Sweep consulta {{stores}} a la vez, para que veas quién es de verdad más barato antes de comprar.",
+    noMatches: "Sin resultados",
   },
 
   radar: {
@@ -470,6 +746,7 @@ export const es: Translations = {
     noMatch: "Ahora mismo no hay nada bajo tu objetivo.",
     stopWatching: "¿Dejar de vigilar esto?",
     stopBody: "Sweep dejará de buscarlo.",
+    keepIt: "Consérvalo",
   },
 
   tracking: {
@@ -483,6 +760,13 @@ export const es: Translations = {
     keepTracking: "Seguir vigilando",
     loggedIt: "Añadido a tu presupuesto",
     stopToo: "¿Quieres dejar de vigilar su precio también?",
+    emptyBody:
+      "Copia el enlace de un producto de {{stores}} y pégalo arriba. Sweep vigilará el precio y te avisará cuando baje.",
+    compareInstead: "Mejor comparar precios",
+    storeBlocking:
+      "Esta tienda está bloqueando las consultas ahora mismo — mostramos el último precio conocido.",
+    checkFailed: "La última consulta falló — mostramos el último precio conocido.",
+    addedToBudget: "Añadido a tus gastos.",
   },
 
   budget: {
@@ -507,6 +791,13 @@ export const es: Translations = {
     hint: "Toca una entrada para editarla, mantén pulsado para borrarla.",
     deleteTitle: "¿Eliminar esta compra?",
     perCategoryPro: "Pon un límite por categoría con Pro",
+    edit: "Editar",
+    monthlyBudget: "Presupuesto mensual",
+    nothingThisMonth: "No se registró nada este mes.",
+    deleteKeep: "Consérvalo",
+    amountPlaceholder: "0.00",
+    categoryPlaceholder: "Nombre de la categoría…",
+    noteOptional: "Nota (opcional)",
   },
 
   lists: {
@@ -523,6 +814,17 @@ export const es: Translations = {
     share: "Compartir",
     unshare: "Dejar de compartir",
     openItem: "Abrir",
+    sharingOff: "Compartir desactivado. El enlace anterior ya no funciona.",
+    linkCopied: "Enlace copiado.",
+    newListPlaceholder: "Lista nueva — p. ej. Navidad 2026",
+    planIncludesOne: "Tu plan incluye 1 lista.",
+    emptyBody:
+      "Crea una lista de regalos o favoritos y comparte el enlace. Quien lo reciba ve los precios en vivo y puede marcar lo que ya compró, para que nadie repita.",
+    pasteLink: "Pega el enlace de un producto…",
+    add: "Añadir",
+    shareAgain: "Compartir de nuevo",
+    shareThis: "Compartir esta lista",
+    copyLink: "Copiar enlace",
   },
 
   sweep: {
@@ -548,6 +850,10 @@ export const es: Translations = {
     save: "ahorras {{amount}}",
     unreachable:
       "No pudimos conectar con {{stores}} esta vez — puede que allí haya opciones más baratas.",
+    brand: "ANALIZAR OFERTA",
+    storeClaimsLabel: "LA TIENDA DICE",
+    actuallyLabel: "EN REALIDAD",
+    itsHistory: "Su historial de precios",
   },
 
   profile: {
@@ -587,6 +893,23 @@ export const es: Translations = {
     enterPassword: "Escribe tu contraseña para confirmar.",
     thisAccount: "Esta cuenta",
     changeUsername: "Cambiar",
+    alertsOn: "Los avisos de bajada están activados.",
+    permissionDenied:
+      "Permiso denegado. Activa las notificaciones en los ajustes del sistema.",
+    enterPasswordConfirm: "Escribe tu contraseña para confirmar.",
+    browsingAsGuest: "Navegando como invitado",
+    usernamePublic:
+      "Tu nombre de usuario es público en la clasificación. Tu correo nunca lo es.",
+    usernameAnon:
+      "Eres anónimo en la clasificación hasta que elijas un nombre. Tu correo nunca se muestra.",
+    alertsOnBody: "Recibirás un aviso cuando algo que sigues baje de precio.",
+    alertsOffBody: "Actívalos para enterarte de una bajada mientras sigue vigente.",
+    serverUnreachable: "No se pudo conectar con el servidor.",
+    supportSubject: "Soporte de Sweep",
+    replaySub: "Vuelve a ver cómo funciona Sweep",
+    createAccount: "Crear una cuenta",
+    deleteBodyFull:
+      "Esto borra tus productos seguidos, listas, gastos, radares y XP. No se puede deshacer.",
   },
 
   offline: {
@@ -598,6 +921,129 @@ export const es: Translations = {
     title: "Algo no salió bien",
     body: "Sweep encontró un error. Tus productos seguidos, listas y presupuesto están guardados en nuestros servidores, así que no se ha perdido nada.",
     tellUs: "Cuéntanos qué pasó",
+  },
+  deals: {
+    empty: "Todavía no hay ofertas",
+    emptyBody:
+      "Cuando algo que alguien sigue baja bastante de su precio habitual, aparece aquí — con crédito para quien lo encontró primero.",
+    createAccount: "Crear una cuenta",
+    trackSomething: "Sigue algo",
+    youFound: "Lo encontraste tú",
+    formerMember: "Encontrado por un antiguo miembro",
+    tracking: "Siguiendo",
+  },
+  product: {
+    upToDate: "Ya está al día — se revisó hace un momento.",
+    checkedNow: "Precio revisado ahora mismo.",
+    loadFailed: "No se pudo cargar este producto",
+    belowAverage: "{{percent}}% por debajo de su media — buen momento para comprar",
+    atAverage: "Justo en su precio medio",
+    aboveAverage: "{{percent}}% por encima de su media — mejor esperar",
+    priceHistory: "Historial de precios",
+    low: "Mínimo",
+    average: "Medio",
+    high: "Máximo",
+    boughtThis: "Lo he comprado",
+    stopTracking: "Dejar de seguir",
+    trackThis: "Seguir este producto",
+    addedToBudget: "Añadido a tus gastos.",
+    checkNow: "Revisar precio ahora",
+    checkNowLeft: "Revisar precio ahora (te quedan {{count}} hoy)",
+    lastChecked: "Última revisión {{when}}",
+    lastCheckFailed: " · la última revisión falló",
+  },
+  leaderboard: {
+    badges: "Insignias",
+    topSweepers: "Mejores Sweepers",
+    howEarned: "Cómo lo conseguiste",
+    firstTrack: "Primer producto seguido",
+    dealFound: "Oferta encontrada",
+  },
+  notFound: {
+    title: "No encontrado",
+    body: "Esta pantalla no existe.",
+    goHome: "Ir a seguimiento",
+  },
+  addLink: {
+    limitReached: "Has alcanzado tu límite de seguimiento.",
+    placeholder: "Pega el enlace de un producto…",
+    lookUp: "Buscar",
+    pasteFromClipboard: "Pegar del portapapeles",
+  },
+  addToList: {
+    heading: "Añadir a una lista",
+    loading: "Cargando tus listas…",
+    alreadyOnList: "Ya está en esta lista",
+    adding: "Añadiendo…",
+    newListName: "Nombre de la lista nueva…",
+  },
+  appError: {
+    title: "Algo no salió como esperábamos",
+    tryAgain: "Reintentar",
+    tellUs: "Cuéntanos qué pasó",
+    body:
+      "Algo en Sweep dio error. Tus productos seguidos, listas y gastos están guardados en nuestros servidores, así que no se ha perdido nada.",
+  },
+  compare: {
+    hintPrefix: "Toca",
+    hintAction: "Comparar",
+    hintSuffix: "en cualquier resultado para verlos lado a lado.",
+    clear: "Limpiar",
+    cheapest: "Más barato",
+    hintFull:
+      "Toca Comparar en cualquier resultado para verlo aquí junto a los demás.",
+  },
+  trackModal: {
+    already: "Ya lo estás siguiendo",
+    question: "¿Seguir este producto?",
+    updateTimes: "Actualizar horarios",
+    trackIt: "Seguirlo",
+  },
+  username: {
+    change: "Cambiar nombre de usuario",
+    choose: "Elige un nombre de usuario",
+    placeholder: "3–16 caracteres",
+  },
+  whyLimited: {
+    heading: "¿Por qué hay un límite de búsquedas?",
+    amazonBold: "Amazon cuesta dinero de verdad.",
+    restBold: "El resto cuesta paciencia.",
+    trackingBold: "El seguimiento es distinto.",
+    waysToGetMore: "Formas de conseguir más",
+    gotIt: "Entendido",
+    seePlans: "Ver planes",
+  },
+  priceChart: {
+    empty: "Todavía no hay historial de precios",
+  },
+  trackedItem: {
+    thresholdHelp:
+      "Escribe un precio como 49.99, o bórralo para desactivar el aviso.",
+    alertBelow: "Avísame por debajo de",
+    stopTrackingThis: "Dejar de seguir esto",
+  },
+  nav: {
+    radar: "Radar de ofertas",
+    budget: "Gastos",
+    lists: "Listas",
+    plans: "Planes",
+    leaderboard: "Clasificación",
+    profile: "Perfil",
+  },
+  plans: {
+    monthly: "Mensual",
+    yearly: "Anual",
+    yourPlan: "TU PLAN",
+    hideList: "Ocultar lista completa",
+    seeAll: "Ver las {{count}} características",
+  },
+  card: {
+    added: "Añadido",
+    compare: "Comparar",
+    list: "Lista",
+    noPrice: "Sin precio",
+    hidePassword: "Ocultar contraseña",
+    showPassword: "Mostrar contraseña",
   },
 };
 

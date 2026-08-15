@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import { APP_VERSION, SUPPORT_EMAIL, supportMailto } from "@/constants/support";
 import { Linking } from "react-native";
 
@@ -28,6 +29,7 @@ export default function AppErrorScreen({
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
 
   return (
     <View style={styles.screen}>
@@ -36,17 +38,14 @@ export default function AppErrorScreen({
           <Ionicons name="alert-circle-outline" size={30} color={colors.accent} />
         </View>
 
-        <Text style={styles.title}>That didn't go to plan</Text>
-        <Text style={styles.body}>
-          Something in Sweep hit an error. Your tracked products, lists and
-          budget are all stored on our servers, so nothing has been lost.
-        </Text>
+        <Text style={styles.title}>{t("appError.title")}</Text>
+        <Text style={styles.body}>{t("appError.body")}</Text>
 
         <Pressable
           onPress={retry}
           style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
         >
-          <Text style={styles.primaryText}>Try again</Text>
+          <Text style={styles.primaryText}>{t("appError.tryAgain")}</Text>
         </Pressable>
 
         <Pressable
@@ -58,7 +57,7 @@ export default function AppErrorScreen({
           style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
         >
           <Ionicons name="mail-outline" size={15} color={colors.textSecondary} />
-          <Text style={styles.secondaryText}>Tell us what happened</Text>
+          <Text style={styles.secondaryText}>{t("appError.tellUs")}</Text>
         </Pressable>
 
         {/*

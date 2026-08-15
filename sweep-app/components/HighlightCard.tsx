@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import type { Highlight } from "@/lib/api";
 import { formatPrice, retailerColor, retailerLabel } from "@/lib/format";
 
@@ -34,6 +35,7 @@ export default function HighlightCard({
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const { product, label, reason, kind } = highlight;
 
   return (
@@ -92,7 +94,7 @@ export default function HighlightCard({
                 color={starred ? colors.background : colors.textSecondary}
               />
               <Text style={[styles.buttonLabel, starred && styles.buttonLabelOn]}>
-                {starred ? "Added" : "Compare"}
+                {starred ? t("card.added") : t("card.compare")}
               </Text>
             </Pressable>
           )}
@@ -103,7 +105,7 @@ export default function HighlightCard({
               style={({ pressed }) => [styles.button, pressed && styles.pressed]}
             >
               <Ionicons name="list-outline" size={13} color={colors.textSecondary} />
-              <Text style={styles.buttonLabel}>List</Text>
+              <Text style={styles.buttonLabel}>{t("card.list")}</Text>
             </Pressable>
           )}
         </View>

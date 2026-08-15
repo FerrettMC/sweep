@@ -12,6 +12,7 @@
 
 import { type Palette, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import { Ionicons } from "@expo/vector-icons";
 import { Link, Tabs } from "expo-router";
 import { type ColorValue, Pressable, StyleSheet, View } from "react-native";
@@ -31,6 +32,7 @@ function tabIcon(active: IoniconName, inactive: IoniconName) {
 function ProfileButton() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   return (
     <Link href="/profile" asChild>
       <Pressable
@@ -47,6 +49,7 @@ function ProfileButton() {
 
 export default function TabLayout() {
   const { colors } = useTheme();
+  const t = useTranslate();
   return (
     <Tabs
       screenOptions={{
@@ -73,28 +76,28 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
+          title: t("tabs.home"),
           tabBarIcon: tabIcon("home", "home-outline"),
         }}
       />
       <Tabs.Screen
         name="tracking"
         options={{
-          title: "Tracking",
+          title: t("tabs.tracking"),
           tabBarIcon: tabIcon("bookmark", "bookmark-outline"),
         }}
       />
       <Tabs.Screen
         name="search"
         options={{
-          title: "Search",
+          title: t("tabs.search"),
           tabBarIcon: tabIcon("search", "search-outline"),
         }}
       />
       <Tabs.Screen
         name="deals"
         options={{
-          title: "Deals",
+          title: t("tabs.deals"),
           tabBarIcon: tabIcon("flame", "flame-outline"),
         }}
       />

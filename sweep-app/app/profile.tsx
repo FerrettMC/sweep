@@ -119,11 +119,11 @@ export default function ProfileScreen() {
 
     if (result.status === "registered") {
       setPushRegistered(true);
-      setPushNote("Price-drop alerts are on.");
+      setPushNote(t("profile.alertsOn"));
     } else if (result.status === "denied") {
       // Re-prompting after a denial is a no-op on both platforms, so point at
       // the only place that can actually change it.
-      setPushNote("Permission denied. Enable notifications in system settings.");
+      setPushNote(t("profile.permissionDenied"));
     } else {
       setPushNote(result.reason);
     }
@@ -132,7 +132,7 @@ export default function ProfileScreen() {
   }
 
   async function onDeleteAccount() {
-    if (!deletePassword) return setError("Enter your password to confirm.");
+    if (!deletePassword) return setError(t("profile.enterPasswordConfirm"));
     setDeleting(true);
     setConfirmingDelete(false);
     try {
@@ -182,7 +182,7 @@ export default function ProfileScreen() {
                 {displayName ?? "—"}
               </Text>
               <Text style={styles.identityEmail} numberOfLines={1}>
-                {email ?? "Browsing as guest"}
+                {email ?? t("profile.browsingAsGuest")}
               </Text>
             </View>
             <Pressable onPress={() => setEditingName(true)} hitSlop={8}>
@@ -192,8 +192,8 @@ export default function ProfileScreen() {
 
           <Text style={styles.identityNote}>
             {username
-              ? "Your username is public on the leaderboard. Your email never is."
-              : "You're anonymous on the leaderboard until you pick a username. Your email is never shown."}
+              ? t("profile.usernamePublic")
+              : t("profile.usernameAnon")}
           </Text>
         </View>
 
@@ -202,7 +202,7 @@ export default function ProfileScreen() {
           onPress={() => router.push("/plans")}
         >
           <View style={styles.planRow}>
-            <Text style={styles.label}>Plan</Text>
+            <Text style={styles.label}>{t("profile.plan")}</Text>
             <View style={styles.planRight}>
               <View style={[styles.tierPill, !tier && styles.tierPillUnknown]}>
                 <Text style={[styles.tierPillText, !tier && styles.tierPillTextUnknown]}>
@@ -223,13 +223,13 @@ export default function ProfileScreen() {
             <Text style={styles.sub}>{pluralize(searchesLeft, "search")} left today</Text>
           )}
           <Text style={styles.comparePlans}>
-            {tier === null || tier === "free" ? "Compare plans" : "See what's included"}
+            {tier === null || tier === "free" ? t("profile.comparePlans") : t("profile.seeIncluded")}
           </Text>
         </Pressable>
 
         <View style={styles.card}>
           <View style={styles.planRow}>
-            <Text style={styles.label}>Price alerts</Text>
+            <Text style={styles.label}>{t("profile.priceAlerts")}</Text>
             <Text
               style={[
                 styles.statusValue,
@@ -241,14 +241,14 @@ export default function ProfileScreen() {
           </View>
           <Text style={styles.sub}>
             {pushRegistered
-              ? "You'll get a push when something you track drops."
-              : "Turn these on so you hear about a drop while it's still live."}
+              ? t("profile.alertsOnBody")
+              : t("profile.alertsOffBody")}
           </Text>
           {pushNote && <Text style={styles.pushNote}>{pushNote}</Text>}
           {!pushRegistered && (
             <View style={styles.pushAction}>
               <Button
-                label="Enable price alerts"
+                label={t("profile.enableAlerts")}
                 onPress={onEnablePush}
                 busy={enablingPush}
                 variant="secondary"
@@ -259,7 +259,7 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.section}>
-          <SectionTitle>Appearance</SectionTitle>
+          <SectionTitle>{t("profile.appearance")}</SectionTitle>
           <Text style={styles.sectionBlurb}>
             System follows your phone, so it switches when your phone does.
           </Text>
@@ -318,7 +318,7 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.section}>
-          <SectionTitle>Store status</SectionTitle>
+          <SectionTitle>{t("profile.storeStatus")}</SectionTitle>
           <Text style={styles.sectionBlurb}>
             Which stores Sweep can currently read prices from.
           </Text>
@@ -343,25 +343,25 @@ export default function ProfileScreen() {
               </View>
             ))}
             {retailers === null && (
-              <Text style={styles.sub}>Couldn't reach the server.</Text>
+              <Text style={styles.sub}>{t("profile.serverUnreachable")}</Text>
             )}
           </View>
         </View>
 
         <View style={styles.section}>
-          <SectionTitle>Help</SectionTitle>
+          <SectionTitle>{t("profile.help")}</SectionTitle>
           <View style={styles.card}>
             <Pressable
               style={({ pressed }) => [styles.helpRow, pressed && styles.pressed]}
               onPress={() =>
                 Linking.openURL(
-                  supportMailto({ subject: "Sweep support", tier }),
+                  supportMailto({ subject: t("profile.supportSubject"), tier }),
                 )
               }
             >
               <Ionicons name="mail-outline" size={18} color={colors.accent} />
               <View style={styles.helpText}>
-                <Text style={styles.helpTitle}>Email support</Text>
+                <Text style={styles.helpTitle}>{t("profile.emailSupport")}</Text>
                 <Text style={styles.helpSub}>{SUPPORT_EMAIL}</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
@@ -379,8 +379,8 @@ export default function ProfileScreen() {
             >
               <Ionicons name="play-circle-outline" size={18} color={colors.accent} />
               <View style={styles.helpText}>
-                <Text style={styles.helpTitle}>Replay the tour</Text>
-                <Text style={styles.helpSub}>See how Sweep works again</Text>
+                <Text style={styles.helpTitle}>{t("profile.replayTour")}</Text>
+                <Text style={styles.helpSub}>{t("profile.replaySub")}</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
             </Pressable>
@@ -394,15 +394,15 @@ export default function ProfileScreen() {
             >
               <Ionicons name="shield-checkmark-outline" size={18} color={colors.textSecondary} />
               <View style={styles.helpText}>
-                <Text style={styles.helpTitle}>Privacy policy</Text>
-                <Text style={styles.helpSub}>What Sweep stores, and why</Text>
+                <Text style={styles.helpTitle}>{t("profile.privacy")}</Text>
+                <Text style={styles.helpSub}>{t("profile.privacyHint")}</Text>
               </View>
               <Ionicons name="open-outline" size={15} color={colors.textTertiary} />
             </Pressable>
             <View style={[styles.helpRow, styles.statusRowDivided]}>
               <Ionicons name="information-circle-outline" size={18} color={colors.textTertiary} />
               <View style={styles.helpText}>
-                <Text style={styles.helpTitle}>Version</Text>
+                <Text style={styles.helpTitle}>{t("profile.version")}</Text>
                 <Text style={styles.helpSub}>Sweep {APP_VERSION}</Text>
               </View>
             </View>
@@ -417,15 +417,15 @@ export default function ProfileScreen() {
             style={({ pressed }) => [styles.deleteRow, pressed && styles.pressed]}
           >
             <Ionicons name="trash-outline" size={15} color={colors.danger} />
-            <Text style={styles.deleteText}>Delete my account</Text>
+            <Text style={styles.deleteText}>{t("profile.deleteAccount")}</Text>
           </Pressable>
         )}
 
         <View style={styles.actions}>
           {isGuest ? (
-            <Button label="Create an account" onPress={() => router.push("/auth")} />
+            <Button label={t("profile.createAccount")} onPress={() => router.push("/auth")} />
           ) : (
-            <Button label="Sign out" onPress={onSignOut} variant="secondary" />
+            <Button label={t("profile.signOut")} onPress={onSignOut} variant="secondary" />
           )}
         </View>
       </ScrollView>
@@ -442,8 +442,8 @@ export default function ProfileScreen() {
             ? {
                 icon: "trash-outline",
                 destructive: true,
-                title: "Delete your account?",
-                body: "This erases your tracked products, lists, budget, radars and XP. It cannot be undone.",
+                title: t("profile.deleteTitle"),
+                body: t("profile.deleteBodyFull"),
                 subject: email ? { title: email, caption: "This account" } : undefined,
                 input: {
                   value: deletePassword,

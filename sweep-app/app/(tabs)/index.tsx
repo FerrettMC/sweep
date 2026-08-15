@@ -16,6 +16,7 @@ import { Loading, Screen, SectionTitle } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { setPushRegistered, usePushRegistered } from "@/lib/pushStatus";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import {
   getNotificationStatus,
   getQuota,
@@ -36,6 +37,7 @@ const TIER_LABEL: Record<string, string> = {
 export default function HomeScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const router = useRouter();
 
   const [tracked, setTracked] = useState<TrackedProduct[]>([]);
@@ -106,7 +108,7 @@ export default function HomeScreen() {
         {/* ---- who we are ---- */}
         <View style={styles.brand}>
           <Text style={styles.brandName}>Sweep</Text>
-          <Text style={styles.brandTagline}>Your online shopping buddy</Text>
+          <Text style={styles.brandTagline}>{t("home.tagline")}</Text>
         </View>
 
         {/* ---- the pitch: one search, every store ---- */}
@@ -116,11 +118,10 @@ export default function HomeScreen() {
         >
           <View style={styles.searchHeroTop}>
             <Ionicons name="search" size={20} color={colors.accent} />
-            <Text style={styles.searchHeroTitle}>What are you shopping for?</Text>
+            <Text style={styles.searchHeroTitle}>{t("home.heroTitle")}</Text>
           </View>
           <Text style={styles.searchHeroBody}>
-            Search once and see {storeListPhrase()}
-            side by side — so you know who's actually cheapest before you buy.
+            {t("home.heroBody", { stores: storeListPhrase() })}
           </Text>
           <View style={styles.searchHeroFooter}>
             <View style={styles.storeDots}>
@@ -133,8 +134,11 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.searchHeroMeta}>
               {searchesLeft === null
-                ? "Every store, one search"
-                : `${pluralize(searchesLeft, "search")} left today`}
+                ? t("home.heroOneSearch")
+                : t(
+                    searchesLeft === 1 ? "home.searchLeftShort" : "home.searchesLeftShort",
+                    { count: searchesLeft },
+                  )}
             </Text>
           </View>
         </Pressable>
@@ -147,7 +151,7 @@ export default function HomeScreen() {
           >
             <View style={styles.watchLeft}>
               <Text style={styles.watchLabel}>
-                {best.off >= 20 ? "BIGGEST DROP YOU'RE WATCHING" : "YOU'RE WATCHING"}
+                {best.off >= 20 ? t("home.biggestDrop") : t("home.watching")}
               </Text>
               <Text style={styles.watchTitle} numberOfLines={1}>
                 {best.item.product.title}
@@ -172,9 +176,7 @@ export default function HomeScreen() {
             onPress={() => router.push("/tracking")}
           >
             <Ionicons name="pricetag-outline" size={18} color={colors.textSecondary} />
-            <Text style={styles.watchEmptyText}>
-              Found something? Paste its link to watch the price.
-            </Text>
+            <Text style={styles.watchEmptyText}>{t("home.watchEmpty")}</Text>
             <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
           </Pressable>
         )}
@@ -182,14 +184,14 @@ export default function HomeScreen() {
         {/* ---- things that need fixing ---- */}
         {(pushOn === false || isGuest) && (
           <View style={styles.section}>
-            <SectionTitle>Needs attention</SectionTitle>
+            <SectionTitle>{t("home.needsAttention")}</SectionTitle>
 
             {isGuest && (
               <ActionCard
                 icon="person-add-outline"
                 tone="accent"
-                title="Create an account"
-                body="Guests get one search a day and can't track prices."
+                title={t("home.createAccount")}
+                body={t("home.guestBody")}
                 onPress={() => router.push("/auth")}
               />
             )}
@@ -198,8 +200,8 @@ export default function HomeScreen() {
               <ActionCard
                 icon="notifications-off-outline"
                 tone="warning"
-                title="Price alerts are off"
-                body="You won't hear about a drop while it's still live."
+                title={t("home.alertsOff")}
+                body={t("home.alertsOffBody")}
                 onPress={() => router.push("/profile")}
               />
             )}
@@ -237,36 +239,36 @@ export default function HomeScreen() {
         )}
 
         <View style={styles.section}>
-          <SectionTitle>Shortcuts</SectionTitle>
+          <SectionTitle>{t("home.shortcuts")}</SectionTitle>
           <View style={styles.shortcutGrid}>
             <Shortcut
               icon="wallet-outline"
-              label="Budget"
-              hint="Track spending"
+              label={t("home.budget")}
+              hint={t("home.budgetHint")}
               onPress={() => router.push("/budget")}
             />
             <Shortcut
               icon="radio-outline"
-              label="Deal Radar"
-              hint="Watch for a price"
+              label={t("home.radar")}
+              hint={t("home.radarHint")}
               onPress={() => router.push("/radar")}
             />
             <Shortcut
               icon="list-outline"
-              label="Lists"
-              hint="Gift & wishlists"
+              label={t("home.lists")}
+              hint={t("home.listsHint")}
               onPress={() => router.push("/lists")}
             />
             <Shortcut
               icon="trophy-outline"
-              label="Leaderboard"
+              label={t("home.leaderboard")}
               hint="XP & ranks"
               onPress={() => router.push("/leaderboard")}
             />
             <Shortcut
               icon="person-circle-outline"
-              label="Profile"
-              hint="Account & stores"
+              label={t("home.profile")}
+              hint={t("home.profileHint")}
               onPress={() => router.push("/profile")}
             />
           </View>
@@ -278,14 +280,14 @@ export default function HomeScreen() {
           onPress={() => router.push("/plans")}
         >
           <View style={styles.planLeft}>
-            <Text style={styles.planLabel}>YOUR PLAN</Text>
+            <Text style={styles.planLabel}>{t("home.yourPlan")}</Text>
             <Text style={[styles.planTier, !tier && styles.planUnknown]}>
-              {tier ? (TIER_LABEL[tier] ?? tier) : "Not confirmed"}
+              {tier ? (TIER_LABEL[tier] ?? tier) : t("home.notConfirmed")}
             </Text>
           </View>
           {tier === null || tier === "free" ? (
             <View style={styles.upgradePill}>
-              <Text style={styles.upgradeText}>See upgrades</Text>
+              <Text style={styles.upgradeText}>{t("home.seeUpgrades")}</Text>
             </View>
           ) : (
             <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />

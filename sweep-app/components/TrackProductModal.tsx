@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import type { ProductPreview } from "@/lib/api";
 import {
   formatPrice,
@@ -42,6 +43,7 @@ export default function TrackProductModal({
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   if (!preview) return null;
 
   const { product, limits, alreadyTracking } = preview;
@@ -58,7 +60,7 @@ export default function TrackProductModal({
 
           <ScrollView contentContainerStyle={styles.content}>
             <Text style={styles.heading}>
-              {alreadyTracking ? "Already tracking this" : "Track this product?"}
+              {alreadyTracking ? t("trackModal.already") : t("trackModal.question")}
             </Text>
 
             <View style={styles.productRow}>
@@ -133,7 +135,7 @@ export default function TrackProductModal({
           <View style={styles.actions}>
             <View style={styles.actionSlot}>
               <Button
-                label="Cancel"
+                label={t("common.cancel")}
                 onPress={onCancel}
                 variant="secondary"
                 disabled={busy}
@@ -141,7 +143,7 @@ export default function TrackProductModal({
             </View>
             <View style={styles.actionSlot}>
               <Button
-                label={alreadyTracking ? "Update times" : "Track it"}
+                label={alreadyTracking ? t("trackModal.updateTimes") : t("trackModal.trackIt")}
                 onPress={onConfirm}
                 busy={busy}
                 disabled={!canConfirm}

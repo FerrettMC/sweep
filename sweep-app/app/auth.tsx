@@ -14,6 +14,7 @@ import { storeListPhrase } from "@/lib/format";
 import { setGuestMode } from "@/lib/guestMode";
 import { supabase } from "@/lib/supabase";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -30,6 +31,7 @@ export default function Auth() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
+  const t = useTranslate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -66,12 +68,12 @@ export default function Auth() {
       if (/invalid login credentials/i.test(error.message)) {
         return fail(
           afterDuplicate
-            ? "You already have an account with that email, but that password doesn't match. Try 'Forgot your password?' below."
-            : "Email or password is incorrect. Try 'Forgot your password?' below.",
+            ? t("auth.accountExists")
+            : t("auth.badCredentials"),
         );
       }
       if (/email not confirmed/i.test(error.message)) {
-        return fail("Confirm your email first — check your inbox for the link.");
+        return fail(t("auth.notConfirmed"));
       }
       return fail(error.message);
     }
@@ -112,12 +114,12 @@ export default function Auth() {
         router.replace("/(tabs)");
       } else {
         setIsError(false);
-        setMessage("Check your email to confirm your account, then log in.");
+        setMessage(t("auth.checkEmail"));
       }
     } catch {
       // Without this the screen locks: a throw would skip setBusy(false) and
       // leave every button on the page disabled with no way back.
-      fail("Couldn't reach Sweep. Check your connection and try again.");
+      fail(t("auth.offline"));
     } finally {
       setBusy(false);
     }
@@ -133,7 +135,7 @@ export default function Auth() {
     try {
       await attemptSignIn();
     } catch {
-      fail("Couldn't reach Sweep. Check your connection and try again.");
+      fail(t("auth.offline"));
     } finally {
       setBusy(false);
     }
@@ -146,13 +148,13 @@ export default function Auth() {
 
   function validate() {
     if (!email.trim() || !password) {
-      fail("Enter an email and password.");
+      fail(t("auth.needBoth"));
       return false;
     }
     // Supabase enforces this server-side too; catching it here saves a round
     // trip and gives a clearer message than the API's.
     if (password.length < 6) {
-      fail("Password must be at least 6 characters.");
+      fail(t("auth.tooShort"));
       return false;
     }
     return true;
@@ -170,12 +172,12 @@ export default function Auth() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
     >
-      <Text style={styles.title}>Sweep</Text>
-      <Text style={styles.subtitle}>Your online shopping buddy</Text>
+      <Text style={styles.title}>{t("auth.title")}</Text>
+      <Text style={styles.subtitle}>{t("auth.subtitle")}</Text>
 
       <TextInput
         style={styles.input}
-        placeholder="Email"
+        placeholder={t("auth.email")}
         placeholderTextColor={colors.textTertiary}
         value={email}
         onChangeText={setEmail}
@@ -186,7 +188,7 @@ export default function Auth() {
       />
       <PasswordInput
         fieldStyle={styles.input}
-        placeholder="Password"
+        placeholder={t("auth.password")}
         value={password}
         onChangeText={setPassword}
         textContentType="password"
@@ -198,9 +200,9 @@ export default function Auth() {
         </Text>
       )}
 
-      <Button label="Sign Up" onPress={signUp} busy={busy} />
+      <Button label={t("auth.signUp")} onPress={signUp} busy={busy} />
       <Button
-        label="Log In"
+        label={t("auth.logIn")}
         onPress={signIn}
         variant="secondary"
         disabled={busy}
@@ -215,7 +217,7 @@ export default function Auth() {
         disabled={busy}
         hitSlop={8}
       >
-        <Text style={styles.forgotText}>Forgot your password?</Text>
+        <Text style={styles.forgotText}>{t("auth.forgot")}</Text>
       </Pressable>
 
       <Pressable
@@ -223,7 +225,7 @@ export default function Auth() {
         onPress={continueAsGuest}
         disabled={busy}
       >
-        <Text style={styles.guestButtonText}>Continue as guest</Text>
+        <Text style={styles.guestButtonText}>{t("auth.continueAsGuest")}</Text>
       </Pressable>
 
       <ForgotPasswordSheet
@@ -237,8 +239,7 @@ export default function Auth() {
         }}
       />
       <Text style={styles.guestNote}>
-        Compare prices across {storeListPhrase()} in one search. Guests get one
-        a day.
+        {t("auth.guestNote", { stores: storeListPhrase() })}
       </Text>
     </ScrollView>
   );

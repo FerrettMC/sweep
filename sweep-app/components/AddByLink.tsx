@@ -15,6 +15,7 @@ import TrackProductModal from "@/components/TrackProductModal";
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import { storeListPhrase } from "@/lib/format";
 import {
   ApiError,
@@ -34,6 +35,7 @@ interface Props {
 export default function AddByLink({ onTracked, disabled, disabledReason }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const [link, setLink] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +104,7 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
     return (
       <View style={styles.wrap}>
         <Text style={styles.limitText}>
-          {disabledReason ?? "You've reached your tracking limit."}
+          {disabledReason ?? t("addLink.limitReached")}
         </Text>
       </View>
     );
@@ -113,7 +115,7 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
       <View style={styles.row}>
         <TextInput
           style={styles.input}
-          placeholder="Paste a product link…"
+          placeholder={t("addLink.placeholder")}
           placeholderTextColor={colors.textTertiary}
           value={link}
           onChangeText={(text) => {
@@ -128,7 +130,7 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
           multiline={false}
         />
         <Button
-          label="Look up"
+          label={t("addLink.lookUp")}
           onPress={onLookUp}
           busy={busy}
           disabled={!link.trim()}
@@ -138,7 +140,7 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
 
       <View style={styles.metaRow}>
         <Pressable onPress={onPasteFromClipboard} hitSlop={8}>
-          <Text style={styles.pasteLink}>Paste from clipboard</Text>
+          <Text style={styles.pasteLink}>{t("addLink.pasteFromClipboard")}</Text>
         </Pressable>
         <Text style={styles.hint}>{storeListPhrase(6)}</Text>
       </View>

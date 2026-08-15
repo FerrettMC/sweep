@@ -20,6 +20,7 @@ import BudgetEntrySheet, { type EntryDraft } from "@/components/BudgetEntrySheet
 import { Button, ErrorBanner, Loading, Screen, SectionTitle, Stat } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { type Translate, useTranslate } from "@/lib/i18n";
 import {
   ApiError,
   type ManualCheckState,
@@ -44,6 +45,7 @@ import {
 export default function ProductDetailScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
@@ -98,8 +100,8 @@ export default function ProductDetailScreen() {
       await load();
       setNotice(
         result.status === "fresh"
-          ? "Already up to date — checked moments ago."
-          : "Price checked just now.",
+          ? t("product.upToDate")
+          : t("product.checkedNow"),
       );
     } catch (err) {
       const apiError = err as ApiError;
@@ -171,7 +173,7 @@ export default function ProductDetailScreen() {
   if (!detail) {
     return (
       <Screen>
-        <ErrorBanner message={error ?? "Couldn't load this product"} onRetry={load} />
+        <ErrorBanner message={error ?? t("product.loadFailed")} onRetry={load} />
       </Screen>
     );
   }
@@ -228,23 +230,25 @@ export default function ProductDetailScreen() {
           {belowAverage !== null && (
             <Text style={[styles.verdict, belowAverage > 0 ? styles.verdictGood : styles.verdictBad]}>
               {belowAverage > 0
-                ? `${belowAverage}% below its average — a genuinely good time to buy`
+                ? t("product.belowAverage", { percent: belowAverage })
                 : belowAverage === 0
-                  ? "Right at its average price"
-                  : `${Math.abs(belowAverage)}% above its average — worth waiting`}
+                  ? t("product.atAverage")
+                  : t("product.aboveAverage", { percent: Math.abs(belowAverage) })}
             </Text>
           )}
 
           <Text style={styles.checked}>
-            Last checked {formatRelativeTime(product.lastCheckedAt)}
+            {t("product.lastChecked", {
+              when: formatRelativeTime(product.lastCheckedAt),
+            })}
             {product.lastStatus && product.lastStatus !== "success"
-              ? " · last check failed"
+              ? t("product.lastCheckFailed")
               : ""}
           </Text>
         </View>
 
         <View style={styles.section}>
-          <SectionTitle>Price history</SectionTitle>
+          <SectionTitle>{t("product.priceHistory")}</SectionTitle>
           <PriceChart history={history} currentPrice={product.price} />
           {historyWindow.days !== null && historyWindow.total > historyWindow.shown && (
             <Text style={styles.upsell}>
@@ -255,16 +259,16 @@ export default function ProductDetailScreen() {
         </View>
 
         <View style={styles.statsRow}>
-          <Stat label="Low" value={formatPrice(stats.low)} />
-          <Stat label="Average" value={formatPrice(stats.average)} />
-          <Stat label="High" value={formatPrice(stats.high)} />
+          <Stat label={t("product.low")} value={formatPrice(stats.low)} />
+          <Stat label={t("product.average")} value={formatPrice(stats.average)} />
+          <Stat label={t("product.high")} value={formatPrice(stats.high)} />
         </View>
 
         {notice && <Text style={styles.notice}>{notice}</Text>}
 
         <View style={styles.actions}>
           <Button
-            label={manualCheckLabel(manualChecks)}
+            label={manualCheckLabel(manualChecks, t)}
             onPress={onCheckNow}
             busy={busy}
             variant="secondary"
@@ -280,12 +284,12 @@ export default function ProductDetailScreen() {
             because this is the screen you're on when you decide.
           */}
           <Button
-            label="I bought this"
+            label={t("product.boughtThis")}
             onPress={openBought}
             variant="secondary"
           />
           <Button
-            label={detail.tracking ? "Stop tracking" : "Track this product"}
+            label={detail.tracking ? t("product.stopTracking") : t("product.trackThis")}
             onPress={onToggleTracking}
             variant={detail.tracking ? "danger" : "primary"}
             busy={busy}
@@ -298,16 +302,16 @@ export default function ProductDetailScreen() {
         categories={budgetCategories}
         canUseCustomCategories={canCustomCategories}
         onClose={() => setBoughtDraft(null)}
-        onSaved={() => setNotice("Added to your budget.")}
+        onSaved={() => setNotice(t("product.addedToBudget"))}
       />
     </Screen>
   );
 }
 
 /** Fold the remaining budget into the button so it isn't a surprise. */
-function manualCheckLabel(state: ManualCheckState | null) {
-  if (!state || state.remaining === null) return "Check price now";
-  return `Check price now (${state.remaining} left today)`;
+function manualCheckLabel(state: ManualCheckState | null, t: Translate) {
+  if (!state || state.remaining === null) return t("product.checkNow");
+  return t("product.checkNowLeft", { count: state.remaining });
 }
 
 const makeStyles = (colors: Palette) =>

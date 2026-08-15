@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 
 interface Props {
   visible: boolean;
@@ -27,6 +28,7 @@ interface Props {
 export default function ResultsMenu({ visible, range, value, onPick, onClose }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   if (!visible || !range) return null;
 
   const options = Array.from(
@@ -39,10 +41,8 @@ export default function ResultsMenu({ visible, range, value, onPick, onClose }: 
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.card} onPress={() => {}}>
-          <Text style={styles.heading}>Results per store</Text>
-          <Text style={styles.body}>
-            How many items each store returns. Fewer comes back faster.
-          </Text>
+          <Text style={styles.heading}>{t("search.resultsPerStore")}</Text>
+          <Text style={styles.body}>{t("search.resultsHelp")}</Text>
 
           {options.map((count) => {
             const on = count === selected;
@@ -59,9 +59,9 @@ export default function ResultsMenu({ visible, range, value, onPick, onClose }: 
                 <Text style={[styles.count, on && styles.countOn]}>{count}</Text>
                 <Text style={styles.note}>
                   {count === range.min
-                    ? "fastest"
+                    ? t("search.fastest")
                     : count === range.max
-                      ? "most thorough"
+                      ? t("search.thorough")
                       : ""}
                 </Text>
                 {on && (

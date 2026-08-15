@@ -44,6 +44,14 @@ export interface PlanFeature {
  * with "3 → 20 products" instead of burying it in the middle of a list.
  */
 export interface PlanUpgrade {
+  /**
+   * Stable identifier for the dial, unaffected by language.
+   *
+   * Clients that need to single out a particular dial must match on this, not
+   * on `label` — the label is translated, so an English comparison quietly
+   * stops matching the moment someone switches language.
+   */
+  id: StringKey;
   /** The dial itself: "Products tracked". */
   label: string;
   /** What the tier below gives. Null on Free, which has nothing below it. */
@@ -243,7 +251,7 @@ function upgradesFor(tier: Tier, locale: Locale): PlanUpgrade[] {
     // and noise is what made the old screen unreadable. Free keeps all of
     // them, since there's no "before" and they're simply what you get.
     if (from !== null && from === to) return [];
-    return [{ label: t(locale, dial.label), from, to }];
+    return [{ id: dial.label, label: t(locale, dial.label), from, to }];
   });
 }
 

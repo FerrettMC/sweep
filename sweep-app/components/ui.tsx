@@ -6,6 +6,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 
 export function Button({
   label,
@@ -105,12 +106,13 @@ export function ErrorBanner({
   onRetry?: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   return (
     <View style={styles.errorBanner}>
       <Text style={styles.errorText}>{message}</Text>
       {onRetry && (
         <Pressable onPress={onRetry} hitSlop={8}>
-          <Text style={styles.errorRetry}>Retry</Text>
+          <Text style={styles.errorRetry}>{t("common.retryShort")}</Text>
         </Pressable>
       )}
     </View>

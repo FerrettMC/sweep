@@ -31,6 +31,7 @@ import PasswordInput from "@/components/PasswordInput";
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase";
 
@@ -54,6 +55,7 @@ export default function ForgotPasswordSheet({
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   // Anchored near the top rather than the bottom: every field in here needs the
   // keyboard, and a bottom sheet ends up underneath it.
   const insets = useSafeAreaInsets();
@@ -81,7 +83,7 @@ export default function ForgotPasswordSheet({
 
   async function sendCode() {
     const address = email.trim().toLowerCase();
-    if (!address.includes("@")) return setError("Enter the email you signed up with.");
+    if (!address.includes("@")) return setError(t("reset.enterEmail"));
 
     setBusy(true);
     setError(null);
@@ -101,9 +103,9 @@ export default function ForgotPasswordSheet({
   async function confirm() {
     // Supabase's OTP length is a project setting (6–10), so don't assume six.
     if (code.trim().length < MIN_CODE_LENGTH) {
-      return setError("Enter the full code from the email.");
+      return setError(t("reset.enterCode"));
     }
-    if (password.length < 8) return setError("Passwords need at least 8 characters.");
+    if (password.length < 8) return setError(t("reset.tooShort"));
 
     setBusy(true);
     setError(null);
@@ -117,14 +119,14 @@ export default function ForgotPasswordSheet({
     });
     if (verifyError) {
       setBusy(false);
-      return setError("That code didn't work. It may have expired — send a new one.");
+      return setError(t("reset.badCode"));
     }
 
     const { error: updateError } = await supabase.auth.updateUser({ password });
     setBusy(false);
     if (updateError) return setError(updateError.message);
 
-    onDone("Password changed. You're signed in.");
+    onDone(t("reset.done"));
     onClose();
   }
 
@@ -134,19 +136,17 @@ export default function ForgotPasswordSheet({
         <View style={styles.sheet}>
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text style={styles.heading}>
-              {step === "email" ? "Reset your password" : "Check your email"}
+              {step === "email" ? t("reset.title") : t("reset.checkTitle")}
             </Text>
 
             {step === "email" ? (
               <>
-                <Text style={styles.body}>
-                  We'll email you a code. It's valid for one hour.
-                </Text>
+                <Text style={styles.body}>{t("reset.intro")}</Text>
                 <TextInput
                   style={styles.input}
                   value={email}
                   onChangeText={setEmail}
-                  placeholder="you@example.com"
+                  placeholder={t("reset.emailPlaceholder")}
                   placeholderTextColor={colors.textTertiary}
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -157,8 +157,7 @@ export default function ForgotPasswordSheet({
             ) : (
               <>
                 <Text style={styles.body}>
-                  If there's an account for {email.trim().toLowerCase()}, a code is
-                  on its way. Enter it below with your new password.
+                  {t("reset.sent", { email: email.trim().toLowerCase() })}
                 </Text>
                 <TextInput
                   style={[styles.input, styles.codeInput]}
@@ -166,8 +165,10 @@ export default function ForgotPasswordSheet({
                   // Alphanumeric and generously long: the token format is a
                   // project setting, and silently truncating a valid code is a
                   // maddening failure — it just says "that didn't work".
-                  onChangeText={(t) => setCode(t.replace(/\s/g, "").slice(0, MAX_CODE_LENGTH))}
-                  placeholder="Code from email"
+                  onChangeText={(text) =>
+                    setCode(text.replace(/\s/g, "").slice(0, MAX_CODE_LENGTH))
+                  }
+                  placeholder={t("reset.codePlaceholder")}
                   placeholderTextColor={colors.textTertiary}
                   autoCapitalize="characters"
                   autoCorrect={false}
@@ -178,10 +179,10 @@ export default function ForgotPasswordSheet({
                   fieldStyle={styles.input}
                   value={password}
                   onChangeText={setPassword}
-                  placeholder="New password (8+ characters)"
+                  placeholder={t("reset.newPassword")}
                 />
                 <Pressable onPress={() => setStep("email")} hitSlop={8}>
-                  <Text style={styles.link}>Send another code</Text>
+                  <Text style={styles.link}>{t("reset.sendAnother")}</Text>
                 </Pressable>
               </>
             )}
@@ -195,9 +196,9 @@ export default function ForgotPasswordSheet({
           </ScrollView>
 
           <View style={styles.actions}>
-            <Button label="Cancel" onPress={onClose} variant="secondary" />
+            <Button label={t("common.cancel")} onPress={onClose} variant="secondary" />
             <Button
-              label={step === "email" ? "Send code" : "Change password"}
+              label={step === "email" ? t("reset.sendCode") : t("reset.changePassword")}
               onPress={step === "email" ? sendCode : confirm}
               busy={busy}
             />

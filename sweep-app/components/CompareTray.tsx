@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import type { SearchProduct } from "@/lib/api";
 import { formatPrice, percentOff, retailerColor, retailerLabel } from "@/lib/format";
 
@@ -26,16 +27,17 @@ interface Props {
 export default function CompareTray({ items, onOpen, onRemove, onClear, showHint }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   // Before the feature has ever been used, say what it does. A control nobody
   // understands may as well not exist.
   if (items.length === 0) {
     return showHint ? (
       <View style={styles.hint}>
         <Ionicons name="star-outline" size={15} color={colors.accent} />
-        <Text style={styles.hintText}>
-          Tap <Text style={styles.hintStrong}>Compare</Text> on any result to line
-          it up here against others, side by side.
-        </Text>
+        {/* One string rather than a sentence assembled around an inline
+            <Text>: word order moves between languages, so a hardcoded
+            "Tap X on any result" can't be translated without breaking. */}
+        <Text style={styles.hintText}>{t("compare.hintFull")}</Text>
       </View>
     ) : null;
   }
@@ -57,7 +59,7 @@ export default function CompareTray({ items, onOpen, onRemove, onClear, showHint
       <View style={styles.headerRow}>
         <Text style={styles.heading}>Comparing {items.length}</Text>
         <Pressable onPress={onClear} hitSlop={8}>
-          <Text style={styles.clear}>Clear</Text>
+          <Text style={styles.clear}>{t("compare.clear")}</Text>
         </Pressable>
       </View>
 
@@ -120,7 +122,7 @@ export default function CompareTray({ items, onOpen, onRemove, onClear, showHint
                   {formatPrice(product.price)}
                 </Text>
                 {isCheapest ? (
-                  <Text style={styles.cheapestTag}>Cheapest</Text>
+                  <Text style={styles.cheapestTag}>{t("compare.cheapest")}</Text>
                 ) : delta !== null && delta > 0 ? (
                   <Text style={styles.delta}>+{formatPrice(delta)}</Text>
                 ) : null}

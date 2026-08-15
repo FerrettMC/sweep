@@ -21,6 +21,7 @@ import OfflineBanner from "@/components/OfflineBanner";
 import { useIsOnline } from "@/lib/connection";
 import { setPushRegistered } from "@/lib/pushStatus";
 import { ThemeProvider, useTheme } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import { syncUser } from "@/lib/api";
 import { loadGuestMode, useGuestMode } from "@/lib/guestMode";
 import { loadLanguage } from "@/lib/i18n";
@@ -84,6 +85,7 @@ function RootNavigator() {
   );
   const router = useRouter();
   const segments = useSegments();
+  const t = useTranslate();
 
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
@@ -276,7 +278,7 @@ function RootNavigator() {
           name="radar"
           options={{
             headerShown: true,
-            title: "Deal Radar",
+            title: t("nav.radar"),
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.textPrimary,
             headerShadowVisible: false,
@@ -287,7 +289,7 @@ function RootNavigator() {
           name="budget"
           options={{
             headerShown: true,
-            title: "Budget",
+            title: t("nav.budget"),
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.textPrimary,
             headerShadowVisible: false,
@@ -298,7 +300,7 @@ function RootNavigator() {
           name="lists"
           options={{
             headerShown: true,
-            title: "Lists",
+            title: t("nav.lists"),
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.textPrimary,
             headerShadowVisible: false,
@@ -309,7 +311,7 @@ function RootNavigator() {
           name="plans"
           options={{
             headerShown: true,
-            title: "Plans",
+            title: t("nav.plans"),
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.textPrimary,
             headerShadowVisible: false,
@@ -320,7 +322,7 @@ function RootNavigator() {
           name="leaderboard"
           options={{
             headerShown: true,
-            title: "Leaderboard",
+            title: t("nav.leaderboard"),
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.textPrimary,
             headerShadowVisible: false,
@@ -332,7 +334,7 @@ function RootNavigator() {
           options={{
             headerShown: true,
             presentation: "modal",
-            title: "Profile",
+            title: t("nav.profile"),
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.textPrimary,
             headerShadowVisible: false,

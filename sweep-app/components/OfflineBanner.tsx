@@ -17,10 +17,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { type Palette, spacing, type } from "@/constants/theme";
 import { useIsOnline } from "@/lib/connection";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 
 export default function OfflineBanner() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const online = useIsOnline();
   // Sits at the very top of the window, above the navigator and therefore
   // above anything that would otherwise pad for the status bar. On a punch-hole
@@ -32,10 +34,7 @@ export default function OfflineBanner() {
   return (
     <View style={[styles.banner, { paddingTop: insets.top + spacing.sm }]}>
       <Ionicons name="cloud-offline-outline" size={14} color={colors.background} />
-      <Text style={styles.text}>
-        No connection — Sweep needs internet for prices, and anything on screen
-        may be out of date.
-      </Text>
+      <Text style={styles.text}>{t("offline.banner")}</Text>
     </View>
   );
 }

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import { ApiError, setUsername } from "@/lib/api";
 
 interface Props {
@@ -23,6 +24,7 @@ interface Props {
 export default function UsernameSheet({ visible, current, onClose, onSaved }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState(current ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +64,7 @@ export default function UsernameSheet({ visible, current, onClose, onSaved }: Pr
       <View style={[styles.backdrop, { paddingTop: insets.top + spacing.lg }]}>
         <View style={styles.sheet}>
           <Text style={styles.heading}>
-            {current ? "Change username" : "Choose a username"}
+            {current ? t("username.change") : t("username.choose")}
           </Text>
           <Text style={styles.body}>
             This is the name other people see on the leaderboard. Your email is
@@ -71,7 +73,7 @@ export default function UsernameSheet({ visible, current, onClose, onSaved }: Pr
 
           <TextInput
             style={styles.input}
-            placeholder="3–16 characters"
+            placeholder={t("username.placeholder")}
             placeholderTextColor={colors.textTertiary}
             value={draft}
             onChangeText={(text) => {
@@ -93,11 +95,11 @@ export default function UsernameSheet({ visible, current, onClose, onSaved }: Pr
 
           <View style={styles.actions}>
             <View style={styles.action}>
-              <Button label="Cancel" onPress={onClose} variant="secondary" disabled={saving} />
+              <Button label={t("common.cancel")} onPress={onClose} variant="secondary" disabled={saving} />
             </View>
             <View style={styles.action}>
               <Button
-                label="Save"
+                label={t("common.save")}
                 onPress={onSave}
                 busy={saving}
                 disabled={!valid || trimmed === current}

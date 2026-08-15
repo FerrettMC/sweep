@@ -23,6 +23,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Button, EmptyState, Loading, Screen } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import { type Deal, getDeals } from "@/lib/api";
 import {
   formatPrice,
@@ -34,6 +35,7 @@ import {
 export default function DealsScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const router = useRouter();
 
   const [deals, setDeals] = useState<Deal[] | null>(null);
@@ -85,14 +87,14 @@ export default function DealsScreen() {
         }
         ListEmptyComponent={
           <EmptyState
-            title="No deals yet"
-            body="When something anyone tracks falls well below its usual price, it shows up here — with credit to whoever found it first."
+            title={t("deals.empty")}
+            body={t("deals.emptyBody")}
             action={
               isGuest ? (
-                <Button label="Create an account" onPress={() => router.push("/auth")} />
+                <Button label={t("deals.createAccount")} onPress={() => router.push("/auth")} />
               ) : (
                 <Button
-                  label="Track something"
+                  label={t("deals.trackSomething")}
                   onPress={() => router.push("/tracking")}
                   variant="secondary"
                 />
@@ -162,10 +164,10 @@ export default function DealsScreen() {
                 />
                 <Text style={[styles.finder, item.foundByMe && styles.finderMe]}>
                   {item.foundByMe
-                    ? "You found this"
+                    ? t("deals.youFound")
                     : item.finder
                       ? `Found by ${item.finder}`
-                      : "Found by a former member"}
+                      : t("deals.formerMember")}
                 </Text>
               </View>
 
@@ -180,7 +182,7 @@ export default function DealsScreen() {
 
               {item.isTracking && (
                 <View style={styles.trackingPill}>
-                  <Text style={styles.trackingText}>Tracking</Text>
+                  <Text style={styles.trackingText}>{t("deals.tracking")}</Text>
                 </View>
               )}
             </View>

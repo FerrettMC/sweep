@@ -20,6 +20,7 @@ import {
 } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/format";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { type Translate, useTranslate } from "@/lib/i18n";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
@@ -43,6 +44,7 @@ const tierColor = (colors: Palette): Record<Badge["tier"], string> => ({
 export default function LeaderboardScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [me, setMe] = useState<LeaderboardMe | null>(null);
   const [history, setHistory] = useState<XpEntry[]>([]);
@@ -155,7 +157,7 @@ export default function LeaderboardScreen() {
         )}
 
         <View style={styles.section}>
-          <SectionTitle>Badges</SectionTitle>
+          <SectionTitle>{t("leaderboard.badges")}</SectionTitle>
           <Text style={styles.sectionBlurb}>
             Earned from deals you've actually found. Cosmetic — they don't
             unlock features.
@@ -193,7 +195,7 @@ export default function LeaderboardScreen() {
         </View>
 
         <View style={styles.section}>
-          <SectionTitle>Top Sweepers</SectionTitle>
+          <SectionTitle>{t("leaderboard.topSweepers")}</SectionTitle>
           {entries.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyText}>
@@ -249,7 +251,7 @@ export default function LeaderboardScreen() {
         </View>
 
         <View style={styles.section}>
-          <SectionTitle>How you earned it</SectionTitle>
+          <SectionTitle>{t("leaderboard.howEarned")}</SectionTitle>
           {history.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyText}>
@@ -266,7 +268,7 @@ export default function LeaderboardScreen() {
                 >
                   <View style={styles.historyText}>
                     <Text style={styles.historyTitle} numberOfLines={1}>
-                      {entry.productTitle ?? reasonLabel(entry.reason)}
+                      {entry.productTitle ?? reasonLabel(entry.reason, t)}
                     </Text>
                     <Text style={styles.historyDetail}>
                       {entry.detail} · {formatRelativeTime(entry.at)}
@@ -290,9 +292,9 @@ export default function LeaderboardScreen() {
   );
 }
 
-function reasonLabel(reason: string) {
-  if (reason === "first_track") return "First product tracked";
-  if (reason === "deal_found") return "Deal found";
+function reasonLabel(reason: string, t: Translate) {
+  if (reason === "first_track") return t("leaderboard.firstTrack");
+  if (reason === "deal_found") return t("leaderboard.dealFound");
   return reason;
 }
 

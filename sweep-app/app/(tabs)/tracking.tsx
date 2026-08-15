@@ -19,6 +19,8 @@ import {
 } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
+import { storeListPhrase } from "@/lib/format";
 import {
   ApiError,
   type Schedule,
@@ -38,6 +40,7 @@ import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 export default function TrackingScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const router = useRouter();
 
   const [tracked, setTracked] = useState<TrackedProduct[] | null>(null);
@@ -190,7 +193,7 @@ export default function TrackingScreen() {
             {limits.used} of {limits.maxTrackedProducts} tracked
             {tier !== "free" ? ` · ${tier}` : ""}
           </Text>
-          {atLimit && <Text style={styles.limitFull}>Limit reached</Text>}
+          {atLimit && <Text style={styles.limitFull}>{t("tracking.limitReached")}</Text>}
         </View>
       )}
 
@@ -239,11 +242,13 @@ export default function TrackingScreen() {
         }
         ListEmptyComponent={
           <EmptyState
-            title="Nothing tracked yet"
-            body="Copy a product link from Amazon, Walmart, Best Buy, Target or eBay and paste it above. Sweep will watch the price and tell you when it drops."
+            title={t("tracking.empty")}
+            // Named Target, which Sweep doesn't support, and left out two
+            // stores it does.
+            body={t("tracking.emptyBody", { stores: storeListPhrase() })}
             action={
               <Button
-                label="Compare prices instead"
+                label={t("tracking.compareInstead")}
                 onPress={() => router.push("/search")}
                 variant="secondary"
               />
@@ -313,8 +318,8 @@ export default function TrackingScreen() {
                 item.product.lastStatus !== "success" && (
                   <Text style={styles.staleWarning}>
                     {item.product.lastStatus === "blocked"
-                      ? "This store is blocking price checks right now — showing the last known price."
-                      : "Last price check failed — showing the last known price."}
+                      ? t("tracking.storeBlocking")
+                      : t("tracking.checkFailed")}
                   </Text>
                 )}
             </View>
@@ -334,7 +339,7 @@ export default function TrackingScreen() {
         onClose={() => setBoughtDraft(null)}
         onSaved={() => {
           const item = boughtItem;
-          setNotice("Added to your budget.");
+          setNotice(t("tracking.addedToBudget"));
           if (item) offerUntrack(item);
         }}
       />
@@ -352,8 +357,8 @@ export default function TrackingScreen() {
         content={
           confirmUntrack && {
             icon: "checkmark-circle",
-            title: "Added to your budget",
-            body: "Want to stop watching its price as well?",
+            title: t("tracking.loggedIt"),
+            body: t("tracking.stopToo"),
             subject: {
               title: confirmUntrack.product.title,
               imageUrl: confirmUntrack.product.imageUrl,
@@ -362,8 +367,8 @@ export default function TrackingScreen() {
                 { month: "short", day: "numeric" },
               )}`,
             },
-            confirmLabel: "Stop tracking",
-            cancelLabel: "Keep tracking",
+            confirmLabel: t("tracking.stopTracking"),
+            cancelLabel: t("tracking.keepTracking"),
           }
         }
         onCancel={() => setConfirmUntrack(null)}

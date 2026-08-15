@@ -14,12 +14,14 @@ import { useFocusEffect } from "expo-router";
 import { Loading, Screen } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import { type Plan, type PlanFeature, getPlans } from "@/lib/api";
 
 type Billing = "monthly" | "yearly";
 
 export default function PlansScreen() {
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const [plans, setPlans] = useState<Plan[] | null>(null);
   const [groupLabels, setGroupLabels] = useState<Record<string, string>>({});
   const [currentTier, setCurrentTier] = useState<string | null>(null);
@@ -61,7 +63,7 @@ export default function PlansScreen() {
               <Text
                 style={[styles.toggleText, billing === option && styles.toggleTextOn]}
               >
-                {option === "monthly" ? "Monthly" : "Yearly"}
+                {option === "monthly" ? t("plans.monthly") : t("plans.yearly")}
               </Text>
               {option === "yearly" && savings ? (
                 <Text
@@ -113,6 +115,7 @@ function PlanCard({
   /** Name of the tier below, so the card can say what it builds on. */
   previousName: string | null;
 }) {
+  const t = useTranslate();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   // Starts collapsed on every plan now. The upgrade rows above carry the
@@ -144,7 +147,7 @@ function PlanCard({
       */}
       {isCurrent ? (
         <View style={[styles.ribbon, styles.ribbonCurrent]}>
-          <Text style={[styles.ribbonText, styles.ribbonTextCurrent]}>YOUR PLAN</Text>
+          <Text style={[styles.ribbonText, styles.ribbonTextCurrent]}>{t("plans.yourPlan")}</Text>
         </View>
       ) : plan.badge ? (
         <View style={[styles.ribbon, !plan.highlighted && styles.ribbonSecondary]}>
@@ -227,7 +230,9 @@ function PlanCard({
 
       <Pressable onPress={() => setExpanded((v) => !v)} style={styles.expandRow}>
         <Text style={styles.expandText}>
-          {expanded ? "Hide full list" : `See all ${plan.features.length} features`}
+          {expanded
+            ? t("plans.hideList")
+            : t("plans.seeAll", { count: plan.features.length })}
         </Text>
         <Ionicons
           name={expanded ? "chevron-up" : "chevron-down"}

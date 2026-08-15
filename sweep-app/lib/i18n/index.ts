@@ -106,6 +106,9 @@ export function translate(
   return text;
 }
 
+/** The shape of `translate`, for helpers that take it as a parameter. */
+export type Translate = typeof translate;
+
 /**
  * Hook form. Subscribes the component so a language change re-renders it —
  * calling `translate` directly in a component would render stale text until

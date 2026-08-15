@@ -28,6 +28,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import { Button, EmptyState, ErrorBanner, Loading, Screen } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import {
   ApiError,
   type BudgetEntry,
@@ -65,6 +66,7 @@ function thisMonth(): string {
 export default function BudgetScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const router = useRouter();
   const [month, setMonth] = useState(thisMonth());
   const [data, setData] = useState<BudgetMonth | null>(null);
@@ -183,7 +185,7 @@ export default function BudgetScreen() {
           <>
             {/* ---- the headline number ---- */}
             <View style={styles.hero}>
-              <Text style={styles.heroLabel}>SPENT THIS MONTH</Text>
+              <Text style={styles.heroLabel}>{t("budget.spentThisMonth")}</Text>
               <Text style={styles.heroValue}>{formatPrice(spent)}</Text>
 
               {budget !== null ? (
@@ -217,7 +219,7 @@ export default function BudgetScreen() {
                       }}
                       hitSlop={8}
                     >
-                      <Text style={styles.budgetEdit}>Edit</Text>
+                      <Text style={styles.budgetEdit}>{t("budget.edit")}</Text>
                     </Pressable>
                   </View>
                 </>
@@ -230,7 +232,7 @@ export default function BudgetScreen() {
                   style={styles.setBudget}
                 >
                   <Ionicons name="flag-outline" size={14} color={colors.accent} />
-                  <Text style={styles.setBudgetText}>Set a monthly budget</Text>
+                  <Text style={styles.setBudgetText}>{t("budget.setBudget")}</Text>
                 </Pressable>
               )}
 
@@ -241,13 +243,13 @@ export default function BudgetScreen() {
                     value={budgetInput}
                     onChangeText={setBudgetInput}
                     keyboardType="decimal-pad"
-                    placeholder="Monthly budget"
+                    placeholder={t("budget.monthlyBudget")}
                     placeholderTextColor={colors.textTertiary}
                     autoFocus
                   />
-                  <Button label="Save" onPress={onSaveBudget} compact />
+                  <Button label={t("common.save")} onPress={onSaveBudget} compact />
                   <Button
-                    label="Cancel"
+                    label={t("common.cancel")}
                     onPress={() => setEditingBudget(false)}
                     variant="secondary"
                     compact
@@ -256,12 +258,12 @@ export default function BudgetScreen() {
               )}
             </View>
 
-            <Button label="Log a purchase" onPress={() => setDraft(emptyDraft())} />
+            <Button label={t("budget.logPurchase")} onPress={() => setDraft(emptyDraft())} />
 
             {/* ---- where it went ---- */}
             {data.categories.length > 0 && (
               <View style={styles.block}>
-                <Text style={styles.blockTitle}>Where it went</Text>
+                <Text style={styles.blockTitle}>{t("budget.whereItWent")}</Text>
                 {data.categories.map((row) => {
                   const share = spent > 0 ? row.spent / spent : 0;
                   const over = row.limit !== null && row.spent > row.limit;
@@ -317,11 +319,11 @@ export default function BudgetScreen() {
 
               {data.entries.length === 0 ? (
                 <EmptyState
-                  title="Nothing logged yet"
+                  title={t("budget.nothingLogged")}
                   body={
                     isCurrentMonth
-                      ? "Log what you spend and it'll add up here. Bought something you were tracking? There's a button on it."
-                      : "Nothing was logged this month."
+                      ? t("budget.nothingBody")
+                      : t("budget.nothingThisMonth")
                   }
                 />
               ) : (
@@ -369,7 +371,7 @@ export default function BudgetScreen() {
             </View>
 
             {data.entries.length > 0 && (
-              <Text style={styles.hint}>Tap an entry to edit it, hold to delete.</Text>
+              <Text style={styles.hint}>{t("budget.hint")}</Text>
             )}
           </>
         )}
@@ -380,7 +382,7 @@ export default function BudgetScreen() {
           deleting && {
             icon: "trash-outline",
             destructive: true,
-            title: "Delete this purchase?",
+            title: t("budget.deleteTitle"),
             // Says what it does to the number on the screen above, which is
             // the thing someone is actually deciding about.
             body: `Your ${monthLabel(month)} total drops to ${formatPrice(
@@ -391,8 +393,8 @@ export default function BudgetScreen() {
               imageUrl: deleting.product?.imageUrl,
               caption: `${formatPrice(deleting.amount)} · ${deleting.category}`,
             },
-            confirmLabel: "Delete",
-            cancelLabel: "Keep it",
+            confirmLabel: t("common.delete"),
+            cancelLabel: t("budget.deleteKeep"),
           }
         }
         onCancel={() => setDeleting(null)}

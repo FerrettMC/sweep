@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, TextInput, View, type TextInputProps } from "react-native";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 
 interface Props extends Omit<TextInputProps, "secureTextEntry"> {
   /** Merged over the field's own styling, for callers with layout needs. */
@@ -25,6 +26,7 @@ interface Props extends Omit<TextInputProps, "secureTextEntry"> {
 export default function PasswordInput({ fieldStyle, ...props }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const [visible, setVisible] = useState(false);
 
   return (
@@ -44,7 +46,7 @@ export default function PasswordInput({ fieldStyle, ...props }: Props) {
         // Announced rather than left as a bare icon: to a screen reader an
         // unlabelled eye is just "button".
         accessibilityRole="button"
-        accessibilityLabel={visible ? "Hide password" : "Show password"}
+        accessibilityLabel={visible ? t("card.hidePassword") : t("card.showPassword")}
       >
         <Ionicons
           name={visible ? "eye-off-outline" : "eye-outline"}

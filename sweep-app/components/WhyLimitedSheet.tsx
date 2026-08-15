@@ -10,6 +10,7 @@
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import { Ionicons } from "@expo/vector-icons";
 import { Modal, ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -26,6 +27,7 @@ export default function WhyLimitedSheet({
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   return (
     <Modal
       visible={visible}
@@ -38,7 +40,7 @@ export default function WhyLimitedSheet({
           <View style={styles.grabber} />
 
           <ScrollView contentContainerStyle={styles.content}>
-            <Text style={styles.heading}>Why are searches limited?</Text>
+            <Text style={styles.heading}>{t("whyLimited.heading")}</Text>
 
             <Text style={styles.body}>
               Because a single search isn't one request — it's many. Every time
@@ -50,7 +52,7 @@ export default function WhyLimitedSheet({
               <View style={styles.row}>
                 <Ionicons name="cash-outline" size={17} color={colors.accent} />
                 <Text style={styles.rowText}>
-                  <Text style={styles.bold}>Amazon costs actual money.</Text>{" "}
+                  <Text style={styles.bold}>{t("whyLimited.amazonBold")}</Text>{" "}
                   Their data requires a paid subscription, and every request you
                   make costs us money.
                 </Text>
@@ -59,7 +61,7 @@ export default function WhyLimitedSheet({
               <View style={styles.row}>
                 <Ionicons name="time-outline" size={17} color={colors.accent} />
                 <Text style={styles.rowText}>
-                  <Text style={styles.bold}>The rest cost patience.</Text> The
+                  <Text style={styles.bold}>{t("whyLimited.restBold")}</Text> The
                   free stores rate-limit anyone who asks too often. Spacing
                   requests out is what keeps them working at all.
                 </Text>
@@ -72,7 +74,7 @@ export default function WhyLimitedSheet({
                   color={colors.accent}
                 />
                 <Text style={styles.rowText}>
-                  <Text style={styles.bold}>Tracking is different.</Text> Once
+                  <Text style={styles.bold}>{t("whyLimited.trackingBold")}</Text> Once
                   you track something, checking it is cheap and shared — if ten
                   people watch the same TV, that's one check, not ten. Searching
                   can't be shared that way, because everyone searches something
@@ -87,7 +89,7 @@ export default function WhyLimitedSheet({
               bill attached.
             </Text>
 
-            <Text style={styles.subheading}>Ways to get more</Text>
+            <Text style={styles.subheading}>{t("whyLimited.waysToGetMore")}</Text>
             <View style={styles.bullets}>
               <Text style={styles.bullet}>
                 • Watch a short ad for one extra search, up to 3 a day
@@ -103,10 +105,10 @@ export default function WhyLimitedSheet({
 
           <View style={styles.actions}>
             <View style={styles.action}>
-              <Button label="Got it" onPress={onClose} variant="secondary" />
+              <Button label={t("whyLimited.gotIt")} onPress={onClose} variant="secondary" />
             </View>
             <View style={styles.action}>
-              <Button label="See plans" onPress={onSeePlans} />
+              <Button label={t("whyLimited.seePlans")} onPress={onSeePlans} />
             </View>
           </View>
         </View>

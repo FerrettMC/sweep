@@ -13,6 +13,7 @@
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import {
   ApiError,
   type Schedule,
@@ -52,6 +53,7 @@ export default function TrackedItemSheet({
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const [threshold, setThreshold] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +86,7 @@ export default function TrackedItemSheet({
         const cents = raw === "" ? null : Math.round(Number(raw) * 100);
         if (raw !== "" && (!Number.isFinite(cents) || (cents ?? 0) <= 0)) {
           setError(
-            "Enter a price like 49.99, or clear it to turn the alert off.",
+            t("trackedItem.thresholdHelp"),
           );
           return;
         }
@@ -136,7 +138,7 @@ export default function TrackedItemSheet({
             {/* ---- custom threshold ---- */}
             <View style={styles.section}>
               <View style={styles.sectionTitleRow}>
-                <Text style={styles.sectionTitle}>Alert me below</Text>
+                <Text style={styles.sectionTitle}>{t("trackedItem.alertBelow")}</Text>
                 {!canSetThreshold && (
                   <View style={styles.proPill}>
                     <Text style={styles.proPillText}>PRO</Text>
@@ -190,21 +192,21 @@ export default function TrackedItemSheet({
               style={styles.removeRow}
             >
               <Ionicons name="trash-outline" size={16} color={colors.danger} />
-              <Text style={styles.removeText}>Stop tracking this</Text>
+              <Text style={styles.removeText}>{t("trackedItem.stopTrackingThis")}</Text>
             </Pressable>
           </ScrollView>
 
           <View style={styles.actions}>
             <View style={styles.action}>
               <Button
-                label="Cancel"
+                label={t("common.cancel")}
                 onPress={onClose}
                 variant="secondary"
                 disabled={busy}
               />
             </View>
             <View style={styles.action}>
-              <Button label="Save" onPress={onSave} busy={busy} />
+              <Button label={t("common.save")} onPress={onSave} busy={busy} />
             </View>
           </View>
         </View>

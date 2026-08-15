@@ -19,6 +19,7 @@
 
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import {
   formatPrice,
   formatRating,
@@ -88,6 +89,7 @@ export default function ProductCard({
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   // A failed image should fall back to the placeholder, not leave a blank white
   // square that's indistinguishable from a product photo on a white background.
   const [imageFailed, setImageFailed] = useState(false);
@@ -143,7 +145,7 @@ export default function ProductCard({
 
           <View style={styles.priceRow}>
             <Text style={[styles.price, price === null && styles.priceMissing]}>
-              {price === null ? "No price" : formatPrice(price)}
+              {price === null ? t("card.noPrice") : formatPrice(price)}
             </Text>
             {listPrice !== null && discount !== null && (
               <>

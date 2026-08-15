@@ -26,6 +26,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Button, EmptyState, Loading, Screen } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import {
   ApiError,
   type GiftList,
@@ -58,6 +59,7 @@ const SHARE_BASE =
 export default function ListsScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const router = useRouter();
 
   const [lists, setLists] = useState<GiftList[] | null>(null);
@@ -145,7 +147,7 @@ export default function ListsScreen() {
           url,
         });
       } else {
-        setNotice("Sharing turned off. The old link no longer works.");
+        setNotice(t("lists.sharingOff"));
       }
     } catch (err) {
       setError((err as ApiError).message);
@@ -157,7 +159,7 @@ export default function ListsScreen() {
   async function onCopyLink(list: GiftList) {
     if (!list.shareToken) return;
     await Clipboard.setStringAsync(`${SHARE_BASE}/${list.shareToken}`);
-    setNotice("Link copied.");
+    setNotice(t("lists.linkCopied"));
   }
 
   if (lists === null && !error) return <Loading />;
@@ -189,7 +191,7 @@ export default function ListsScreen() {
           <View style={styles.createRow}>
             <TextInput
               style={styles.input}
-              placeholder="New list — e.g. Christmas 2026"
+              placeholder={t("lists.newListPlaceholder")}
               placeholderTextColor={colors.textTertiary}
               value={newName}
               onChangeText={setNewName}
@@ -198,7 +200,7 @@ export default function ListsScreen() {
               maxLength={60}
             />
             <Button
-              label="Create"
+              label={t("lists.create")}
               onPress={onCreate}
               busy={creating}
               disabled={!newName.trim()}
@@ -210,7 +212,7 @@ export default function ListsScreen() {
             <Ionicons name="lock-closed-outline" size={15} color={colors.warning} />
             <Text style={styles.limitText}>
               {limits?.maxLists === 1
-                ? "Your plan includes 1 list."
+                ? t("lists.planIncludesOne")
                 : `You've used all ${limits?.maxLists} lists on your plan.`}{" "}
               Pro gives 5, Ultimate 20.
             </Text>
@@ -220,8 +222,8 @@ export default function ListsScreen() {
 
         {(lists ?? []).length === 0 && (
           <EmptyState
-            title="No lists yet"
-            body="Build a gift list or wishlist, then share a link. Whoever you send it to sees live prices — and can mark off what they've bought, so nobody doubles up."
+            title={t("lists.noLists")}
+            body={t("lists.emptyBody")}
           />
         )}
 
@@ -302,7 +304,7 @@ export default function ListsScreen() {
                               size={13}
                               color={colors.accent}
                             />
-                            <Text style={styles.openLabel}>Open</Text>
+                            <Text style={styles.openLabel}>{t("lists.openItem")}</Text>
                           </Pressable>
                           <Pressable
                             onPress={async () => {
@@ -327,7 +329,7 @@ export default function ListsScreen() {
                     <View style={styles.addRow}>
                       <TextInput
                         style={styles.input}
-                        placeholder="Paste a product link…"
+                        placeholder={t("lists.pasteLink")}
                         placeholderTextColor={colors.textTertiary}
                         value={linkDraft[list.id] ?? ""}
                         onChangeText={(text) =>
@@ -339,7 +341,7 @@ export default function ListsScreen() {
                         keyboardType="url"
                       />
                       <Button
-                        label="Add"
+                        label={t("lists.add")}
                         onPress={() => onAddItem(list)}
                         busy={busyList === list.id}
                         disabled={!(linkDraft[list.id] ?? "").trim()}
@@ -352,7 +354,7 @@ export default function ListsScreen() {
                   <View style={styles.actions}>
                     <View style={styles.actionMain}>
                       <Button
-                        label={list.isPublic ? "Share again" : "Share this list"}
+                        label={list.isPublic ? t("lists.shareAgain") : t("lists.shareThis")}
                         onPress={() => onShare(list)}
                         busy={busyList === list.id}
                         compact
@@ -360,7 +362,7 @@ export default function ListsScreen() {
                     </View>
                     {list.isPublic && (
                       <Pressable onPress={() => onCopyLink(list)} hitSlop={8}>
-                        <Text style={styles.linkAction}>Copy link</Text>
+                        <Text style={styles.linkAction}>{t("lists.copyLink")}</Text>
                       </Pressable>
                     )}
                     <Pressable
@@ -370,7 +372,7 @@ export default function ListsScreen() {
                       }}
                       hitSlop={8}
                     >
-                      <Text style={styles.deleteAction}>Delete</Text>
+                      <Text style={styles.deleteAction}>{t("common.delete")}</Text>
                     </Pressable>
                   </View>
 

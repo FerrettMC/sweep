@@ -35,6 +35,8 @@ import ProductCard from "@/components/ProductCard";
 import { Button, EmptyState, ErrorBanner, Loading, Screen } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
+import { storeListPhrase } from "@/lib/format";
 import {
   ApiError,
   type Highlight,
@@ -71,6 +73,7 @@ const AMAZON_MAX_WAIT_MS = 210_000;
 export default function SearchScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const router = useRouter();
 
   const [keyword, setKeyword] = useState("");
@@ -244,7 +247,7 @@ export default function SearchScreen() {
 
         if (result.status === "pending") {
           if (Date.now() - startedAt > AMAZON_MAX_WAIT_MS) {
-            finish("failed", [], "Amazon took too long — try again later.");
+            finish("failed", [], t("search.amazonSlow"));
             return;
           }
           timer = setTimeout(poll, AMAZON_POLL_MS);
@@ -264,8 +267,8 @@ export default function SearchScreen() {
           "failed",
           [],
           apiError.code === "SEARCH_JOB_NOT_FOUND"
-            ? "Amazon results expired — search again."
-            : "Couldn't load Amazon results.",
+            ? t("search.amazonExpired")
+            : t("search.amazonFailed"),
         );
       }
     }
@@ -300,14 +303,14 @@ export default function SearchScreen() {
       const { data } = await supabase.auth.getSession();
       const userId = data.session?.user.id;
       if (!userId) {
-        setError("Sign in to unlock extra searches.");
+        setError(t("search.signInForMore"));
         return;
       }
 
       const outcome = await showRewardedAd(userId);
 
       if (outcome.status === "dismissed") {
-        setNotice("Ad closed early — no extra search this time.");
+        setNotice(t("search.adClosedEarly"));
         return;
       }
 
@@ -317,7 +320,7 @@ export default function SearchScreen() {
         if (__DEV__) {
           const { quota: updated } = await claimRewardedSearch();
           setQuota(updated);
-          setNotice("Extra search unlocked (dev — no real ad).");
+          setNotice(t("search.adDev"));
           return;
         }
         setError(`Couldn't load an ad: ${outcome.reason}`);
@@ -327,14 +330,14 @@ export default function SearchScreen() {
       // Reward earned. The server credits it from AdMob's verification
       // callback, which can land a moment after the ad closes — so poll the
       // quota briefly rather than assuming it's already there.
-      setNotice("Ad finished — unlocking your search…");
+      setNotice(t("search.adFinishing"));
       const updated = await waitForBonus(quota?.bonus ?? 0);
 
       if (updated) {
         setQuota(updated);
-        setNotice("Extra search unlocked.");
+        setNotice(t("search.adUnlocked"));
       } else {
-        setNotice("Reward is taking a moment to land. Pull to refresh shortly.");
+        setNotice(t("search.adPending"));
       }
     } catch (err) {
       setError((err as ApiError).message);
@@ -368,7 +371,7 @@ export default function SearchScreen() {
       <View style={styles.searchBar}>
         <TextInput
           style={styles.input}
-          placeholder="Search every store at once…"
+          placeholder={t("search.placeholder")}
           placeholderTextColor={colors.textTertiary}
           value={keyword}
           onChangeText={setKeyword}
@@ -378,7 +381,7 @@ export default function SearchScreen() {
           autoCorrect={false}
         />
         <Button
-          label="Search"
+          label={t("search.button")}
           onPress={() => void onSearch()}
           busy={searching}
           disabled={!keyword.trim() || outOfSearches}
@@ -395,9 +398,14 @@ export default function SearchScreen() {
           >
             <Text style={styles.quotaText}>
               {quota.remaining > 0
-                ? `${pluralize(quota.remaining, "search")} left today`
-                : "No searches left today"}
-              {quota.bonus > 0 ? ` · +${quota.bonus} from ads` : ""}
+                ? t(
+                    quota.remaining === 1
+                      ? "search.searchLeftShort"
+                      : "search.searchesLeftShort",
+                    { count: quota.remaining },
+                  )
+                : t("common.noSearchesLeft")}
+              {quota.bonus > 0 ? t("search.fromAds", { count: quota.bonus }) : ""}
             </Text>
             <Ionicons
               name="help-circle-outline"
@@ -429,7 +437,7 @@ export default function SearchScreen() {
           */}
           {outOfSearches && quota.canWatchAd && ADS_ENABLED && (
             <Button
-              label="Watch ad for +1"
+              label={t("search.watchAd")}
               onPress={onWatchAd}
               busy={watchingAd}
               variant="secondary"
@@ -437,7 +445,7 @@ export default function SearchScreen() {
             />
           )}
           {outOfSearches && !quota.canWatchAd && !isGuest && (
-            <Text style={styles.capNote}>No more ad searches today</Text>
+            <Text style={styles.capNote}>{t("search.noAdSearches")}</Text>
           )}
         </View>
       )}
@@ -448,12 +456,9 @@ export default function SearchScreen() {
 
       {isGuest && (
         <View style={styles.guestBanner}>
-          <Text style={styles.guestText}>
-            You're browsing as a guest — one search a day. Sign up to track
-            prices and get drop alerts.
-          </Text>
+          <Text style={styles.guestText}>{t("search.guestBanner")}</Text>
           <Button
-            label="Create account"
+            label={t("search.createAccount")}
             onPress={() => router.push("/auth")}
             variant="secondary"
             compact
@@ -461,12 +466,14 @@ export default function SearchScreen() {
         </View>
       )}
 
-      {searching && !sections && <Loading label="Checking every store…" />}
+      {searching && !sections && <Loading label={t("search.checkingStores")} />}
 
       {!searching && !sections && (
         <EmptyState
-          title="One search, every store"
-          body="Search once and Sweep checks Amazon, Walmart, Target, Best Buy and eBay together, so you can see who's actually cheapest before you buy."
+          title={t("search.emptyTitle")}
+          // Was a hardcoded list that named Target, which Sweep doesn't
+          // support, and omitted two stores that it does.
+          body={t("search.emptyBody", { stores: storeListPhrase() })}
         />
       )}
 
@@ -494,7 +501,7 @@ export default function SearchScreen() {
 
               {highlights.length > 0 && (
                 <View style={styles.highlightBlock}>
-                  <Text style={styles.highlightHeading}>Top picks</Text>
+                  <Text style={styles.highlightHeading}>{t("search.topPicks")}</Text>
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
@@ -530,7 +537,7 @@ export default function SearchScreen() {
                 </Text>
               )}
               {sections.length > 0 && (
-                <Text style={styles.byStoreHeading}>By store</Text>
+                <Text style={styles.byStoreHeading}>{t("search.byStore")}</Text>
               )}
             </>
           }
@@ -552,7 +559,7 @@ export default function SearchScreen() {
                 <Text style={styles.sectionStatus}>{section.message}</Text>
               )}
               {section.status === "success" && section.data.length === 0 && (
-                <Text style={styles.sectionStatus}>No matches</Text>
+                <Text style={styles.sectionStatus}>{t("search.noMatches")}</Text>
               )}
             </View>
           )}

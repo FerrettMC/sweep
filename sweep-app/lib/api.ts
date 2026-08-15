@@ -520,7 +520,9 @@ export interface Plan {
   /** One-line summary of this plan's headline numbers. */
   summary: string;
   /** The handful of numbers that improve at this tier. `from` is null on Free. */
-  upgrades: { label: string; from: string | null; to: string }[];
+  // `id` is the language-independent handle ("dial.manual"); `label` is
+  // translated. Filter on id, never on label.
+  upgrades: { id: string; label: string; from: string | null; to: string }[];
   /** Features that switch on at this tier and weren't available below it. */
   unlocks: string[];
   features: PlanFeature[];

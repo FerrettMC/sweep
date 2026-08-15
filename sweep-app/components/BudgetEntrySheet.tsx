@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import {
   ApiError,
   type BudgetEntry,
@@ -57,6 +58,7 @@ export default function BudgetEntrySheet({
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
@@ -123,7 +125,11 @@ export default function BudgetEntrySheet({
 
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text style={styles.heading}>
-              {isEdit ? "Edit purchase" : draft.productTitle ? "Log this purchase" : "Log a purchase"}
+              {isEdit
+                ? t("budget.editPurchase")
+                : draft.productTitle
+                  ? t("budget.logThis")
+                  : t("budget.logPurchase")}
             </Text>
 
             {draft.productTitle && (
@@ -135,7 +141,7 @@ export default function BudgetEntrySheet({
               </View>
             )}
 
-            <Text style={styles.label}>Amount</Text>
+            <Text style={styles.label}>{t("budget.amount")}</Text>
             <View style={styles.amountRow}>
               <Text style={styles.currency}>$</Text>
               <TextInput
@@ -143,13 +149,13 @@ export default function BudgetEntrySheet({
                 value={amount}
                 onChangeText={setAmount}
                 keyboardType="decimal-pad"
-                placeholder="0.00"
+                placeholder={t("budget.amountPlaceholder")}
                 placeholderTextColor={colors.textTertiary}
                 autoFocus={!draft.productTitle}
               />
             </View>
 
-            <Text style={styles.label}>Category</Text>
+            <Text style={styles.label}>{t("budget.category")}</Text>
             <View style={styles.chips}>
               {categories.map((option) => (
                 <Pressable
@@ -195,19 +201,19 @@ export default function BudgetEntrySheet({
                 style={styles.input}
                 value={customCategory}
                 onChangeText={setCustomCategory}
-                placeholder="Category name…"
+                placeholder={t("budget.categoryPlaceholder")}
                 placeholderTextColor={colors.textTertiary}
                 maxLength={24}
                 autoFocus
               />
             )}
 
-            <Text style={styles.label}>Note (optional)</Text>
+            <Text style={styles.label}>{t("budget.noteOptional")}</Text>
             <TextInput
               style={styles.input}
               value={description}
               onChangeText={setDescription}
-              placeholder="What was it?"
+              placeholder={t("budget.whatWasIt")}
               placeholderTextColor={colors.textTertiary}
               maxLength={120}
             />
@@ -216,7 +222,7 @@ export default function BudgetEntrySheet({
           </ScrollView>
 
           <View style={styles.actions}>
-            <Button label="Cancel" onPress={onClose} variant="secondary" />
+            <Button label={t("common.cancel")} onPress={onClose} variant="secondary" />
             <Button
               label={isEdit ? "Save" : "Log it"}
               onPress={onSave}

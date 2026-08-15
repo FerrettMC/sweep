@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
+import { useTranslate } from "@/lib/i18n";
 import {
   ApiError,
   type GiftList,
@@ -54,6 +55,7 @@ interface Props {
 export default function AddToListSheet({ product, onClose, onAdded }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
   const [lists, setLists] = useState<GiftList[] | null>(null);
   const [limits, setLimits] = useState<{
     maxLists: number;
@@ -134,13 +136,13 @@ export default function AddToListSheet({ product, onClose, onAdded }: Props) {
           <View style={styles.grabber} />
 
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            <Text style={styles.heading}>Add to a list</Text>
+            <Text style={styles.heading}>{t("addToList.heading")}</Text>
             <Text style={styles.product} numberOfLines={2}>
               {product.title}
             </Text>
 
             {lists === null ? (
-              <Text style={styles.loading}>Loading your lists…</Text>
+              <Text style={styles.loading}>{t("addToList.loading")}</Text>
             ) : (
               <>
                 {lists.map((list) => {
@@ -177,14 +179,14 @@ export default function AddToListSheet({ product, onClose, onAdded }: Props) {
                         </Text>
                         <Text style={styles.rowMeta}>
                           {already
-                            ? "Already on this list"
+                            ? t("addToList.alreadyOnList")
                             : full
                               ? `Full (${limits?.maxItemsPerList} items)`
                               : `${list.itemCount} item${list.itemCount === 1 ? "" : "s"}`}
                         </Text>
                       </View>
                       {busy === list.id && (
-                        <Text style={styles.rowMeta}>Adding…</Text>
+                        <Text style={styles.rowMeta}>{t("addToList.adding")}</Text>
                       )}
                     </Pressable>
                   );
@@ -201,7 +203,7 @@ export default function AddToListSheet({ product, onClose, onAdded }: Props) {
                   <View style={styles.createRow}>
                     <TextInput
                       style={styles.input}
-                      placeholder="New list name…"
+                      placeholder={t("addToList.newListName")}
                       placeholderTextColor={colors.textTertiary}
                       value={newName}
                       onChangeText={setNewName}
@@ -210,7 +212,7 @@ export default function AddToListSheet({ product, onClose, onAdded }: Props) {
                       maxLength={60}
                     />
                     <Button
-                      label="Create"
+                      label={t("lists.create")}
                       onPress={onCreateAndAdd}
                       busy={creating}
                       disabled={!newName.trim()}
@@ -230,7 +232,7 @@ export default function AddToListSheet({ product, onClose, onAdded }: Props) {
           </ScrollView>
 
           <View style={styles.actions}>
-            <Button label="Close" onPress={onClose} variant="secondary" />
+            <Button label={t("common.close")} onPress={onClose} variant="secondary" />
           </View>
         </View>
       </View>
