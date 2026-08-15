@@ -56,7 +56,15 @@ function confirmedBody() {
     with the email and password you signed up with.
   </p>
   <p>
-    <a class="cta" href="sweep://">Open ${APP_NAME}</a>
+    <!--
+      Android intent URL rather than a bare sweep:// link. Chrome, and
+      especially the in-app browsers mail clients use, often refuse to navigate
+      to a custom scheme from a link. An intent:// URL is the documented way,
+      names the package explicitly so it opens the installed app rather than
+      hunting for a handler, and falls back to the Play listing if the app
+      isn't installed on whatever device opened the email.
+    -->
+    <a class="cta" href="intent://open#Intent;scheme=sweep;package=com.sweepshopping.app;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.sweepshopping.app;end">Open ${APP_NAME}</a>
   </p>
   <p class="note">
     If that button does nothing, just switch to the ${APP_NAME} app yourself —
