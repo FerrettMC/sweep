@@ -40,94 +40,76 @@ protecting — commit before stepping away from anything you'd hate to redo.
 
 ---
 
-# Where we left off (15 Aug 2026)
+# Where we left off (16 Aug 2026)
 
-Everything below is committed. Both projects typecheck clean.
+Everything is committed. Both projects typecheck clean; all test suites pass.
 
-## Ready to publish
+## Billing — half done, and the half that's done is the risky half
 
-The code is done. Remaining work is Play Console, not the repo.
+**Backend is finished and tested.** `POST /webhooks/revenuecat` turns
+subscription events into `Wallet.tier` + `tierExpiresAt`. `npm run test:billing`
+covers 12 cases including the two that are easy to get wrong: a cancellation
+does *not* revoke access (it only stops auto-renew), and a retried out-of-order
+renewal can't shorten a subscription.
 
-Pre-flight already verified:
+**App side is written but inert.** The plans screen has buy buttons that appear
+only when RevenueCat has a matching product, so it ships safely with nothing
+configured. `Purchases.logIn()` sets RevenueCat's `app_user_id` to the Supabase
+user id — that is what lets the webhook find the wallet.
 
-- EAS account `benju-studioss-team`, matching `app.json` owner
-- `app.json`, `eas.json` and `google-services.json` all tracked by git — EAS
-  builds from the git archive, so an untracked file is a file the build never
-  sees
-- Production profile carries `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_SUPABASE_URL`
-  and `EXPO_PUBLIC_SUPABASE_ANON_KEY`
-- `versionCode` is remote with auto-increment, so it cannot collide
+### Next steps, in order
 
-Build:
+1. **Upload the current build.** Its job is to put the Play Billing Library in
+   front of Play, which is what unlocks Monetize → Subscriptions. Play refuses
+   to let you create products until it sees billing in an uploaded bundle —
+   that's the chicken-and-egg that blocked us.
+2. **Create the products**: `pro` and `ultimate`, monthly + yearly, 7-day trial
+   on each.
+3. **RevenueCat**: connect Play (service account JSON), create entitlements
+   named exactly **`pro`** and **`ultimate`**, lowercase, attach the products.
+4. **Webhook**: `https://api.sweepshopping.com/webhooks/revenuecat`, with an
+   Authorization header you invent (`openssl rand -hex 32`). Same value into
+   Railway as `REVENUECAT_WEBHOOK_SECRET`.
+5. **Add `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`** (the `goog_` one) to all three
+   eas.json profiles and `.env`, then rebuild. EAS rejects empty values, so the
+   key is absent rather than blank until it's real.
+6. **License testers**: Play Console → Settings → License testing. Those
+   accounts buy for free and get compressed renewal periods, so renewal and
+   expiry are testable inside the test window.
 
-```bash
-cd sweep-app
-npx eas-cli build --profile production --platform android
-```
+**The one thing to double-check:** entitlements must be `pro` and `ultimate`,
+lowercase. A mismatch means purchases succeed while the tier silently stays
+free, and that failure is invisible until someone complains they paid for
+nothing.
 
-First run asks to generate an Android keystore — say yes and let EAS keep it.
-Losing it means never being able to update the app under this package name.
+## Also landed today
 
-## Pricing decisions (15 Aug 2026)
+- **Etsy is live** — three working stores now (Amazon, eBay, Etsy). Its auth
+  needs `keystring:shared_secret`; the keystring alone returns 403. Search
+  ignores `includes=Images`, so listings are fetched again via the batch
+  endpoint, which honours it.
+- **Quota races fixed.** Five of seven consumers could be raced, and worse, the
+  daily rollover itself raced — reading a quota *wrote* one when the window
+  expired, so concurrent requests each reset the counter. `npm run
+  test:concurrency` fires simultaneous requests at every limit. Any new metered
+  feature belongs in that file.
+- **Tests no longer touch production.** `.env.test` points at a dev Supabase
+  project, and `testEnv.ts` refuses to run if the target looks like production.
+  Escape hatch is `ALLOW_PRODUCTION_TESTS=yes-really`.
+- **Crash reporting** is live via Sentry, with source maps uploading.
+- **Landing page** at `/`, including a "who makes it" section.
 
-- **7-day free trial** on both Pro and Ultimate. Chosen over 14 to limit
-  exposure; the real cost of a trial user is Bright Data calls for Amazon, not
-  the sticker price, so extending later is cheap if conversion disappoints.
-  Trial length is a Play base-plan setting and can change without an app update.
-- **No custom refund policy.** Google self-serves refunds for 48 hours; past
-  that they arrive in Play Console for a case-by-case decision. A free trial is
-  the better answer to refund pressure anyway.
-- **Upgrades Pro to Ultimate use default time proration.** Play credits unused
-  Pro time automatically, so "upgrading is cheaper" needs no discount logic. No
-  promotional upgrade pricing at launch — discounting to existing subscribers
-  teaches people to wait for discounts before there is any conversion data.
+## Still open
 
-Subscription products get created in Play Console *after* the first upload, then
-the billing flow goes in.
+- Best Buy API key — still pending approval, applied 15 Aug. Adapter is written
+  and waiting; drop `bestbuy` from `DISABLED_RETAILERS` when it arrives.
+- Ads for extra searches — backend SSV is done and tested; blocked on the AdMob
+  Kotlin toolchain conflict. Deliberately *not* bundled with billing, so a
+  failed native build has one suspect rather than two.
+- `ROADMAP.md` has the full feature list, with reasoning for what was parked.
 
-## Deliberately deferred
+## Three Play declarations that flip together
 
-- **Google Sign-In.** Code is roughly 50 lines; the credentials are the work.
-  The trap: Play App Signing re-signs the AAB, so Google sees a different SHA-1
-  than the upload key, and sign-in fails with `DEVELOPER_ERROR` for everyone who
-  installs from the Store. That fingerprint only exists after the first Play
-  Console upload — so wire the credentials then, not before. There are currently
-  no OAuth clients in `google-services.json` at all.
-- **Ads are declared as "No" in Play Console.** True today: `ADS_ENABLED` in
-  `lib/ads.ts` is false and no ad SDK is in the build. When ads are restored,
-  update that declaration in the *same* release — shipping ads under a "no ads"
-  declaration is a policy violation, and declaring ads early puts a "Contains
-  ads" badge on the listing that costs installs for nothing.
-- **Play reviewer account**: `play-review@sweepshopping.com`, Pro tier. Play
-  reuses these credentials on every future update review, so don't delete it or
-  change the password without updating Play Console.
-- **Spanish for backend error messages.** ~84 strings in
-  `sweep-backend/src/routes/`. The whole app is translated; these only surface
-  on failures. Keys live in `sweep-backend/src/lib/i18n.ts` already, and
-  `plans.ts` shows the pattern.
-- **`google-services.json` has a stale `com.anonymous.sweep` entry** from before
-  the package rename. Harmless; regenerate next time you are in Firebase.
-
-## Things worth remembering
-
-- **The rating prompt fires once per install**, a day after first launch, when
-  someone tracks a product. Rules are a pure function in `lib/reviewGate.ts`
-  with a test (`npm run test:review`) — Play's review API gives no callback and
-  silently shows nothing once its quota is spent, so nothing can branch on
-  whether it worked.
-- **Retailer cooldown**: one blocked response pauses that retailer app-wide for
-  2 minutes, doubling to 30 on repeats. In-memory per process, so a second
-  server instance would halve the effective pause. `npm run test:cooldown`.
-- **Server-translated copy needs stable ids.** Plan upgrades carry `id`
-  alongside the translated `label`; filtering on `label` breaks the moment
-  someone switches language. Bit us once already.
-- **Template-literal strings hide from translation sweeps.** Three were missed
-  that way — the store-down banner, a tracking-limit message, a shortcut hint.
-- Tests still run against the **production** Supabase project. The
-  `EXPO_PUBLIC_SUPABASE_*` env split is what makes a scratch project possible.
-
-## Next up
-
-Play Console: $25 account, Data Safety form, content rating questionnaire,
-store listing (7 images ready), then upload the AAB. After that: subscription
-products, Google Sign-In credentials, then ads and crash reporting.
+Ads, in-app purchases, and (already done) crash logs. When billing ships,
+update **Data safety** and the **content rating** answer about purchasing
+digital goods in the same release.
