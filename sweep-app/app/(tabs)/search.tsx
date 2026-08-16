@@ -29,6 +29,7 @@ import AddToListSheet, { type ListTarget } from "@/components/AddToListSheet";
 import SweepSheet from "@/components/SweepSheet";
 import CompareTray from "@/components/CompareTray";
 import ResultsMenu from "@/components/ResultsMenu";
+import StorePicker, { type StoreOption } from "@/components/StorePicker";
 import WhyLimitedSheet from "@/components/WhyLimitedSheet";
 import HighlightCard from "@/components/HighlightCard";
 import ProductCard from "@/components/ProductCard";
@@ -44,6 +45,7 @@ import {
   type RetailerResult,
   type SearchProduct,
   claimRewardedSearch,
+  getRetailerStatus,
   getSearchProgress,
   getQuota,
   startSearch,
@@ -54,7 +56,7 @@ import {
   preloadInterstitial,
   showRewardedAd,
 } from "@/lib/ads";
-import { pluralize, retailerColor } from "@/lib/format";
+import { type Retailer, pluralize, retailerColor } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
 
 interface Section {
@@ -140,6 +142,13 @@ export default function SearchScreen() {
   } | null>(null);
   const [resultsPref, setResultsPref] = useState<number | null>(null);
   const [showResultsMenu, setShowResultsMenu] = useState(false);
+  const [showStorePicker, setShowStorePicker] = useState(false);
+  // Which stores exist and whether they're up, so the picker can show a down
+  // store greyed out rather than silently dropping it from the list.
+  const [storeOptions, setStoreOptions] = useState<StoreOption[]>([]);
+  // Empty means every store. Kept as "empty" rather than a full list so it
+  // stays correct when a store is added or goes down.
+  const [pickedStores, setPickedStores] = useState<Retailer[]>([]);
 
   // Bumped on each new search so an in-flight poll from the previous one can
   // tell it's stale and stop writing results into the current view.
@@ -177,6 +186,20 @@ export default function SearchScreen() {
           // enforces the real limit regardless of what we managed to display.
         });
 
+      getRetailerStatus()
+        .then((status) => {
+          if (cancelled) return;
+          setStoreOptions(
+            status.retailers.map((r) => ({
+              retailer: r.retailer as Retailer,
+              available: r.available,
+            })),
+          );
+        })
+        .catch(() => {
+          // The picker just won't offer a list; searching still works.
+        });
+
       return () => {
         cancelled = true;
       };
@@ -200,7 +223,7 @@ export default function SearchScreen() {
     try {
       const response = await startSearch(
         trimmed,
-        undefined,
+        pickedStores.length > 0 ? pickedStores : undefined,
         overrideResults ?? resultsPref ?? undefined,
       );
       setQuota(response.quota);
@@ -420,6 +443,11 @@ export default function SearchScreen() {
         />
       </View>
 
+      {/* Under the box, not in the placeholder: a placeholder vanishes the
+          moment someone starts typing, which is exactly when the advice
+          becomes relevant. */}
+      <Text style={styles.precisionHint}>{t("search.precisionHint")}</Text>
+
       {quota && (
         <View style={styles.quotaRow}>
           <Pressable
@@ -457,6 +485,24 @@ export default function SearchScreen() {
             >
               <Text style={styles.resultsButtonText}>
                 {resultsPref ?? resultsRange.default} per store
+              </Text>
+              <Ionicons name="chevron-down" size={13} color={colors.textSecondary} />
+            </Pressable>
+          )}
+
+          {storeOptions.length > 0 && (
+            <Pressable
+              onPress={() => setShowStorePicker(true)}
+              hitSlop={8}
+              style={({ pressed }) => [styles.resultsButton, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={styles.resultsButtonText}>
+                {pickedStores.length === 0
+                  ? t("search.allStores")
+                  : t("search.storesPicked", {
+                      count: pickedStores.length,
+                      total: storeOptions.filter((o) => o.available).length,
+                    })}
               </Text>
               <Ionicons name="chevron-down" size={13} color={colors.textSecondary} />
             </Pressable>
@@ -667,6 +713,14 @@ export default function SearchScreen() {
         onAdded={(name) => setNotice(`Added to ${name}.`)}
       />
 
+      <StorePicker
+        visible={showStorePicker}
+        stores={storeOptions}
+        selected={pickedStores}
+        onChange={setPickedStores}
+        onClose={() => setShowStorePicker(false)}
+      />
+
       <ResultsMenu
         visible={showResultsMenu}
         range={resultsRange}
@@ -708,6 +762,13 @@ const makeStyles = (colors: Palette) =>
       paddingVertical: 12,
       color: colors.textPrimary,
       fontSize: type.body.fontSize,
+    },
+    precisionHint: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      lineHeight: 16,
+      paddingHorizontal: spacing.md,
+      paddingTop: 2,
     },
     quotaRow: {
       flexDirection: "row",

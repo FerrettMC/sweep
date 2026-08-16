@@ -37,9 +37,13 @@ import {
   createRadar,
   deleteRadar,
   getRadar,
-  refreshRadar,
+  getRadarRefreshProgress,
+  startRadarRefresh,
 } from "@/lib/api";
 import { formatPrice, formatRelativeTime, retailerColor } from "@/lib/format";
+
+/** Matches the search screen's cadence: quick enough to feel live, cheap. */
+const RADAR_POLL_MS = 900;
 
 export default function RadarScreen() {
   const router = useRouter();
@@ -106,14 +110,28 @@ export default function RadarScreen() {
     }
   }
 
+  // Starts the refresh, then polls — matches appear as each store replies
+  // rather than all at once when the slowest one finally does.
   async function onRefresh(search: SavedSearch) {
     setBusyId(search.id);
     setError(null);
     try {
-      const result = await refreshRadar(search.id);
-      setResults((current) => ({ ...current, [search.id]: result.matches }));
-      setUnreachable((current) => ({ ...current, [search.id]: result.unreachable }));
-      setRefreshes(result.refreshes);
+      const started = await startRadarRefresh(search.id);
+      setRefreshes(started.refreshes);
+      // Clear last run's results now, so what's on screen always belongs to
+      // the refresh currently running.
+      setResults((current) => ({ ...current, [search.id]: [] }));
+      setUnreachable((current) => ({ ...current, [search.id]: [] }));
+
+      for (;;) {
+        const progress = await getRadarRefreshProgress(search.id, started.jobId);
+        setResults((current) => ({ ...current, [search.id]: progress.matches }));
+        setUnreachable((current) => ({ ...current, [search.id]: progress.unreachable }));
+        if (progress.refreshes) setRefreshes(progress.refreshes);
+        if (progress.done) break;
+        await new Promise((resolve) => setTimeout(resolve, RADAR_POLL_MS));
+      }
+
       await load();
     } catch (err) {
       setError((err as ApiError).message);
@@ -214,6 +232,10 @@ export default function RadarScreen() {
                 compact
               />
             </View>
+
+            {/* A radar runs for weeks, so a vague keyword wastes far more than
+                a vague search does — it keeps finding the wrong thing. */}
+            <Text style={styles.precisionHint}>{t("radar.precisionHint")}</Text>
           </View>
         ) : (
           <Pressable style={styles.limitCard} onPress={() => router.push("/plans")}>
@@ -435,6 +457,11 @@ const makeStyles = (colors: Palette) =>
       paddingVertical: 11,
       color: colors.textPrimary,
       fontSize: type.body.fontSize,
+    },
+    precisionHint: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      lineHeight: 16,
     },
     targetRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
     targetField: {

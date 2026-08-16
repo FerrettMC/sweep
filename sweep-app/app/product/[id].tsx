@@ -8,6 +8,7 @@ import { useCallback, useState } from "react";
 import {
   Image,
   Linking,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -26,6 +27,7 @@ import {
   type ManualCheckState,
   type ProductDetail,
   getManualChecks,
+  getPlans,
   getProductDetail,
   refreshProduct,
   trackProduct,
@@ -56,6 +58,11 @@ export default function ProductDetailScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [boughtDraft, setBoughtDraft] = useState<EntryDraft | null>(null);
   const [budgetCategories, setBudgetCategories] = useState<string[]>([]);
+  // How often this plan checks, taken from the same generated plan copy the
+  // pricing screen uses, so it can't claim a cadence the server doesn't run.
+  const [cadence, setCadence] = useState<{ text: string; canUpgrade: boolean } | null>(
+    null,
+  );
   const [canCustomCategories, setCanCustomCategories] = useState(false);
   const [manualChecks, setManualChecks] = useState<ManualCheckState | null>(null);
 
@@ -64,6 +71,21 @@ export default function ProductDetailScreen() {
     try {
       setDetail(await getProductDetail(id));
       setError(null);
+
+      // Best effort: the cadence line is a nicety, and a failure here must not
+      // stop the product loading.
+      getPlans()
+        .then(({ plans, currentTier }) => {
+          const mine = plans.find((plan) => plan.tier === (currentTier ?? "free"));
+          // Matched on the stable dial id, never the translated label.
+          const checks = mine?.upgrades.find((dial) => dial.id === "dial.checks");
+          if (!checks) return;
+          setCadence({
+            text: checks.to.toLowerCase(),
+            canUpgrade: (currentTier ?? "free") !== "ultimate",
+          });
+        })
+        .catch(() => {});
     } catch (err) {
       setError((err as ApiError).message);
     }
@@ -237,6 +259,22 @@ export default function ProductDetailScreen() {
             </Text>
           )}
 
+          {/* Sits under "last checked", where someone is already thinking
+              about how current the number is — the one moment the cadence is
+              genuinely interesting rather than an upsell. */}
+          {cadence && (
+            <Pressable
+              onPress={() => cadence.canUpgrade && router.push("/plans")}
+              disabled={!cadence.canUpgrade}
+              hitSlop={6}
+            >
+              <Text style={styles.cadence}>
+                {t("tracking.tierCadence", { cadence: cadence.text })}
+                {cadence.canUpgrade ? ` ${t("tracking.tierCadenceUpgrade")}` : ""}
+              </Text>
+            </Pressable>
+          )}
+
           <Text style={styles.checked}>
             {t("product.lastChecked", {
               when: formatRelativeTime(product.lastCheckedAt),
@@ -365,6 +403,12 @@ const makeStyles = (colors: Palette) =>
     verdictGood: { color: colors.success },
     verdictBad: { color: colors.warning },
     checked: { color: colors.textTertiary, fontSize: type.caption.fontSize, marginTop: 2 },
+    cadence: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      lineHeight: 16,
+      marginTop: 6,
+    },
     section: { gap: spacing.sm },
     upsell: {
       color: colors.textTertiary,

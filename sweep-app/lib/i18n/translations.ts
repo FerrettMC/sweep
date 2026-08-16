@@ -198,6 +198,13 @@ export const en = {
     emptyBody:
       "Search once and Sweep checks {{stores}} together, so you can see who's actually cheapest before you buy.",
     noMatches: "No matches",
+    precisionHint:
+      "Be specific — brand, model and size get better matches than one word.",
+    stores: "Stores",
+    allStores: "All stores",
+    storesPicked: "{{count}} of {{total}} stores",
+    storesHelp:
+      "Search fewer stores when you already know where to look. Fewer stores comes back faster.",
   },
 
   radar: {
@@ -226,6 +233,8 @@ export const en = {
     stopWatching: "Stop watching this?",
     stopBody: "Sweep will no longer look for it.",
     keepIt: "Keep it",
+    precisionHint:
+      "Be specific — a radar for \"airpods pro 2\" finds better matches than one for \"airpods\".",
   },
 
   tracking: {
@@ -247,6 +256,8 @@ export const en = {
     checkFailed: "Last price check failed — showing the last known price.",
     addedToBudget: "Added to your budget.",
     limitBody: "You're tracking {{count}} products — remove one to add another.",
+    tierCadence: "Checked up to {{cadence}} on your plan.",
+    tierCadenceUpgrade: "Higher plans check more often.",
   },
 
   budget: {
@@ -750,6 +761,13 @@ export const es: Translations = {
     emptyBody:
       "Busca una vez y Sweep consulta {{stores}} a la vez, para que veas quién es de verdad más barato antes de comprar.",
     noMatches: "Sin resultados",
+    precisionHint:
+      "Sé específico — marca, modelo y tamaño dan mejores resultados que una sola palabra.",
+    stores: "Tiendas",
+    allStores: "Todas las tiendas",
+    storesPicked: "{{count}} de {{total}} tiendas",
+    storesHelp:
+      "Busca en menos tiendas cuando ya sabes dónde mirar. Menos tiendas responde más rápido.",
   },
 
   radar: {
@@ -778,6 +796,8 @@ export const es: Translations = {
     stopWatching: "¿Dejar de vigilar esto?",
     stopBody: "Sweep dejará de buscarlo.",
     keepIt: "Consérvalo",
+    precisionHint:
+      "Sé específico — un radar para «airpods pro 2» encuentra mejores resultados que uno para «airpods».",
   },
 
   tracking: {
@@ -799,6 +819,8 @@ export const es: Translations = {
     checkFailed: "La última consulta falló — mostramos el último precio conocido.",
     addedToBudget: "Añadido a tus gastos.",
     limitBody: "Estás siguiendo {{count}} productos — quita uno para añadir otro.",
+    tierCadence: "Revisado hasta {{cadence}} en tu plan.",
+    tierCadenceUpgrade: "Los planes superiores lo revisan más a menudo.",
   },
 
   budget: {

@@ -919,6 +919,31 @@ export function deleteRadar(id: string) {
   return request<{ ok: true }>(`/radar/${id}`, { method: "DELETE" });
 }
 
+/**
+ * Begin a refresh. Returns once the stores have been kicked off, so matches
+ * can appear one store at a time instead of all at the speed of the slowest.
+ */
+export function startRadarRefresh(id: string) {
+  return request<{
+    jobId: string;
+    pending: { retailer: string; label: string }[];
+    refreshes: RadarRefreshes | null;
+  }>(`/radar/${id}/refresh/start`, { method: "POST" });
+}
+
+/** Matches derived from whatever has landed so far. Safe to call repeatedly. */
+export function getRadarRefreshProgress(id: string, jobId: string) {
+  return request<{
+    done: boolean;
+    matches: RadarMatch[];
+    best: RadarMatch | null;
+    isNewBest: boolean;
+    unreachable: string[];
+    pending: string[];
+    refreshes: RadarRefreshes | null;
+  }>(`/radar/${id}/refresh/${jobId}`);
+}
+
 export function refreshRadar(id: string) {
   return request<{
     matches: RadarMatch[];
