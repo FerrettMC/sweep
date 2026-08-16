@@ -29,7 +29,8 @@
     "test:ratelimit": "tsx src/test-rategate.ts",
     "test:i18n": "tsx src/test-i18n.ts",
     "test:cooldown": "tsx src/test-cooldown.ts",
-    "test:concurrency": "tsx src/test-concurrency.ts"
+    "test:concurrency": "tsx src/test-concurrency.ts",
+    "test:billing": "tsx src/test-billing.ts"
   },
   "keywords": [],
   "author": "",
