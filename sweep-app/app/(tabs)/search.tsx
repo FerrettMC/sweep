@@ -750,6 +750,9 @@ const makeStyles = (colors: Palette) =>
       flexDirection: "row",
       gap: spacing.sm,
       padding: spacing.md,
+      // The hint below owns the gap to the quota row, so the bar contributes
+      // half of it rather than a full 16 above and nothing below.
+      paddingBottom: spacing.sm,
       alignItems: "center",
     },
     input: {
@@ -768,7 +771,7 @@ const makeStyles = (colors: Palette) =>
       fontSize: type.caption.fontSize,
       lineHeight: 16,
       paddingHorizontal: spacing.md,
-      paddingTop: 2,
+      paddingBottom: spacing.sm,
     },
     quotaRow: {
       flexDirection: "row",
