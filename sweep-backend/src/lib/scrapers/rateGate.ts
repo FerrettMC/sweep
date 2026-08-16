@@ -51,9 +51,10 @@ const LIMITS: Record<Retailer, GateLimits> = {
   // Official API with a documented quota.
   ebay: { maxConcurrent: 4, minIntervalMs: 0 },
   newegg: { maxConcurrent: 2, minIntervalMs: 400 },
-  // Official API with a published daily quota, so pacing is about staying
-  // inside that rather than avoiding a block.
-  etsy: { maxConcurrent: 3, minIntervalMs: 200 },
+  // Etsy publish 5 queries/second and 5,000/day. 250ms is 4/s — deliberately
+  // under the ceiling rather than exactly on it, since a burst that lands in
+  // the same second as a scheduled check would otherwise tip us over.
+  etsy: { maxConcurrent: 2, minIntervalMs: 250 },
   asos: { maxConcurrent: 2, minIntervalMs: 400 },
 };
 
