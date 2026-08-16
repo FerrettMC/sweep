@@ -12,7 +12,7 @@
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_Yt8O0ZIvcZ3tP7uoMHjybw_l4YOnZFF",
         "EXPO_PUBLIC_API_URL": "https://api.sweepshopping.com",
         "EXPO_PUBLIC_SENTRY_DSN": "https://3c761efae93b5abbab5355d7e15f2395@o4511864442126336.ingest.us.sentry.io/4511918059814912",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "SENTRY_ORG": "benju-studios"
       }
     },
     "preview": {
@@ -22,7 +22,7 @@
         "EXPO_PUBLIC_SUPABASE_URL": "https://qldyjqrtfuraxvhsslrz.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_Yt8O0ZIvcZ3tP7uoMHjybw_l4YOnZFF",
         "EXPO_PUBLIC_SENTRY_DSN": "https://3c761efae93b5abbab5355d7e15f2395@o4511864442126336.ingest.us.sentry.io/4511918059814912",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "SENTRY_ORG": "benju-studios"
       }
     },
     "production": {
@@ -32,7 +32,7 @@
         "EXPO_PUBLIC_SUPABASE_URL": "https://qldyjqrtfuraxvhsslrz.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_Yt8O0ZIvcZ3tP7uoMHjybw_l4YOnZFF",
         "EXPO_PUBLIC_SENTRY_DSN": "https://3c761efae93b5abbab5355d7e15f2395@o4511864442126336.ingest.us.sentry.io/4511918059814912",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "SENTRY_ORG": "benju-studios"
       }
     }
   },
