@@ -22,8 +22,17 @@ import { fail, ok, type ScrapeResult, type ScrapedProduct } from "./types.js";
 const BASE = "https://openapi.etsy.com/v3/application";
 const TIMEOUT_MS = 8_000;
 
+/**
+ * Etsy's x-api-key wants the keystring and the shared secret joined by a
+ * colon. The keystring alone returns 403 "Shared secret is required in
+ * x-api-key header" — verified against the live API, since the documentation
+ * is read both ways in the wild.
+ */
 export function etsyApiKey(): string | null {
-  return process.env.ETSY_API_KEY?.trim() || null;
+  const key = process.env.ETSY_API_KEY?.trim();
+  const secret = process.env.ETSY_SHARED_SECRET?.trim();
+  if (!key || !secret) return null;
+  return `${key}:${secret}`;
 }
 
 /**
@@ -100,26 +109,57 @@ async function call(path: string, params: Record<string, string>) {
   return res.json();
 }
 
+/**
+ * Fetch full listings, with images, for ids we already have.
+ *
+ * The search endpoint accepts `includes=Images` and silently ignores it —
+ * verified against the live API, where the response carries no image field of
+ * any kind. The batch endpoint honours it, so images cost one extra call for
+ * the whole page rather than one call per listing. At 5,000 requests a day
+ * that is 2,500 searches, which is far more than this store will see.
+ */
+async function fetchWithImages(ids: number[]): Promise<EtsyListing[]> {
+  if (ids.length === 0) return [];
+  const body = (await call("listings/batch", {
+    listing_ids: ids.join(","),
+    includes: "Images",
+  })) as { results?: EtsyListing[] };
+  return body.results ?? [];
+}
+
 export async function searchEtsy(
   keyword: string,
   limit = 4,
 ): Promise<ScrapeResult<ScrapedProduct[]>> {
   const started = Date.now();
   try {
+    // Relevance, not price. Sorting by price ascending sorts the whole
+    // catalogue, so "coffee mug" returned a $0.22 t-shirt that merely
+    // contained one of the words, while relevance returned an $11.77 mug.
+    // Price ordering belongs within the results a search actually returns,
+    // which is what the app already does with every store's rows.
     const body = (await call("listings/active", {
       keywords: keyword,
       limit: String(Math.min(Math.max(limit, 1), 100)),
-      // Cheapest first matches what a comparison app is for. Etsy's default
-      // ordering is relevance, which buries the price we're here to show.
-      sort_on: "price",
-      sort_order: "asc",
       includes: "Images",
     })) as { results?: EtsyListing[] };
 
-    const products = (body.results ?? [])
-      .map(toProduct)
-      .filter((p): p is ScrapedProduct => p !== null)
+    const ids = (body.results ?? [])
+      .map((listing) => listing.listing_id)
+      .filter((id): id is number => typeof id === "number")
       .slice(0, limit);
+
+    // Search order is relevance and batch does not preserve it, so the ids
+    // decide the order rather than whatever comes back.
+    const detailed = new Map(
+      (await fetchWithImages(ids)).map((listing) => [listing.listing_id, listing]),
+    );
+
+    const products = ids
+      .map((id) => detailed.get(id))
+      .filter((listing): listing is EtsyListing => listing !== undefined)
+      .map(toProduct)
+      .filter((p): p is ScrapedProduct => p !== null);
 
     return ok(products, Date.now() - started);
   } catch (err) {
@@ -137,8 +177,10 @@ export async function scrapeEtsyProduct(
   }
 
   try {
-    const raw = (await call(`listings/${id}`, { includes: "Images" })) as EtsyListing;
-    const product = toProduct(raw);
+    // Batch with a single id, for the same reason search uses it: the
+    // single-listing endpoint returns no images either.
+    const [raw] = await fetchWithImages([Number(id)]);
+    const product = raw ? toProduct(raw) : null;
     if (!product) {
       return fail("failed", `listing ${id} returned nothing usable`, Date.now() - started);
     }
