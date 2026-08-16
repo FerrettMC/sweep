@@ -61,6 +61,8 @@ less but is consistent. Show what exists, omit what doesn't, never pretend.
   chart. Bars read as discrete events; the data is a time series and the line
   is the honest shape.
 
+  -Also maybe move email verification to profile & homepage, it gets annoying on the signup page and can draw away users (my sister got annoyed at it)
+
 ---
 
 ## Being honest about why limits exist
@@ -178,14 +180,14 @@ judge it, plan it — because "here are our six features" is what people skip.
 Each shows a small mock of the real UI instead of describing it. Skippable from
 the first frame, with a language picker in the header.
 
-| # | Key | Eyebrow | Title | What it says |
-|---|---|---|---|---|
-| 1 | `welcome` | WELCOME | Sweep | Your online shopping buddy — finds the best price, watches it, tells you when a sale is real. Shows the logo. |
-| 2 | `find` | FIND IT | Every store, one search | Names the live stores (generated, never hardcoded), cheapest and biggest drop pulled to the top. Mock of a comparison. |
-| 3 | `watch` | WATCH IT | Never refresh a page again | Tracking plus Deal Radar. Mock of a price-drop notification. |
-| 4 | `judge` | JUDGE IT | Is that sale even real? | Own price history vs. a red discount badge on the usual price. Mock of a verdict. |
-| 5 | `plan` | PLAN IT | Lists and a budget | Shareable lists, and logging what you spend. Mock of a budget and two lists. |
-| 6 | `free` | THE HONEST BIT | Free, genuinely | What the free tier actually gives, pulled live from the API so it can't promise what the server refuses. Ends "No card, no trial, no expiry." |
+| #   | Key       | Eyebrow        | Title                      | What it says                                                                                                                                  |
+| --- | --------- | -------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `welcome` | WELCOME        | Sweep                      | Your online shopping buddy — finds the best price, watches it, tells you when a sale is real. Shows the logo.                                 |
+| 2   | `find`    | FIND IT        | Every store, one search    | Names the live stores (generated, never hardcoded), cheapest and biggest drop pulled to the top. Mock of a comparison.                        |
+| 3   | `watch`   | WATCH IT       | Never refresh a page again | Tracking plus Deal Radar. Mock of a price-drop notification.                                                                                  |
+| 4   | `judge`   | JUDGE IT       | Is that sale even real?    | Own price history vs. a red discount badge on the usual price. Mock of a verdict.                                                             |
+| 5   | `plan`    | PLAN IT        | Lists and a budget         | Shareable lists, and logging what you spend. Mock of a budget and two lists.                                                                  |
+| 6   | `free`    | THE HONEST BIT | Free, genuinely            | What the free tier actually gives, pulled live from the API so it can't promise what the server refuses. Ends "No card, no trial, no expiry." |
 
 The last slide's limits come from `/plans`, so they can't drift from what's
 enforced. Slide 2's store list comes from `storeListPhrase()`, so adding or
