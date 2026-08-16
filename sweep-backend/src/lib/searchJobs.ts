@@ -230,7 +230,14 @@ async function runSlot(job: MultiSearchJob, retailer: Retailer, limit: number) {
     await recordCheck({
       retailer,
       status: result.status,
-      detail: result.status === "success" ? null : result.detail,
+      // Keyword on the record, including successes. Amazon's crawl quality
+      // varies by query — some searches come back 4/4 in 20s and others 2/4
+      // in 70s with the same code and parameters — and without the term on
+      // the row there is no way to tell a bad query from a bad minute.
+      detail:
+        result.status === "success"
+          ? `"${job.keyword}" -> ${result.data.length}`
+          : `"${job.keyword}": ${result.detail}`,
       durationMs: result.durationMs,
     });
   } catch (err) {
