@@ -9,8 +9,8 @@
 // Creates a throwaway account on each run unless TEST_EMAIL/TEST_PASSWORD are
 // set. Skips Amazon by default so a test run costs no Bright Data quota.
 
-import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
+import "dotenv/config";
 import { createTestUser, purgeTestUser } from "./testCleanup.js";
 
 const API = process.env.TEST_API_URL ?? "http://localhost:3001";
@@ -69,7 +69,8 @@ function check(label: string, condition: boolean, detail?: unknown) {
 }
 
 async function signIn() {
-  const email = process.env.TEST_EMAIL ?? `sweep-test-${Date.now()}@example.com`;
+  const email =
+    process.env.TEST_EMAIL ?? `sweep-test-${Date.now()}@example.com`;
   const password = process.env.TEST_PASSWORD ?? "sweep-test-password-123";
 
   const signedIn = await supabase.auth.signInWithPassword({ email, password });
@@ -81,7 +82,10 @@ async function signIn() {
     ? await (async () => {
         const created = await createTestUser("api", API);
         createdUserId = created.id;
-        return { session: { access_token: created.token }, user: { id: created.id } };
+        return {
+          session: { access_token: created.token },
+          user: { id: created.id },
+        };
       })()
     : signedIn.data;
 
@@ -122,7 +126,11 @@ async function main() {
     successful.length > 0,
     search.body?.results?.map((r: any) => `${r.retailer}:${r.status}`),
   );
-  check("search spent one from the quota", search.body?.quota?.used === 1, search.body?.quota);
+  check(
+    "search spent one from the quota",
+    search.body?.quota?.used === 1,
+    search.body?.quota,
+  );
 
   // Sanity-check the prices themselves. A tracker that records the list price
   // as the current price is worse than one that records nothing, and Walmart
@@ -130,7 +138,8 @@ async function main() {
   const sample = successful.flatMap((r: any) => r.products);
   check(
     "every product has a positive price",
-    sample.length > 0 && sample.every((p: any) => typeof p.price === "number" && p.price > 0),
+    sample.length > 0 &&
+      sample.every((p: any) => typeof p.price === "number" && p.price > 0),
     sample.map((p: any) => [p.title?.slice(0, 30), p.price]),
   );
   check(
@@ -160,7 +169,11 @@ async function main() {
     retailer: first.retailer,
     retailerId: first.retailerId,
   });
-  check("track a product from search results", track.status === 201, track.body);
+  check(
+    "track a product from search results",
+    track.status === 201,
+    track.body,
+  );
 
   const trackedId = track.body?.tracked?.id;
   const productId = track.body?.tracked?.product?.id;
@@ -280,7 +293,11 @@ async function main() {
     token: fakePushToken,
     platform: "android",
   });
-  check("a well-formed push token registers", register.status === 200, register.body);
+  check(
+    "a well-formed push token registers",
+    register.status === 200,
+    register.body,
+  );
 
   const pushStatus = await call("GET", "/notifications/status");
   check(
@@ -296,7 +313,8 @@ async function main() {
   const afterRe = await call("GET", "/notifications/status");
   check(
     "re-registering the same token doesn't duplicate it",
-    reregister.status === 200 && afterRe.body?.devices === pushStatus.body?.devices,
+    reregister.status === 200 &&
+      afterRe.body?.devices === pushStatus.body?.devices,
     afterRe.body,
   );
 

@@ -57,10 +57,15 @@ export async function getUserQuota(userId: string): Promise<QuotaState | null> {
 
   if (isStale(wallet.searchesResetAt)) {
     const reset = nextResetAt();
-    await prisma.wallet.update({
-      where: { userId },
+    // Guarded on the timestamp we read. Concurrent requests all see "stale",
+    // and without this each one resets the counter — wiping increments that
+    // just happened and letting extra actions through. Only one rollover
+    // wins; the losers re-read and see the window someone else opened.
+    const rolled = await prisma.wallet.updateMany({
+      where: { userId, searchesResetAt: wallet.searchesResetAt },
       data: { searchesUsedToday: 0, searchesResetAt: reset, bonusSearchesToday: 0 },
     });
+    if (rolled.count === 0) return getUserQuota(userId);
     return state(0, base, 0, reset, tier);
   }
 
@@ -198,14 +203,27 @@ export async function consumeManualCheck(
     return { ok: false, reason: "cooldown", state };
   }
 
-  await prisma.wallet.update({
-    where: { userId },
+  // Guarded on the values we read rather than set blindly. Writing
+  // `used + 1` from a stale read is how two simultaneous checks both land on
+  // the same number — and the cooldown has the same problem, so
+  // lastManualCheckAt is part of the condition too.
+  const updated = await prisma.wallet.updateMany({
+    where: {
+      userId,
+      manualChecksToday: wallet.manualChecksToday,
+      manualChecksResetAt: wallet.manualChecksResetAt,
+      lastManualCheckAt: wallet.lastManualCheckAt,
+    },
     data: {
       manualChecksToday: used + 1,
       manualChecksResetAt: resetsAt,
       lastManualCheckAt: now,
     },
   });
+
+  // Someone else checked between our read and our write. Refusing is right:
+  // whatever they spent, this request would be spending it twice.
+  if (updated.count === 0) return { ok: false, reason: "cooldown", state };
 
   return { ok: true, state: manualState(now, used + 1, limits, resetsAt) };
 }
@@ -373,10 +391,15 @@ export async function getSweepQuota(userId: string): Promise<SweepQuotaState | n
 
   if (isStale(wallet.sweepsResetAt)) {
     const resetsAt = nextResetAt();
-    await prisma.wallet.update({
-      where: { userId },
+    // Guarded on the timestamp we read. Concurrent requests all see "stale",
+    // and without this each one resets the counter — wiping increments that
+    // just happened and letting extra actions through. Only one rollover
+    // wins; the losers re-read and see the window someone else opened.
+    const rolled = await prisma.wallet.updateMany({
+      where: { userId, sweepsResetAt: wallet.sweepsResetAt },
       data: { sweepsUsedToday: 0, sweepsResetAt: resetsAt },
     });
+    if (rolled.count === 0) return getSweepQuota(userId);
     return { used: 0, limit, remaining: limit, resetsAt, available: limit > 0 };
   }
 
@@ -398,10 +421,22 @@ export async function consumeSweep(userId: string): Promise<SweepQuotaState | nu
   const state = await getSweepQuota(userId);
   if (!state || state.remaining <= 0) return null;
 
-  await prisma.wallet.update({
-    where: { userId },
+  // The limit lives in the WHERE, not in the check above, so the read and the
+  // write can't be separated. Two requests arriving together both pass the
+  // check; only one matches this condition, because Postgres serialises
+  // updates to a row. Sweeps are 1/day on Pro, so "one extra" was a doubling
+  // of the most expensive operation in the app.
+  const updated = await prisma.wallet.updateMany({
+    where: {
+      userId,
+      sweepsUsedToday: { lt: state.limit },
+      sweepsResetAt: state.resetsAt,
+    },
     data: { sweepsUsedToday: { increment: 1 } },
   });
+
+  // Lost the race — someone spent the last one between our read and our write.
+  if (updated.count === 0) return null;
 
   return { ...state, used: state.used + 1, remaining: state.remaining - 1 };
 }
@@ -429,10 +464,15 @@ export async function getRadarRefreshState(
 
   if (isStale(wallet.radarRefreshesResetAt)) {
     const resetsAt = nextResetAt();
-    await prisma.wallet.update({
-      where: { userId },
+    // Guarded on the timestamp we read. Concurrent requests all see "stale",
+    // and without this each one resets the counter — wiping increments that
+    // just happened and letting extra actions through. Only one rollover
+    // wins; the losers re-read and see the window someone else opened.
+    const rolled = await prisma.wallet.updateMany({
+      where: { userId, radarRefreshesResetAt: wallet.radarRefreshesResetAt },
       data: { radarRefreshesToday: 0, radarRefreshesResetAt: resetsAt },
     });
+    if (rolled.count === 0) return getRadarRefreshState(userId);
     return { used: 0, limit, remaining: limit, resetsAt };
   }
 
@@ -452,10 +492,15 @@ export async function consumeRadarRefresh(
   const state = await getRadarRefreshState(userId);
   if (!state || state.remaining <= 0) return null;
 
-  await prisma.wallet.update({
-    where: { userId },
+  const updated = await prisma.wallet.updateMany({
+    where: {
+      userId,
+      radarRefreshesToday: { lt: state.limit },
+      radarRefreshesResetAt: state.resetsAt,
+    },
     data: { radarRefreshesToday: { increment: 1 } },
   });
+  if (updated.count === 0) return null;
 
   return { ...state, used: state.used + 1, remaining: state.remaining - 1 };
 }
@@ -485,10 +530,15 @@ export async function getRadarChangeState(
 
   if (isStale(wallet.radarChangesResetAt)) {
     const resetsAt = nextResetAt();
-    await prisma.wallet.update({
-      where: { userId },
+    // Guarded on the timestamp we read. Concurrent requests all see "stale",
+    // and without this each one resets the counter — wiping increments that
+    // just happened and letting extra actions through. Only one rollover
+    // wins; the losers re-read and see the window someone else opened.
+    const rolled = await prisma.wallet.updateMany({
+      where: { userId, radarChangesResetAt: wallet.radarChangesResetAt },
       data: { radarChangesToday: 0, radarChangesResetAt: resetsAt },
     });
+    if (rolled.count === 0) return getRadarChangeState(userId);
     return { used: 0, limit, remaining: limit, resetsAt };
   }
 
@@ -507,10 +557,15 @@ export async function consumeRadarChange(
   const state = await getRadarChangeState(userId);
   if (!state || state.remaining <= 0) return null;
 
-  await prisma.wallet.update({
-    where: { userId },
+  const updated = await prisma.wallet.updateMany({
+    where: {
+      userId,
+      radarChangesToday: { lt: state.limit },
+      radarChangesResetAt: state.resetsAt,
+    },
     data: { radarChangesToday: { increment: 1 } },
   });
+  if (updated.count === 0) return null;
 
   return { ...state, used: state.used + 1, remaining: state.remaining - 1 };
 }
@@ -560,13 +615,28 @@ export async function consumeGuestIpSearch(ip: string): Promise<IpQuotaResult> {
     };
   }
 
-  const updated = await prisma.ipQuota.update({
-    where: { ipHash },
+  // This one guards abuse rather than cost, so racing past it is worth more
+  // to an attacker than a spare search is to a user.
+  const updated = await prisma.ipQuota.updateMany({
+    where: {
+      ipHash,
+      searchesUsedToday: { lt: GUEST_SEARCHES_PER_IP_PER_DAY },
+      searchesResetAt: existing.searchesResetAt,
+    },
     data: { searchesUsedToday: { increment: 1 } },
   });
+
+  if (updated.count === 0) {
+    return {
+      allowed: false,
+      used: GUEST_SEARCHES_PER_IP_PER_DAY,
+      limit: GUEST_SEARCHES_PER_IP_PER_DAY,
+    };
+  }
+
   return {
     allowed: true,
-    used: updated.searchesUsedToday,
+    used: existing.searchesUsedToday + 1,
     limit: GUEST_SEARCHES_PER_IP_PER_DAY,
   };
 }

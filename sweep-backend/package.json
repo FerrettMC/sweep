@@ -28,7 +28,8 @@
     "test:security": "tsx src/test-security.ts",
     "test:ratelimit": "tsx src/test-rategate.ts",
     "test:i18n": "tsx src/test-i18n.ts",
-    "test:cooldown": "tsx src/test-cooldown.ts"
+    "test:cooldown": "tsx src/test-cooldown.ts",
+    "test:concurrency": "tsx src/test-concurrency.ts"
   },
   "keywords": [],
   "author": "",
