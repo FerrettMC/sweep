@@ -108,7 +108,13 @@ async function runJob(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(60_000),
+    // Bright Data's /scrape holds the connection while it crawls and only
+    // falls back to a snapshot id if that takes too long. Measured runs finish
+    // in 19-23s normally but 70s when Amazon makes it retry, so a 60s ceiling
+    // hung up on jobs that were about to succeed — the crawl completed and we
+    // had already stopped listening. Amazon's slot on the server allows four
+    // minutes; this should sit inside that, not below the normal worst case.
+    signal: AbortSignal.timeout(180_000),
   });
 
   if (res.status === 200) {
