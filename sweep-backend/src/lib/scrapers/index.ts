@@ -6,6 +6,11 @@
 
 import { scrapeAmazonProduct, searchAmazonProducts } from "./amazon.js";
 import { bestBuyProductUrl, scrapeBestBuyProduct, searchBestBuy } from "./bestbuy.js";
+import {
+  bestBuyApiKey,
+  scrapeBestBuyApiProduct,
+  searchBestBuyApi,
+} from "./bestbuyApi.js";
 import { ebayProductUrl, scrapeEbayProduct, searchEbay } from "./ebay.js";
 import { asosProductUrl, scrapeAsosProduct, searchAsos } from "./asos.js";
 import { neweggProductUrl, scrapeNeweggProduct, searchNewegg } from "./newegg.js";
@@ -110,8 +115,13 @@ export const unthrottledAdapters: Record<Retailer, RetailerAdapter> = {
     categories: ["clothing"],
   },
   bestbuy: {
-    search: searchBestBuy,
-    scrapeProduct: scrapeBestBuyProduct,
+    // The official API when a key is configured, the scraper otherwise. The
+    // API is better on every axis that matters — it just needs a credential,
+    // and local work shouldn't stop dead without one.
+    search: (keyword, limit) =>
+      bestBuyApiKey() ? searchBestBuyApi(keyword, limit) : searchBestBuy(keyword, limit),
+    scrapeProduct: (url) =>
+      bestBuyApiKey() ? scrapeBestBuyApiProduct(url) : scrapeBestBuyProduct(url),
     productUrl: bestBuyProductUrl,
     matchesUrl: (url) => /(^|\.)bestbuy\.com$/i.test(hostOf(url)),
     metered: false,
