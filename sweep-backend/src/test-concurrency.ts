@@ -13,7 +13,11 @@
 //
 // Every test here fires N simultaneous requests at a limit of M and asserts
 // exactly M succeed. Any new metered feature belongs in this file.
-import "dotenv/config";
+import { assertNotProduction, targetSummary } from "./testEnv.js";
+
+// Loads .env.test over .env, then refuses to touch the live project.
+assertNotProduction();
+console.log(`target: ${targetSummary()}`);
 import { createClient } from "@supabase/supabase-js";
 import { purgeTestUser } from "./testCleanup.js";
 import { prisma } from "./lib/prisma.js";

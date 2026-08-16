@@ -1,6 +1,10 @@
 // src/test-security.ts — account deletion and abuse limits.
 //   npm run dev && npm run test:security
-import "dotenv/config";
+import { assertNotProduction, targetSummary } from "./testEnv.js";
+
+// Loads .env.test over .env, then refuses to touch the live project.
+assertNotProduction();
+console.log(`target: ${targetSummary()}`);
 import { createClient } from "@supabase/supabase-js";
 import { prisma } from "./lib/prisma.js";
 import { createTestUser, purgeTestUser } from "./testCleanup.js";

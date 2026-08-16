@@ -10,7 +10,11 @@
 // set. Skips Amazon by default so a test run costs no Bright Data quota.
 
 import { createClient } from "@supabase/supabase-js";
-import "dotenv/config";
+import { assertNotProduction, targetSummary } from "./testEnv.js";
+
+// Loads .env.test over .env, then refuses to touch the live project.
+assertNotProduction();
+console.log(`target: ${targetSummary()}`);
 import { createTestUser, purgeTestUser } from "./testCleanup.js";
 
 const API = process.env.TEST_API_URL ?? "http://localhost:3001";

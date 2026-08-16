@@ -1,6 +1,10 @@
 // src/test-lists.ts — end-to-end check of lists + sharing.
 //   npm run dev && npm run test:lists
-import "dotenv/config";
+import { assertNotProduction, targetSummary } from "./testEnv.js";
+
+// Loads .env.test over .env, then refuses to touch the live project.
+assertNotProduction();
+console.log(`target: ${targetSummary()}`);
 import { createClient } from "@supabase/supabase-js";
 import { prisma } from "./lib/prisma.js";
 import { createTestUser, purgeTestUser } from "./testCleanup.js";

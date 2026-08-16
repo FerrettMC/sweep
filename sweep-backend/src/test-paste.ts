@@ -8,7 +8,11 @@
 //
 // Uses Walmart and Best Buy only, so a run costs no Bright Data quota.
 
-import "dotenv/config";
+import { assertNotProduction, targetSummary } from "./testEnv.js";
+
+// Loads .env.test over .env, then refuses to touch the live project.
+assertNotProduction();
+console.log(`target: ${targetSummary()}`);
 import { createClient } from "@supabase/supabase-js";
 import { createTestUser, purgeTestUser } from "./testCleanup.js";
 

@@ -15,7 +15,11 @@
 // that calls checkProduct() directly and never notifies, because you're already
 // looking at the screen when you press it.
 
-import "dotenv/config";
+import { assertNotProduction, targetSummary } from "./testEnv.js";
+
+// Loads .env.test over .env, then refuses to touch the live project.
+assertNotProduction();
+console.log(`target: ${targetSummary()}`);
 import { checkProduct } from "./lib/priceChecker.js";
 import { prisma } from "./lib/prisma.js";
 import { notifyPriceDrop } from "./lib/push.js";

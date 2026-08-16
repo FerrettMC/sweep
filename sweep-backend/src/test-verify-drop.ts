@@ -4,7 +4,11 @@
 // Uses a real product row but stubs the scrape, so the interesting cases (a
 // re-read that disagrees, a re-read that fails) are reachable without waiting
 // for a retailer to actually misbehave.
-import "dotenv/config";
+import { assertNotProduction, targetSummary } from "./testEnv.js";
+
+// Loads .env.test over .env, then refuses to touch the live project.
+assertNotProduction();
+console.log(`target: ${targetSummary()}`);
 import { prisma } from "./lib/prisma.js";
 import { adapters } from "./lib/scrapers/index.js";
 import { SUSPECT_DROP_PERCENT, verifyDrop } from "./lib/verifyDrop.js";
