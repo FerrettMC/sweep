@@ -145,6 +145,18 @@ function render(stats: Stats) {
     <li><strong>Lists and a budget.</strong> Shareable gift lists with live prices, and somewhere to log what you actually spent.</li>
   </ul>
 
+  <h2>Who makes it</h2>
+  <p>
+    ${APP_NAME} is built by one person — a 16-year-old developer, after school
+    and at weekends. Every line of it, the app and the servers behind it.
+  </p>
+  <p>
+    That is worth knowing for two reasons. It moves quickly, and it will
+    occasionally break in ways a larger team would have caught. It also means
+    the person reading your support email is the person who wrote the code, so
+    something that annoys you can be fixed the same week rather than filed.
+  </p>
+
   <h2>The honest bit</h2>
   <p>
     Multi-store search, real alerts, lists and the budget tracker cost nothing.
