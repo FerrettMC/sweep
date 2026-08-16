@@ -80,6 +80,20 @@ const SEARCH_POLL_MS = 900;
  * wherever the server happened to list it, pushing real results below the fold
  * — the least useful thing on screen taking the best position.
  */
+/** Identity by what's actually shown: which product, in which slot. */
+function sameHighlights(a: Highlight[], b: Highlight[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((item, i) => {
+    const other = b[i];
+    return (
+      item.kind === other.kind &&
+      item.product.retailer === other.product.retailer &&
+      item.product.retailerId === other.product.retailerId &&
+      item.product.price === other.product.price
+    );
+  });
+}
+
 function orderSections(sections: Section[]): Section[] {
   const rank = (section: Section) => {
     if (section.retailer === "amazon") return 0;
@@ -257,7 +271,16 @@ export default function SearchScreen() {
             })),
           ),
         );
-        setHighlights(progress.highlights);
+        // Only swap them when they actually differ. Highlights are recomputed
+        // server-side on every poll, so assigning unconditionally would
+        // re-render these cards roughly once a second for the whole search
+        // while showing the identical thing. When a later store genuinely
+        // does beat the current cheapest, this still updates — that part is
+        // the point, since a "cheapest" computed from half the stores would
+        // be wrong.
+        setHighlights((current) =>
+          sameHighlights(current, progress.highlights) ? current : progress.highlights,
+        );
 
         if (progress.done) {
           setJobId(null);
