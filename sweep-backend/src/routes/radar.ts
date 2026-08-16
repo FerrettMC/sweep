@@ -281,7 +281,11 @@ export async function radarRoutes(app: FastifyInstance) {
         },
       });
 
-      const spent = await consumeRadarRefresh(userId);
+      // Only charge for a refresh that reached at least one store. If every
+      // retailer refused us, the user has had nothing for their allowance —
+      // and their allowance is small enough that one wasted refresh matters.
+      const spent =
+        run.storesAnswered > 0 ? await consumeRadarRefresh(userId) : null;
 
       return {
         matches: run.matches,

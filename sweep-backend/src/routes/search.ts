@@ -15,6 +15,7 @@ import { cooldownRemaining } from "../lib/scrapers/cooldown.js";
 import { recordCheck } from "../lib/health.js";
 import { pickHighlights } from "../lib/highlights.js";
 import { cacheSearchResults } from "../lib/priceChecker.js";
+import { refundGuestSearch, refundUserSearch } from "../lib/quota.js";
 import { SCRAPE_LIMIT, SENSITIVE_LIMIT } from "../lib/rateLimit.js";
 import { prisma } from "../lib/prisma.js";
 import {
@@ -182,6 +183,18 @@ export async function searchRoutes(app: FastifyInstance) {
       // Keep what we just scraped. Adding one of these to a list or tracking it
       // then needs no scrape at all — see cacheSearchResults.
       await cacheSearchResults(outcomes.flatMap((o) => o.products));
+
+      // Nothing came back at all: give the search back. The allowance exists to
+      // bound work we do on someone's behalf, not to charge them when every
+      // store refused us. Amazon still running is not "nothing" — it may yet
+      // return, so a pending job counts as a search that happened.
+      const foundAnything = outcomes.some((o) => o.products.length > 0);
+      if (!foundAnything && !amazonJobId) {
+        if (userId) await refundUserSearch(userId, quota.resetsAt);
+        else if (deviceId) await refundGuestSearch(deviceId, quota.resetsAt);
+        quota.used = Math.max(0, quota.used - 1);
+        quota.remaining = quota.remaining + 1;
+      }
 
       return {
         keyword,

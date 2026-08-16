@@ -251,6 +251,37 @@ export async function getGuestQuota(deviceId: string): Promise<QuotaState> {
  * Consume one guest search, creating the quota row on first use.
  * Guests get no rewarded-ad top-up — that requires an account.
  */
+/**
+ * Give a search back after the fact.
+ *
+ * Quota is spent before scraping so that two requests can't both slip past the
+ * check, which means a search where every retailer failed still costs one. That
+ * is the version of the limit nobody agreed to: the daily allowance is meant to
+ * bound work we actually do, not to charge for our own outages.
+ *
+ * Deliberately does not restore below zero, and does nothing if the day rolled
+ * over in between — refunding into a fresh day would hand out a free extra.
+ */
+export async function refundUserSearch(
+  userId: string,
+  resetsAt: Date,
+): Promise<void> {
+  await prisma.wallet.updateMany({
+    where: { userId, searchesUsedToday: { gt: 0 }, searchesResetAt: resetsAt },
+    data: { searchesUsedToday: { decrement: 1 } },
+  });
+}
+
+export async function refundGuestSearch(
+  deviceId: string,
+  resetsAt: Date,
+): Promise<void> {
+  await prisma.guestQuota.updateMany({
+    where: { deviceId, searchesUsedToday: { gt: 0 }, searchesResetAt: resetsAt },
+    data: { searchesUsedToday: { decrement: 1 } },
+  });
+}
+
 export async function consumeGuestSearch(
   deviceId: string,
 ): Promise<QuotaState | null> {

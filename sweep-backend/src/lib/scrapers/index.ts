@@ -115,9 +115,12 @@ export const unthrottledAdapters: Record<Retailer, RetailerAdapter> = {
     productUrl: bestBuyProductUrl,
     matchesUrl: (url) => /(^|\.)bestbuy\.com$/i.test(hostOf(url)),
     metered: false,
-    // Each refresh is a full search-page fetch — pace them.
-    concurrency: 1,
-    minIntervalMs: 3000,
+    // Each refresh is a full search-page fetch, so it still gets paced — but
+    // 3000ms was set defensively and Best Buy has never actually blocked us.
+    // Measured failures are timeouts, and adding three seconds of deliberate
+    // delay to a retailer that is already slow only hurt the person waiting.
+    concurrency: 2,
+    minIntervalMs: 800,
     categories: ["electronics"],
   },
   ebay: {
@@ -198,6 +201,20 @@ async function guarded<T>(
   return result;
 }
 
+/**
+ * How long one retailer may hold up an interactive search.
+ *
+ * The HTTP layer retries twice on a 20s timeout, so a retailer that is simply
+ * not answering costs 20 + 20 + 20 plus backoff — around 65 seconds, measured
+ * in production. Every other store had answered in under two, and the person
+ * searching sat looking at a spinner for a minute to be told one store failed.
+ *
+ * A search is worth more when it is fast and partial than when it is complete
+ * and late: four stores in eight seconds beats five in sixty-five. Scheduled
+ * checks keep the patient path, since nobody is waiting on those.
+ */
+const SEARCH_DEADLINE_MS = 12_000;
+
 export async function searchAllRetailers(
   keyword: string,
   limitPerRetailer = 4,
@@ -207,8 +224,27 @@ export async function searchAllRetailers(
 
   return Promise.all(
     targets.map(async (retailer): Promise<RetailerSearchOutcome> => {
+      const startedAt = Date.now();
       try {
-        const result = await adapters[retailer].search(keyword, limitPerRetailer);
+        // Races the adapter rather than cancelling it: the underlying fetch
+        // keeps running and still populates the product cache, so the work
+        // isn't wasted — it just stops being something the user waits for.
+        const result = await Promise.race([
+          adapters[retailer].search(keyword, limitPerRetailer),
+          new Promise<null>((resolve) =>
+            setTimeout(() => resolve(null), SEARCH_DEADLINE_MS),
+          ),
+        ]);
+
+        if (result === null) {
+          return {
+            retailer,
+            status: "failed",
+            products: [],
+            detail: `no answer within ${SEARCH_DEADLINE_MS / 1000}s`,
+            durationMs: Date.now() - startedAt,
+          };
+        }
         return result.status === "success"
           ? {
               retailer,

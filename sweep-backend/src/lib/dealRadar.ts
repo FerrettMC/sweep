@@ -39,6 +39,11 @@ export interface RadarRun {
   best: RadarMatch | null;
   /** Stores that failed, so "no results" isn't confused with "not sold there". */
   unreachable: string[];
+  /**
+   * How many stores actually replied. Zero means the refresh did no useful
+   * work, which is the case where charging someone a refresh is indefensible.
+   */
+  storesAnswered: number;
   /** True when `best` beats anything we've reported before. */
   isNewBest: boolean;
 }
@@ -60,12 +65,14 @@ export async function runRadar(saved: {
 
   const found: ScrapedProduct[] = [];
   const unreachable: string[] = [];
+  let storesAnswered = 0;
 
   for (const outcome of outcomes) {
     if (outcome.status !== "success") {
       unreachable.push(RETAILER_LABELS[outcome.retailer]);
       continue;
     }
+    storesAnswered++;
     found.push(...outcome.products);
   }
 
@@ -98,5 +105,5 @@ export async function runRadar(saved: {
     best !== null &&
     (saved.lastBestPrice === null || best.price < saved.lastBestPrice);
 
-  return { matches, best, unreachable, isNewBest };
+  return { matches, best, unreachable, isNewBest, storesAnswered };
 }
