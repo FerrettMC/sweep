@@ -7,15 +7,25 @@
 // enforces. Hardcoding prices and perks in the app is how a pricing page ends
 // up promising something the server refuses to do.
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
-import { Loading, Screen } from "@/components/ui";
+import { Button, Loading, Screen } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import { type Plan, type PlanFeature, getPlans } from "@/lib/api";
+import {
+  BILLING_ENABLED,
+  buy,
+  getOffering,
+  restore,
+} from "@/lib/purchases";
+import type {
+  PurchasesOffering,
+  PurchasesPackage,
+} from "react-native-purchases";
 
 type Billing = "monthly" | "yearly";
 
@@ -26,17 +36,67 @@ export default function PlansScreen() {
   const [groupLabels, setGroupLabels] = useState<Record<string, string>>({});
   const [currentTier, setCurrentTier] = useState<string | null>(null);
   const [billing, setBilling] = useState<Billing>("monthly");
+  const [offering, setOffering] = useState<PurchasesOffering | null>(null);
+  const [buying, setBuying] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Null until a store is connected and products exist. The cards handle
+    // that by not offering a button, rather than showing one that fails.
+    void getOffering().then(setOffering);
+  }, []);
+
+  /**
+   * Buy, then reload from our API rather than trusting the client.
+   *
+   * RevenueCat tells the app what it owns so the screen can react at once, but
+   * the tier that governs limits arrives by webhook and is read back from the
+   * server — the client never grants itself anything.
+   */
+  async function onBuy(pkg: PurchasesPackage, planName: string) {
+    setNotice(null);
+    setBuying(pkg.identifier);
+    try {
+      const result = await buy(pkg);
+      if (result.status === "cancelled") return;
+      if (result.status === "unavailable") return setNotice(t("plans.notReady"));
+      if (result.status === "failed") return setNotice(t("plans.purchaseFailed"));
+
+      setNotice(t("plans.thanks", { plan: planName }));
+      // The webhook may land a moment after the purchase returns, so this can
+      // still show the old tier. Reloading again on focus covers that.
+      await load();
+    } finally {
+      setBuying(null);
+    }
+  }
+
+  async function onRestore() {
+    setNotice(null);
+    const result = await restore();
+    if (result.status === "bought") {
+      setNotice(result.entitlements.length ? t("plans.restored") : t("plans.nothingToRestore"));
+      await load();
+    } else if (result.status === "failed") {
+      setNotice(t("plans.purchaseFailed"));
+    }
+  }
+
+  const load = useCallback(async () => {
+    try {
+      const result = await getPlans();
+      setPlans(result.plans);
+      setGroupLabels(result.groupLabels);
+      setCurrentTier(result.currentTier);
+    } catch {
+      setPlans([]);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      getPlans()
-        .then((result) => {
-          setPlans(result.plans);
-          setGroupLabels(result.groupLabels);
-          setCurrentTier(result.currentTier);
-        })
-        .catch(() => setPlans([]));
-    }, []),
+      void load();
+    }, [load]),
   );
 
   if (plans === null) return <Loading />;
@@ -84,8 +144,21 @@ export default function PlansScreen() {
             groupLabels={groupLabels}
             isCurrent={plan.tier === currentTier}
             previousName={index > 0 ? plans[index - 1].name : null}
+            packages={offering?.availablePackages ?? []}
+            buyingId={buying}
+            onBuy={onBuy}
           />
         ))}
+
+        {notice && <Text style={styles.notice}>{notice}</Text>}
+
+        {/* Play requires a way back for someone who reinstalled or switched
+            device — they must not have to pay twice. */}
+        {BILLING_ENABLED && (
+          <Pressable onPress={onRestore} hitSlop={8} style={styles.restore}>
+            <Text style={styles.restoreText}>{t("plans.restore")}</Text>
+          </Pressable>
+        )}
 
         {/*
           Reads as a roadmap rather than a half-built feature. Same honesty —
@@ -104,6 +177,9 @@ function PlanCard({
   groupLabels,
   isCurrent,
   previousName,
+  packages,
+  buyingId,
+  onBuy,
 }: {
   plan: Plan;
   billing: Billing;
@@ -111,6 +187,10 @@ function PlanCard({
   isCurrent: boolean;
   /** Name of the tier below, so the card can say what it builds on. */
   previousName: string | null;
+  /** Everything RevenueCat has for sale; empty until a store is connected. */
+  packages: PurchasesPackage[];
+  buyingId: string | null;
+  onBuy: (pkg: PurchasesPackage, planName: string) => void;
 }) {
   const t = useTranslate();
   const { colors } = useTheme();
@@ -224,6 +304,35 @@ function PlanCard({
           ))}
         </View>
       )}
+
+      {/* Matched by the product id Play knows, so a plan without a configured
+          product simply has no button rather than one that errors. Free never
+          gets one — there is nothing to buy. */}
+      {(() => {
+        if (plan.tier === "free") return null;
+        if (isCurrent) {
+          return <Text style={styles.currentNote}>{t("plans.currentPlan")}</Text>;
+        }
+        const pkg = packages.find((p) =>
+          p.product.identifier.includes(`${plan.tier}`) &&
+          (billing === "yearly"
+            ? /year|annual/i.test(p.product.identifier)
+            : !/year|annual/i.test(p.product.identifier)),
+        );
+        if (!pkg) return null;
+        return (
+          <View style={styles.buyRow}>
+            <Button
+              label={t("plans.subscribe")}
+              onPress={() => onBuy(pkg, plan.name)}
+              busy={buyingId === pkg.identifier}
+            />
+            <Text style={styles.trialNote}>
+              {t("plans.trialNote", { price: pkg.product.priceString })}
+            </Text>
+          </View>
+        );
+      })()}
 
       <Pressable onPress={() => setExpanded((v) => !v)} style={styles.expandRow}>
         <Text style={styles.expandText}>
@@ -398,6 +507,31 @@ const makeStyles = (colors: Palette) =>
       fontSize: type.label.fontSize,
     },
 
+    buyRow: { gap: 6, marginTop: spacing.sm },
+    trialNote: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      textAlign: "center",
+    },
+    currentNote: {
+      color: colors.accent,
+      fontSize: type.label.fontSize,
+      fontWeight: "700",
+      textAlign: "center",
+      marginTop: spacing.sm,
+    },
+    notice: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      textAlign: "center",
+      paddingHorizontal: spacing.md,
+    },
+    restore: { alignItems: "center", paddingVertical: spacing.md },
+    restoreText: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      fontWeight: "600",
+    },
     expandRow: {
       flexDirection: "row",
       alignItems: "center",

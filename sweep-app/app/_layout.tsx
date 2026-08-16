@@ -26,6 +26,7 @@ import { syncUser } from "@/lib/api";
 import { loadGuestMode, useGuestMode } from "@/lib/guestMode";
 import { loadLanguage } from "@/lib/i18n";
 import { reportError, startCrashReporting } from "@/lib/crashReporting";
+import { identifyForPurchases, startPurchases } from "@/lib/purchases";
 import { noteAppOpened } from "@/lib/reviewPrompt";
 import { hasSeenOnboarding, useHasSeenOnboarding } from "@/lib/onboarding";
 import {
@@ -72,6 +73,7 @@ export function ErrorBoundary({
 // first render is exactly the kind this exists to catch, and a hook would be
 // too late to see it.
 startCrashReporting();
+startPurchases();
 
 export default function RootLayout() {
   return (
@@ -145,6 +147,11 @@ function RootNavigator() {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!active) return;
       setSignedIn(Boolean(session));
+      // RevenueCat's app_user_id has to be the Supabase user id: it is what
+      // the billing webhook uses to find the wallet. Re-run on every auth
+      // change so a shared device can't attribute one person's subscription
+      // to whoever logs in next.
+      void identifyForPurchases(session?.user?.id ?? null);
       if (session?.user) void ensureSynced(session.user);
       else syncedUserId.current = null;
     });
