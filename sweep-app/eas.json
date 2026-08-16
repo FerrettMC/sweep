@@ -10,7 +10,8 @@
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://qldyjqrtfuraxvhsslrz.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_Yt8O0ZIvcZ3tP7uoMHjybw_l4YOnZFF",
-        "EXPO_PUBLIC_API_URL": "https://api.sweepshopping.com"
+        "EXPO_PUBLIC_API_URL": "https://api.sweepshopping.com",
+        "EXPO_PUBLIC_SENTRY_DSN": ""
       }
     },
     "preview": {
@@ -18,7 +19,8 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.sweepshopping.com",
         "EXPO_PUBLIC_SUPABASE_URL": "https://qldyjqrtfuraxvhsslrz.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_Yt8O0ZIvcZ3tP7uoMHjybw_l4YOnZFF"
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_Yt8O0ZIvcZ3tP7uoMHjybw_l4YOnZFF",
+        "EXPO_PUBLIC_SENTRY_DSN": ""
       }
     },
     "production": {
@@ -26,7 +28,8 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.sweepshopping.com",
         "EXPO_PUBLIC_SUPABASE_URL": "https://qldyjqrtfuraxvhsslrz.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_Yt8O0ZIvcZ3tP7uoMHjybw_l4YOnZFF"
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_Yt8O0ZIvcZ3tP7uoMHjybw_l4YOnZFF",
+        "EXPO_PUBLIC_SENTRY_DSN": ""
       }
     }
   },

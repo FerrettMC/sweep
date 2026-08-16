@@ -25,6 +25,7 @@ import { useTranslate } from "@/lib/i18n";
 import { syncUser } from "@/lib/api";
 import { loadGuestMode, useGuestMode } from "@/lib/guestMode";
 import { loadLanguage } from "@/lib/i18n";
+import { reportError, startCrashReporting } from "@/lib/crashReporting";
 import { noteAppOpened } from "@/lib/reviewPrompt";
 import { hasSeenOnboarding, useHasSeenOnboarding } from "@/lib/onboarding";
 import {
@@ -47,6 +48,13 @@ export function ErrorBoundary({
   error: Error;
   retry: () => Promise<void>;
 }) {
+  // Reported here rather than only by the global handler: expo-router catches
+  // render errors itself, so without this the screen someone actually saw fail
+  // is the one crash that never reaches us.
+  useEffect(() => {
+    reportError(error, { boundary: "root" });
+  }, [error]);
+
   return (
     <SafeAreaProvider>
       <ThemeProvider>
@@ -60,6 +68,11 @@ export function ErrorBoundary({
  * The provider has to sit above anything calling useTheme, so the navigator is
  * a separate component rather than this one.
  */
+// Started at module scope, before any component mounts — a crash during the
+// first render is exactly the kind this exists to catch, and a hook would be
+// too late to see it.
+startCrashReporting();
+
 export default function RootLayout() {
   return (
     // SafeAreaProvider explicitly rather than relying on the navigator's own:
