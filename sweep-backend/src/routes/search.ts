@@ -37,7 +37,13 @@ import {
   type Retailer,
   isRetailer,
 } from "../lib/scrapers/types.js";
-import { getSearchJob, startAmazonSearch } from "../lib/searchJobs.js";
+import {
+  getMultiSearch,
+  getSearchJob,
+  productsSoFar,
+  startAmazonSearch,
+  startMultiSearch,
+} from "../lib/searchJobs.js";
 import { TIER_LIMITS, effectiveTier, limitsFor } from "../lib/tiers.js";
 
 const MAX_KEYWORD_LENGTH = 120;
@@ -63,6 +69,136 @@ function resolveResultCount(
 }
 
 export async function searchRoutes(app: FastifyInstance) {
+  // ---- progressive search ----
+  //
+  // Starts every retailer at once and returns immediately with a job id. The
+  // client polls and renders each store the moment it lands, instead of
+  // waiting on the slowest one: eBay answers in under two seconds and used to
+  // sit invisible behind Best Buy timing out.
+  //
+  // The blocking /search below is kept for older clients still in the wild.
+  app.get(
+    "/search/start",
+    { preHandler: optionalAuth, config: { rateLimit: SCRAPE_LIMIT } },
+    async (request, reply) => {
+      const query = (request.query ?? {}) as {
+        q?: string;
+        retailers?: string;
+        results?: string;
+      };
+      const keyword = (query.q ?? "").trim();
+      if (!keyword) return reply.status(400).send({ error: "Missing search term" });
+
+      const userId = request.userId;
+      const deviceId = request.headers["x-device-id"] as string | undefined;
+      if (!userId && !deviceId) {
+        return reply.status(400).send({ error: "Missing device id", code: "DEVICE_ID_REQUIRED" });
+      }
+
+      if (!userId) {
+        const network = await consumeGuestIpSearch(request.ip);
+        if (!network.allowed) {
+          return reply.status(429).send({
+            error:
+              "This network has used its guest searches for today. Sign up for your own allowance.",
+            code: "NETWORK_LIMIT_REACHED",
+          });
+        }
+      }
+
+      const quota = userId
+        ? await consumeUserSearch(userId)
+        : await consumeGuestSearch(deviceId!);
+
+      if (!quota) {
+        const current = userId
+          ? await getUserQuota(userId)
+          : await getGuestQuota(deviceId!);
+        return reply.status(429).send({
+          error: userId
+            ? "You've used all your searches for today."
+            : "Guests get one search a day. Sign up for more.",
+          code: "SEARCH_LIMIT_REACHED",
+          quota: current,
+          canWatchAd: current?.canWatchAd ?? false,
+          isGuest: !userId,
+        });
+      }
+
+      const only = parseRetailers(query.retailers);
+      if (only === "invalid") {
+        return reply.status(400).send({ error: "Unknown retailer in list" });
+      }
+      const routing = routeQuery(keyword, only);
+
+      const searchWallet = userId
+        ? await prisma.wallet.findUnique({ where: { userId } })
+        : null;
+      const perRetailer = searchWallet
+        ? resolveResultCount(query.results, limitsFor(searchWallet))
+        : RESULTS_PER_RETAILER;
+
+      const job = startMultiSearch(
+        keyword,
+        perRetailer,
+        routing.retailers,
+        // Refunded once every store has settled, since only then do we know
+        // the search found nothing. Charging for our own outage is not what
+        // the daily allowance is for.
+        async (finished) => {
+          if (productsSoFar(finished).length > 0) return;
+          if (userId) await refundUserSearch(userId, quota.resetsAt);
+          else if (deviceId) await refundGuestSearch(deviceId, quota.resetsAt);
+        },
+      );
+
+      return {
+        jobId: job.id,
+        keyword,
+        quota,
+        pending: routing.retailers.map((retailer) => ({
+          retailer,
+          label: RETAILER_LABELS[retailer],
+        })),
+        categories: routing.categories,
+        skipped: routing.skipped.map((retailer) => ({
+          retailer,
+          label: RETAILER_LABELS[retailer],
+        })),
+      };
+    },
+  );
+
+  // Poll target for the above. Cheap and idempotent — returns whatever has
+  // landed so far, and says when there is nothing left to wait for.
+  app.get(
+    "/search/job/:id",
+    { preHandler: optionalAuth },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const job = getMultiSearch(id);
+      if (!job) return reply.status(404).send({ error: "Search expired", code: "JOB_NOT_FOUND" });
+
+      const results = [...job.slots.values()].map((slot) => ({
+        retailer: slot.retailer,
+        label: RETAILER_LABELS[slot.retailer],
+        status: slot.status,
+        message: slot.detail,
+        products: slot.products,
+      }));
+
+      return {
+        jobId: job.id,
+        keyword: job.keyword,
+        done: job.finishedAt !== null,
+        results,
+        // Recomputed each poll so "cheapest" accounts for everything that has
+        // arrived, not just whatever was there when the first store landed.
+        highlights: pickHighlights(productsSoFar(job)),
+      };
+    },
+  );
+
   // ---- compiled search ----
   app.get(
     "/search",
