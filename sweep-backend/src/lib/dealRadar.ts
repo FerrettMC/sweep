@@ -79,7 +79,24 @@ export async function runRadar(saved: {
   // We paid for these reads; keep them.
   await cacheSearchResults(found);
 
-  const matches: RadarMatch[] = found
+  const { matches, best, isNewBest } = deriveMatches(found, saved);
+  return { matches, best, unreachable, isNewBest, storesAnswered };
+}
+
+
+/**
+ * Turn a bag of scraped products into radar matches.
+ *
+ * Split out from runRadar so a refresh that is still in flight can derive the
+ * same answer from whatever has landed so far — the user sees matches as each
+ * store replies instead of waiting on the slowest one, and the numbers they
+ * see mid-flight are computed exactly the same way as the final ones.
+ */
+export function deriveMatches(
+  products: ScrapedProduct[],
+  saved: { targetPrice: number | null; lastBestPrice: number | null },
+): { matches: RadarMatch[]; best: RadarMatch | null; isNewBest: boolean } {
+  const matches: RadarMatch[] = products
     .filter((product): product is ScrapedProduct & { price: number } => product.price !== null)
     .filter((product) =>
       saved.targetPrice === null ? true : product.price <= saved.targetPrice,
@@ -105,5 +122,5 @@ export async function runRadar(saved: {
     best !== null &&
     (saved.lastBestPrice === null || best.price < saved.lastBestPrice);
 
-  return { matches, best, unreachable, isNewBest, storesAnswered };
+  return { matches, best, isNewBest };
 }

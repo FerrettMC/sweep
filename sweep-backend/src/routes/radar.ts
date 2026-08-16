@@ -16,7 +16,14 @@
 import type { FastifyInstance } from "fastify";
 import { requireAuth } from "../lib/auth.js";
 import { effectiveIntervalMinutes } from "../lib/backoff.js";
-import { runRadar } from "../lib/dealRadar.js";
+import { deriveMatches, runRadar } from "../lib/dealRadar.js";
+import { routeQuery } from "../lib/scrapers/index.js";
+import { RETAILER_LABELS } from "../lib/scrapers/types.js";
+import {
+  getMultiSearch,
+  productsSoFar,
+  startMultiSearch,
+} from "../lib/searchJobs.js";
 import { SCRAPE_LIMIT } from "../lib/rateLimit.js";
 import { prisma } from "../lib/prisma.js";
 import {
@@ -28,6 +35,13 @@ import {
 import { effectiveTier, limitsFor } from "../lib/tiers.js";
 
 const MAX_KEYWORD_LENGTH = 80;
+
+/**
+ * Results per store for a radar sweep. Lower than a compiled search on
+ * purpose: a radar only cares whether anything beats a target price, and the
+ * cheapest few per store answer that as well as a longer list would.
+ */
+const RADAR_RESULTS = 4;
 /** $100k. Catches a typo without ever refusing a real target. */
 const MAX_TARGET_CENTS = 10_000_000;
 
@@ -221,6 +235,127 @@ export async function radarRoutes(app: FastifyInstance) {
       if (deleted.count === 0)
         return reply.status(404).send({ error: "Radar not found" });
       return { ok: true };
+    },
+  );
+
+  // ---- run one now, progressively ----
+  //
+  // Same idea as /search/start: return a job id at once and fill in as each
+  // store replies, rather than making someone watch a spinner for as long as
+  // the slowest retailer takes.
+  app.post<{ Params: { id: string } }>(
+    "/radar/:id/refresh/start",
+    { preHandler: requireAuth, config: { rateLimit: SCRAPE_LIMIT } },
+    async (request, reply) => {
+      const userId = request.userId!;
+
+      const saved = await prisma.savedSearch.findFirst({
+        where: { id: request.params.id, userId },
+      });
+      if (!saved) return reply.status(404).send({ error: "Radar not found" });
+
+      const wallet = await prisma.wallet.findUnique({ where: { userId } });
+      if (!wallet) return reply.status(404).send({ error: "No wallet for user" });
+
+      const state = await getRadarRefreshState(userId);
+      if (state && state.remaining <= 0) {
+        return reply.status(429).send({
+          error: `That's your ${state.limit} refreshes for today.`,
+          code: "RADAR_REFRESH_EXHAUSTED",
+          refreshes: state,
+          tier: effectiveTier(wallet),
+        });
+      }
+
+      const routing = routeQuery(saved.keyword);
+      const limits = limitsFor(wallet);
+
+      const job = startMultiSearch(
+        saved.keyword,
+        RADAR_RESULTS,
+        routing.retailers,
+        async (finished) => {
+          const answered = [...finished.slots.values()].filter(
+            (slot) => slot.status === "success",
+          ).length;
+          const { best } = deriveMatches(productsSoFar(finished), saved);
+
+          await prisma.savedSearch.update({
+            where: { id: saved.id },
+            data: {
+              lastCheckedAt: new Date(),
+              ...(best
+                ? {
+                    lastMatchAt: new Date(),
+                    lastBestPrice:
+                      saved.lastBestPrice === null
+                        ? best.price
+                        : Math.min(saved.lastBestPrice, best.price),
+                  }
+                : {}),
+              ...(limits.savedSearchIntervalMinutes > 0
+                ? {
+                    nextCheckAt: new Date(
+                      Date.now() + limits.savedSearchIntervalMinutes * 60_000,
+                    ),
+                  }
+                : {}),
+            },
+          });
+
+          // Only charge for a refresh that reached at least one store.
+          if (answered > 0) await consumeRadarRefresh(userId);
+        },
+      );
+
+      return {
+        jobId: job.id,
+        pending: routing.retailers.map((retailer) => ({
+          retailer,
+          label: RETAILER_LABELS[retailer],
+        })),
+        refreshes: state,
+      };
+    },
+  );
+
+  // Poll target. Recomputes matches from whatever has landed, using exactly
+  // the same derivation as a finished run, so mid-flight numbers can't drift
+  // from final ones.
+  app.get<{ Params: { id: string; jobId: string } }>(
+    "/radar/:id/refresh/:jobId",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const userId = request.userId!;
+
+      const saved = await prisma.savedSearch.findFirst({
+        where: { id: request.params.id, userId },
+      });
+      if (!saved) return reply.status(404).send({ error: "Radar not found" });
+
+      const job = getMultiSearch(request.params.jobId);
+      if (!job) {
+        return reply
+          .status(404)
+          .send({ error: "Refresh expired", code: "JOB_NOT_FOUND" });
+      }
+
+      const { matches, best, isNewBest } = deriveMatches(productsSoFar(job), saved);
+      const slots = [...job.slots.values()];
+
+      return {
+        done: job.finishedAt !== null,
+        matches,
+        best,
+        isNewBest,
+        unreachable: slots
+          .filter((slot) => slot.status === "failed" || slot.status === "blocked")
+          .map((slot) => RETAILER_LABELS[slot.retailer]),
+        pending: slots
+          .filter((slot) => slot.status === "pending")
+          .map((slot) => RETAILER_LABELS[slot.retailer]),
+        refreshes: await getRadarRefreshState(userId),
+      };
     },
   );
 
