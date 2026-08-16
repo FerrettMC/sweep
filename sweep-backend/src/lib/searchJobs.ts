@@ -160,8 +160,20 @@ export interface MultiSearchJob {
 
 const multiJobs = new Map<string, MultiSearchJob>();
 
-/** Generous: a slot that hangs is capped by the adapter's own deadline anyway. */
+/**
+ * How long a slot may run before we call it failed.
+ *
+ * Amazon is the exception and needs its own number: Bright Data answers with a
+ * snapshot id we poll, which in practice takes anywhere from seconds to about
+ * three minutes. Holding every other retailer to that would mean a dead store
+ * occupying a column for the same three minutes; holding Amazon to the others'
+ * 30s would cut it off before it has had a chance to answer at all.
+ */
 const SLOT_TIMEOUT_MS = 30_000;
+
+function slotTimeout(retailer: Retailer): number {
+  return retailer === "amazon" ? JOB_TIMEOUT_MS : SLOT_TIMEOUT_MS;
+}
 
 export function startMultiSearch(
   keyword: string,
@@ -200,7 +212,7 @@ async function runSlot(job: MultiSearchJob, retailer: Retailer, limit: number) {
   try {
     const result = await withTimeout(
       adapters[retailer].search(job.keyword, limit),
-      SLOT_TIMEOUT_MS,
+      slotTimeout(retailer),
     );
 
     if (result.status === "success") {
@@ -264,6 +276,7 @@ function sweepExpiredMulti() {
   for (const [id, job] of multiJobs) {
     const age = now - job.startedAt;
     if (job.finishedAt && now - job.finishedAt > JOB_TTL_MS) multiJobs.delete(id);
-    else if (!job.finishedAt && age > SLOT_TIMEOUT_MS + 60_000) multiJobs.delete(id);
+    // Sweep against the longest a slot could legitimately still be running.
+    else if (!job.finishedAt && age > JOB_TIMEOUT_MS + 60_000) multiJobs.delete(id);
   }
 }

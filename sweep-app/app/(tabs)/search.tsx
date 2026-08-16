@@ -44,9 +44,9 @@ import {
   type RetailerResult,
   type SearchProduct,
   claimRewardedSearch,
-  getAmazonSearchResult,
+  getSearchProgress,
   getQuota,
-  search as runSearch,
+  startSearch,
 } from "@/lib/api";
 import {
   ADS_ENABLED,
@@ -66,7 +66,11 @@ interface Section {
 }
 
 /** How often to ask whether Amazon has finished. */
-const AMAZON_POLL_MS = 4000;
+/**
+ * Fast enough that a store appearing feels immediate, slow enough that a
+ * three-minute Amazon wait is a few dozen cheap reads rather than hundreds.
+ */
+const SEARCH_POLL_MS = 900;
 /** Give up after this. Bright Data's free tier can genuinely take ~3 minutes. */
 /**
  * Sections in the order they're worth reading.
@@ -87,7 +91,6 @@ function orderSections(sections: Section[]): Section[] {
   return [...sections].sort((a, b) => rank(a) - rank(b));
 }
 
-const AMAZON_MAX_WAIT_MS = 210_000;
 
 export default function SearchScreen() {
   const { colors } = useTheme();
@@ -102,7 +105,7 @@ export default function SearchScreen() {
   const [isGuest, setIsGuest] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [amazonJobId, setAmazonJobId] = useState<string | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [skipped, setSkipped] = useState<{ retailer: string; label: string }[]>([]);
 
@@ -176,56 +179,44 @@ export default function SearchScreen() {
     setError(null);
     setNotice(null);
     searchGeneration.current += 1;
-    setAmazonJobId(null);
+    setJobId(null);
     setHighlights([]);
     setSkipped([]);
 
     try {
-      const response = await runSearch(
+      const response = await startSearch(
         trimmed,
         undefined,
         overrideResults ?? resultsPref ?? undefined,
       );
       setQuota(response.quota);
+      setSkipped(response.skipped);
 
-      const fast: Section[] = response.results.map((result) => ({
-        title: result.label,
-        retailer: result.retailer,
-        status: result.status,
-        message: result.message,
-        data: result.products,
-      }));
+      // Every store starts pending and visible. Rendering the columns before
+      // any of them have answered is the whole point: the screen fills in
+      // store by store instead of appearing all at once at the speed of the
+      // slowest one.
+      setSections(
+        orderSections(
+          response.pending.map((store: { retailer: string; label: string }) => ({
+            title: store.label,
+            retailer: store.retailer,
+            status: "pending" as const,
+            message: null,
+            data: [],
+          })),
+        ),
+      );
 
       // A new search reuses the same scrolled list, so without this you land
       // partway down the previous results and think nothing happened.
       listRef.current?.getScrollResponder()?.scrollTo({ y: 0, animated: false });
 
-      setHighlights(response.highlights);
-      setSkipped(response.skipped);
-
-      // A finished search is the natural interstitial moment — the user has
-      // what they asked for, so an interruption here doesn't block anything.
-      // Paid tiers pass showAds=false and never see one.
+      // A finished search is the natural interstitial moment. Paid tiers pass
+      // showAds=false and never see one.
       countActionAndMaybeShowInterstitial(showAds);
-      setSections(
-        response.amazonJobId
-          ? // Amazon leads, even while it's still running. It's the store most
-            // people check by default, so burying it under four others reads as
-            // "Amazon isn't included". Pending is a one-line header, not a
-            // blocking spinner — everything below it is already usable.
-            orderSections([
-              {
-                title: "Amazon",
-                retailer: "amazon",
-                status: "pending",
-                message: null,
-                data: [],
-              },
-              ...fast,
-            ])
-          : orderSections(fast),
-      );
-      setAmazonJobId(response.amazonJobId);
+
+      setJobId(response.jobId);
     } catch (err) {
       const apiError = err as ApiError;
       setError(apiError.message);
@@ -239,68 +230,64 @@ export default function SearchScreen() {
 
   // Poll the Amazon leg until it lands, fails, or we give up. Runs as an
   // effect so it's torn down on unmount and on every new search.
+  // Polls the running search and repaints whatever has landed. Each store
+  // arrives on its own, so a slow one never holds up a fast one.
   useEffect(() => {
-    if (!amazonJobId) return;
+    if (!jobId) return;
 
     const generation = searchGeneration.current;
-    const startedAt = Date.now();
     let timer: ReturnType<typeof setTimeout> | null = null;
     let stopped = false;
-
-    function finish(status: Section["status"], products: SearchProduct[], message: string | null) {
-      // A stale poll must not overwrite results from a newer search.
-      if (stopped || searchGeneration.current !== generation) return;
-      setSections((current) =>
-        (current ?? []).map((section) =>
-          section.retailer === "amazon"
-            ? { ...section, status, data: products, message }
-            : section,
-        ),
-      );
-      setAmazonJobId(null);
-    }
 
     async function poll() {
       if (stopped || searchGeneration.current !== generation) return;
 
       try {
-        const result = await getAmazonSearchResult(amazonJobId!);
+        const progress = await getSearchProgress(jobId!);
+        if (stopped || searchGeneration.current !== generation) return;
 
-        if (result.status === "pending") {
-          if (Date.now() - startedAt > AMAZON_MAX_WAIT_MS) {
-            finish("failed", [], t("search.amazonSlow"));
-            return;
-          }
-          timer = setTimeout(poll, AMAZON_POLL_MS);
+        setSections(
+          orderSections(
+            progress.results.map((result) => ({
+              title: result.label,
+              retailer: result.retailer,
+              status: result.status,
+              message: result.message,
+              data: result.products,
+            })),
+          ),
+        );
+        setHighlights(progress.highlights);
+
+        if (progress.done) {
+          setJobId(null);
           return;
         }
-
-        finish(
-          result.status === "success" ? "success" : result.status,
-          result.products,
-          result.message,
-        );
+        timer = setTimeout(poll, SEARCH_POLL_MS);
       } catch (err) {
         const apiError = err as ApiError;
-        // A dropped job (server restart) or a network blip — either way there's
-        // nothing to keep waiting for.
-        finish(
-          "failed",
-          [],
-          apiError.code === "SEARCH_JOB_NOT_FOUND"
-            ? t("search.amazonExpired")
-            : t("search.amazonFailed"),
-        );
+        // A dropped job (server restart) or a network blip. Whatever already
+        // landed stays on screen — it is still correct, just not growing.
+        if (apiError.code === "JOB_NOT_FOUND") {
+          setSections((current) =>
+            (current ?? []).map((section) =>
+              section.status === "pending"
+                ? { ...section, status: "failed" as const, message: t("search.amazonExpired") }
+                : section,
+            ),
+          );
+        }
+        setJobId(null);
       }
     }
 
-    timer = setTimeout(poll, AMAZON_POLL_MS);
+    void poll();
 
     return () => {
       stopped = true;
       if (timer) clearTimeout(timer);
     };
-  }, [amazonJobId]);
+  }, [jobId, t]);
 
   const productKey = (p: SearchProduct) => `${p.retailer}:${p.retailerId}`;
 

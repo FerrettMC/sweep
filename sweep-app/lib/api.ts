@@ -213,6 +213,26 @@ export interface SearchResponse {
   results: RetailerResult[];
 }
 
+/** What /search/start hands back: the search has begun, nothing has landed. */
+export interface SearchStart {
+  jobId: string;
+  keyword: string;
+  quota: Quota;
+  /** Stores this search will ask, in the order the server routed them. */
+  pending: { retailer: string; label: string }[];
+  categories: string[];
+  skipped: { retailer: string; label: string }[];
+}
+
+/** A poll of a running search. `done` means nothing is left to wait for. */
+export interface SearchProgress {
+  jobId: string;
+  keyword: string;
+  done: boolean;
+  results: RetailerResult[];
+  highlights: Highlight[];
+}
+
 export interface AmazonJobResult {
   status: "pending" | "success" | "failed" | "blocked";
   retailer: string;
@@ -269,6 +289,26 @@ export function search(
   // A preference, not an instruction — the server clamps it to the tier.
   if (resultsPerRetailer) params.set("results", String(resultsPerRetailer));
   return request<SearchResponse>(`/search?${params}`);
+}
+
+/**
+ * Begin a search. Returns as soon as the stores have been kicked off, so the
+ * screen can render its columns before any of them have answered.
+ */
+export function startSearch(
+  keyword: string,
+  retailers?: string[],
+  resultsPerRetailer?: number,
+) {
+  const params = new URLSearchParams({ q: keyword });
+  if (retailers?.length) params.set("retailers", retailers.join(","));
+  if (resultsPerRetailer) params.set("results", String(resultsPerRetailer));
+  return request<SearchStart>(`/search/start?${params}`);
+}
+
+/** Whatever has landed so far. Safe to call repeatedly. */
+export function getSearchProgress(jobId: string) {
+  return request<SearchProgress>(`/search/job/${jobId}`);
 }
 
 export function getAmazonSearchResult(jobId: string) {
