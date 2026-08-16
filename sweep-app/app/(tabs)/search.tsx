@@ -627,8 +627,13 @@ export default function SearchScreen() {
               {section.status === "pending" && (
                 <View style={styles.pendingRow}>
                   <ActivityIndicator size="small" color={colors.textSecondary} />
+                  {/* Amazon goes through a third party that can take minutes;
+                      the rest answer in seconds. One shared "up to 3 min"
+                      made every store look slow. */}
                   <Text style={styles.sectionStatus}>
-                    still loading — can take up to 3 min
+                    {section.retailer === "amazon"
+                      ? t("search.checkingSlow")
+                      : t("search.checking")}
                   </Text>
                 </View>
               )}

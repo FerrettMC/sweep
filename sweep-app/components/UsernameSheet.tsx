@@ -66,10 +66,7 @@ export default function UsernameSheet({ visible, current, onClose, onSaved }: Pr
           <Text style={styles.heading}>
             {current ? t("username.change") : t("username.choose")}
           </Text>
-          <Text style={styles.body}>
-            This is the name other people see on the leaderboard. Your email is
-            never shown.
-          </Text>
+          <Text style={styles.body}>{t("username.body")}</Text>
 
           <TextInput
             style={styles.input}
@@ -88,7 +85,7 @@ export default function UsernameSheet({ visible, current, onClose, onSaved }: Pr
 
           {/* Say the rule up front rather than only after a rejection. */}
           <Text style={[styles.rule, trimmed.length > 0 && !valid && styles.ruleBad]}>
-            Letters, numbers and underscores only.
+            {t("username.rule")}
           </Text>
 
           {error && <Text style={styles.error}>{error}</Text>}

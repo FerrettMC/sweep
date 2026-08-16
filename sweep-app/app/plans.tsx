@@ -92,10 +92,7 @@ export default function PlansScreen() {
           nobody is charged and nobody is misled — but "coming soon" is a
           promise, where "not wired up yet" sounds like something broke.
         */}
-        <Text style={styles.footnote}>
-          Pro and Ultimate are coming soon. Everything above is free to use
-          today at the Free tier's limits.
-        </Text>
+        <Text style={styles.footnote}>{t("plans.footnote")}</Text>
       </ScrollView>
     </Screen>
   );

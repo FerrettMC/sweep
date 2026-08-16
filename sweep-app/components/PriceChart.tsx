@@ -45,10 +45,7 @@ export default function PriceChart({
     return (
       <View style={[styles.empty, { height }]}>
         <Text style={styles.emptyTitle}>{t("priceChart.empty")}</Text>
-        <Text style={styles.emptyBody}>
-          Sweep records a point each time the price changes. Check back after the
-          next scan.
-        </Text>
+        <Text style={styles.emptyBody}>{t("priceChart.emptyBody")}</Text>
       </View>
     );
   }

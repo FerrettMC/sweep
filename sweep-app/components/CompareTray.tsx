@@ -71,9 +71,7 @@ export default function CompareTray({ items, onOpen, onRemove, onClear, showHint
         // One item on its own isn't a comparison — say what's missing rather
         // than showing a lone row that looks like a bug.
         items.length === 1 && (
-          <Text style={styles.spreadMuted}>
-            Add another result to compare prices.
-          </Text>
+          <Text style={styles.spreadMuted}>{t("compare.addAnother")}</Text>
         )
       )}
 

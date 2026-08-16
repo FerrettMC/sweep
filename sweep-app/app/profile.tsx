@@ -261,9 +261,7 @@ export default function ProfileScreen() {
 
         <View style={styles.section}>
           <SectionTitle>{t("profile.appearance")}</SectionTitle>
-          <Text style={styles.sectionBlurb}>
-            System follows your phone, so it switches when your phone does.
-          </Text>
+          <Text style={styles.sectionBlurb}>{t("profile.appearanceHint")}</Text>
           <View style={styles.themeRow}>
             {THEME_OPTIONS.map((option) => {
               const selected = mode === option.mode;
@@ -320,9 +318,7 @@ export default function ProfileScreen() {
 
         <View style={styles.section}>
           <SectionTitle>{t("profile.storeStatus")}</SectionTitle>
-          <Text style={styles.sectionBlurb}>
-            Which stores Sweep can currently read prices from.
-          </Text>
+          <Text style={styles.sectionBlurb}>{t("profile.storeStatusHint")}</Text>
           <View style={styles.card}>
             {(retailers ?? []).map((item, index) => (
               <View

@@ -205,6 +205,8 @@ export const en = {
     storesPicked: "{{count}} of {{total}} stores",
     storesHelp:
       "Search fewer stores when you already know where to look. Fewer stores comes back faster.",
+    checking: "checking…",
+    checkingSlow: "still checking — Amazon can take a few minutes",
   },
 
   radar: {
@@ -484,6 +486,7 @@ export const en = {
     cheapest: "Cheapest",
     hintFull:
       "Tap Compare on any result to line it up here against others, side by side.",
+    addAnother: "Add another result to compare prices.",
   },
   trackModal: {
     already: "Already tracking this",
@@ -495,6 +498,9 @@ export const en = {
     change: "Change username",
     choose: "Choose a username",
     placeholder: "3–16 characters",
+    body:
+      "This is the name other people see on the leaderboard. Your email is never shown.",
+    rule: "Letters, numbers and underscores only.",
   },
   whyLimited: {
     heading: "Why are searches limited?",
@@ -507,6 +513,8 @@ export const en = {
   },
   priceChart: {
     empty: "No price history yet",
+    emptyBody:
+      "Sweep records a point each time the price changes. Check back after the next scan.",
   },
   trackedItem: {
     thresholdHelp: "Enter a price like 49.99, or clear it to turn the alert off.",
@@ -527,6 +535,8 @@ export const en = {
     yourPlan: "YOUR PLAN",
     hideList: "Hide full list",
     seeAll: "See all {{count}} features",
+    footnote:
+      "Pro and Ultimate are coming soon. Everything above is free to use today at the Free tier's limits.",
   },
   card: {
     added: "Added",
@@ -768,6 +778,8 @@ export const es: Translations = {
     storesPicked: "{{count}} de {{total}} tiendas",
     storesHelp:
       "Busca en menos tiendas cuando ya sabes dónde mirar. Menos tiendas responde más rápido.",
+    checking: "consultando…",
+    checkingSlow: "sigue consultando — Amazon puede tardar unos minutos",
   },
 
   radar: {
@@ -1048,6 +1060,7 @@ export const es: Translations = {
     cheapest: "Más barato",
     hintFull:
       "Toca Comparar en cualquier resultado para verlo aquí junto a los demás.",
+    addAnother: "Añade otro resultado para comparar precios.",
   },
   trackModal: {
     already: "Ya lo estás siguiendo",
@@ -1059,6 +1072,9 @@ export const es: Translations = {
     change: "Cambiar nombre de usuario",
     choose: "Elige un nombre de usuario",
     placeholder: "3–16 caracteres",
+    body:
+      "Es el nombre que los demás ven en la clasificación. Tu correo nunca se muestra.",
+    rule: "Solo letras, números y guiones bajos.",
   },
   whyLimited: {
     heading: "¿Por qué hay un límite de búsquedas?",
@@ -1071,6 +1087,8 @@ export const es: Translations = {
   },
   priceChart: {
     empty: "Todavía no hay historial de precios",
+    emptyBody:
+      "Sweep guarda un punto cada vez que cambia el precio. Vuelve tras la próxima revisión.",
   },
   trackedItem: {
     thresholdHelp:
@@ -1092,6 +1110,8 @@ export const es: Translations = {
     yourPlan: "TU PLAN",
     hideList: "Ocultar lista completa",
     seeAll: "Ver las {{count}} características",
+    footnote:
+      "Pro y Ultimate llegarán pronto. Todo lo de arriba se puede usar hoy con los límites del plan Gratis.",
   },
   card: {
     added: "Añadido",

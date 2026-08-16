@@ -183,7 +183,13 @@ export async function searchRoutes(app: FastifyInstance) {
         retailer: slot.retailer,
         label: RETAILER_LABELS[slot.retailer],
         status: slot.status,
-        message: slot.detail,
+        // The user-facing line, never the raw detail — that can be a 403 body
+        // complete with HTML, and it belongs in the health log rather than on
+        // someone's screen.
+        message:
+          slot.status === "failed" || slot.status === "blocked"
+            ? friendlyMessage(slot.status)
+            : null,
         products: slot.products,
       }));
 
