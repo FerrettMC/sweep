@@ -8,7 +8,10 @@
 // SCHEDULER_ENABLED=false on all but one instance when that day comes.
 
 import cron from "node-cron";
-import { runHealthCheck } from "./health.js";
+import { recordCheck, runHealthCheck } from "./health.js";
+import { adapters, disabledRetailers } from "./scrapers/index.js";
+import { cooldownRemaining } from "./scrapers/cooldown.js";
+import { RETAILERS } from "./scrapers/types.js";
 import { checkProducts, findDueProducts } from "./priceChecker.js";
 import { recordDeal } from "./deals.js";
 import { notifyPriceDrop, notifyRadarMatch } from "./push.js";
@@ -57,8 +60,15 @@ export function startScheduler() {
     }
   });
 
+  // Probe retailers whose cooldown has just lapsed, rather than waiting for a
+  // user's search to be the thing that finds out. Without this the first person
+  // to search after a block absorbs the failure and sees a store missing, even
+  // though it recovered minutes ago.
+  cron.schedule("*/2 * * * *", probeRecoveredRetailers);
+
   console.log(
-    "[scheduler] started — price checks every 5m, radars every 10m, health sweep hourly",
+    "[scheduler] started — price checks every 5m, radars every 10m, " +
+      "recovery probes every 2m, health sweep hourly",
   );
 }
 
@@ -273,5 +283,52 @@ export async function runRadarChecks() {
     console.error("[radar] sweep threw:", err);
   } finally {
     radarCheckRunning = false;
+  }
+}
+
+/**
+ * A cheap search against any retailer that is enabled but currently looks down,
+ * so recovery is noticed by us rather than by the next user to search.
+ *
+ * Uses a deliberately dull keyword: every store stocks something matching it,
+ * so an empty result means a real problem rather than a niche query. One
+ * request per retailer per sweep, and only for retailers that are already
+ * failing — a healthy store is never probed.
+ */
+const PROBE_KEYWORD = "usb cable";
+
+export async function probeRecoveredRetailers() {
+  const off = disabledRetailers();
+
+  for (const retailer of RETAILERS) {
+    if (off.includes(retailer)) continue;
+    // Still cooling down: the circuit is doing its job, leave it alone.
+    if (cooldownRemaining(retailer) > 0) continue;
+
+    // Only probe retailers that recently looked broken. A store that has been
+    // answering fine needs no help from us.
+    const recent = await prisma.scrapeCheck.findFirst({
+      where: { retailer },
+      orderBy: { checkedAt: "desc" },
+      select: { status: true, checkedAt: true },
+    });
+    if (!recent || recent.status === "success") continue;
+    // Don't re-probe something we just probed.
+    if (Date.now() - recent.checkedAt.getTime() < 5 * 60 * 1000) continue;
+
+    try {
+      const result = await adapters[retailer].search(PROBE_KEYWORD, 1);
+      await recordCheck({
+        retailer,
+        status: result.status,
+        detail: result.status === "success" ? null : result.detail,
+        durationMs: result.durationMs,
+      });
+      if (result.status === "success") {
+        console.log(`[scheduler] ${retailer} is answering again`);
+      }
+    } catch (err) {
+      console.error(`[scheduler] probe of ${retailer} threw:`, err);
+    }
   }
 }

@@ -68,6 +68,25 @@ interface Section {
 /** How often to ask whether Amazon has finished. */
 const AMAZON_POLL_MS = 4000;
 /** Give up after this. Bright Data's free tier can genuinely take ~3 minutes. */
+/**
+ * Sections in the order they're worth reading.
+ *
+ * Amazon first, then stores that actually returned something, then stores that
+ * came back empty, then the ones that failed. Previously a failed store sat
+ * wherever the server happened to list it, pushing real results below the fold
+ * — the least useful thing on screen taking the best position.
+ */
+function orderSections(sections: Section[]): Section[] {
+  const rank = (section: Section) => {
+    if (section.retailer === "amazon") return 0;
+    if (section.status === "pending") return 1;
+    if (section.status === "success" && section.data.length > 0) return 2;
+    if (section.status === "success") return 3;
+    return 4;
+  };
+  return [...sections].sort((a, b) => rank(a) - rank(b));
+}
+
 const AMAZON_MAX_WAIT_MS = 210_000;
 
 export default function SearchScreen() {
@@ -177,8 +196,6 @@ export default function SearchScreen() {
         data: result.products,
       }));
 
-      // Amazon goes last and starts as pending — it's fetched out-of-band
-      // because Bright Data's free tier can take minutes.
       // A new search reuses the same scrolled list, so without this you land
       // partway down the previous results and think nothing happened.
       listRef.current?.getScrollResponder()?.scrollTo({ y: 0, animated: false });
@@ -192,8 +209,11 @@ export default function SearchScreen() {
       countActionAndMaybeShowInterstitial(showAds);
       setSections(
         response.amazonJobId
-          ? [
-              ...fast,
+          ? // Amazon leads, even while it's still running. It's the store most
+            // people check by default, so burying it under four others reads as
+            // "Amazon isn't included". Pending is a one-line header, not a
+            // blocking spinner — everything below it is already usable.
+            orderSections([
               {
                 title: "Amazon",
                 retailer: "amazon",
@@ -201,8 +221,9 @@ export default function SearchScreen() {
                 message: null,
                 data: [],
               },
-            ]
-          : fast,
+              ...fast,
+            ])
+          : orderSections(fast),
       );
       setAmazonJobId(response.amazonJobId);
     } catch (err) {
