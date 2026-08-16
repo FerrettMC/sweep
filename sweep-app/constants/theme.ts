@@ -65,6 +65,7 @@ const dark = {
     // ASOS brands in black, which is invisible on a dark background — use a
     // near-white so the store dot still reads.
     asos: "#EDEDED",
+    etsy: "#F1641E",
   },
 };
 
@@ -109,6 +110,7 @@ const light: Palette = {
     // The mirror of the dark-theme note: ASOS brands in black, which works
     // here, so the near-white substitution is reverted.
     asos: "#141416",
+    etsy: "#F1641E",
   },
 };
 

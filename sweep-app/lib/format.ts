@@ -12,7 +12,19 @@ export type Retailer =
   | "bestbuy"
   | "ebay"
   | "newegg"
-  | "asos";
+  | "asos"
+  | "etsy";
+
+/** Every store, in the order they should be shown. */
+export const RETAILERS: Retailer[] = [
+  "amazon",
+  "walmart",
+  "bestbuy",
+  "ebay",
+  "newegg",
+  "asos",
+  "etsy",
+];
 
 export const RETAILER_LABELS: Record<Retailer, string> = {
   amazon: "Amazon",
@@ -21,6 +33,7 @@ export const RETAILER_LABELS: Record<Retailer, string> = {
   ebay: "eBay",
   newegg: "Newegg",
   asos: "ASOS",
+  etsy: "Etsy",
 };
 
 /**

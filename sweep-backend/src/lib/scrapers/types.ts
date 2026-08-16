@@ -11,6 +11,7 @@ export const RETAILERS = [
   "ebay",
   "newegg",
   "asos",
+  "etsy",
 ] as const;
 
 export type Retailer = (typeof RETAILERS)[number];
@@ -26,6 +27,7 @@ export const RETAILER_LABELS: Record<Retailer, string> = {
   ebay: "eBay",
   newegg: "Newegg",
   asos: "ASOS",
+  etsy: "Etsy",
 };
 
 /**

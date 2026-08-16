@@ -25,7 +25,15 @@ import {
   getTrackedProducts,
   type TrackedProduct,
 } from "@/lib/api";
-import { formatPrice, percentOff, pluralize, retailerColor, retailerLabel, storeListPhrase } from "@/lib/format";
+import {
+  RETAILERS,
+  formatPrice,
+  percentOff,
+  pluralize,
+  retailerColor,
+  retailerLabel,
+  storeListPhrase,
+} from "@/lib/format";
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -127,7 +135,7 @@ export default function HomeScreen() {
           </Text>
           <View style={styles.searchHeroFooter}>
             <View style={styles.storeDots}>
-              {(["amazon", "walmart", "bestbuy", "ebay", "newegg", "asos"] as const).map((r) => (
+              {RETAILERS.map((r) => (
                 <View
                   key={r}
                   style={[styles.storeDot, { backgroundColor: retailerColor(colors, r) }]}

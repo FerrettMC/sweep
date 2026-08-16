@@ -51,6 +51,9 @@ const LIMITS: Record<Retailer, GateLimits> = {
   // Official API with a documented quota.
   ebay: { maxConcurrent: 4, minIntervalMs: 0 },
   newegg: { maxConcurrent: 2, minIntervalMs: 400 },
+  // Official API with a published daily quota, so pacing is about staying
+  // inside that rather than avoiding a block.
+  etsy: { maxConcurrent: 3, minIntervalMs: 200 },
   asos: { maxConcurrent: 2, minIntervalMs: 400 },
 };
 

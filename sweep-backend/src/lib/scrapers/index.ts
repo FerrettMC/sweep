@@ -13,6 +13,7 @@ import {
 } from "./bestbuyApi.js";
 import { ebayProductUrl, scrapeEbayProduct, searchEbay } from "./ebay.js";
 import { asosProductUrl, scrapeAsosProduct, searchAsos } from "./asos.js";
+import { etsyProductUrl, scrapeEtsyProduct, searchEtsy } from "./etsy.js";
 import { neweggProductUrl, scrapeNeweggProduct, searchNewegg } from "./newegg.js";
 import { scrapeWalmartProduct, searchWalmart, walmartProductUrl } from "./walmart.js";
 import { type Category, classifyQuery } from "../categories.js";
@@ -113,6 +114,21 @@ export const unthrottledAdapters: Record<Retailer, RetailerAdapter> = {
     concurrency: 2,
     minIntervalMs: 400,
     categories: ["clothing"],
+  },
+  etsy: {
+    search: searchEtsy,
+    scrapeProduct: scrapeEtsyProduct,
+    productUrl: etsyProductUrl,
+    matchesUrl: (url) => /(^|\.)etsy\.com$/i.test(hostOf(url)),
+    metered: false,
+    // An official API, so the constraint is their rate limit rather than
+    // anyone's patience for us.
+    concurrency: 3,
+    minIntervalMs: 200,
+    // Etsy sells phone cases and laptop stickers. Left unrestricted it would
+    // answer "airpods pro" with handmade accessories — a technical match and a
+    // useless result.
+    categories: ["home", "clothing", "toys", "beauty"],
   },
   bestbuy: {
     // The official API when a key is configured, the scraper otherwise. The
