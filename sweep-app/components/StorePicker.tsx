@@ -48,16 +48,21 @@ export default function StorePicker({
   const allOn = selected.length === 0;
 
   function toggle(retailer: Retailer) {
-    // An empty selection means "all", so the first tap has to expand to the
-    // full list before removing one — otherwise unticking a store would read
-    // as selecting only it.
-    const current = allOn ? usable.map((store) => store.retailer) : selected;
-    const next = current.includes(retailer)
-      ? current.filter((r) => r !== retailer)
-      : [...current, retailer];
+    // From "all stores", tapping one means "just this one" — which is what
+    // anyone tapping a single store in a list is asking for. Treating the
+    // all-state as a literal list to subtract from instead selected every
+    // *other* store, so tapping Amazon left you searching eBay.
+    if (allOn) {
+      onChange([retailer]);
+      return;
+    }
 
-    // Deselecting everything is the same as selecting everything, and an empty
-    // search is never what someone meant.
+    const next = selected.includes(retailer)
+      ? selected.filter((r) => r !== retailer)
+      : [...selected, retailer];
+
+    // Deselecting the last one, or ticking every one, both mean "all" — and an
+    // empty search is never what someone meant.
     onChange(next.length === 0 || next.length === usable.length ? [] : next);
   }
 
