@@ -51,10 +51,11 @@ const LIMITS: Record<Retailer, GateLimits> = {
   // Official API with a documented quota.
   ebay: { maxConcurrent: 4, minIntervalMs: 0 },
   newegg: { maxConcurrent: 2, minIntervalMs: 400 },
-  // Etsy publish 5 queries/second and 5,000/day, and every search costs two
-  // calls — one to find listings, one to fetch them with images. 400ms is
-  // 2.5/s, so a search's own pair can't approach the per-second ceiling.
-  etsy: { maxConcurrent: 2, minIntervalMs: 400 },
+  // Commercial access: 150 queries/second and 100,000/day. Paced to 100/s,
+  // which is generous headroom rather than caution — every search costs two
+  // calls (find listings, then fetch them with images), so this still can't
+  // approach the ceiling even with the scheduler running alongside.
+  etsy: { maxConcurrent: 8, minIntervalMs: 10 },
   asos: { maxConcurrent: 2, minIntervalMs: 400 },
 };
 
