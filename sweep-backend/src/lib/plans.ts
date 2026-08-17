@@ -88,9 +88,13 @@ const PRICING: Record<Tier, PlanPricing> = {
   free: { monthly: 0, yearly: 0, yearlySavingPercent: null, yearlyPerMonth: null },
   pro: {
     monthly: 5.99,
-    yearly: 65,
-    yearlySavingPercent: savingPercent(5.99, 65),
-    yearlyPerMonth: perMonth(65),
+    // 64.99 rather than 65: Play adjusts prices to local conventions, and the
+    // number here has to be what Play actually charges. A pricing screen that
+    // disagrees with the purchase sheet is the kind of small dishonesty that
+    // costs more trust than the penny is worth.
+    yearly: 64.99,
+    yearlySavingPercent: savingPercent(5.99, 64.99),
+    yearlyPerMonth: perMonth(64.99),
   },
   ultimate: {
     monthly: 11.99,
