@@ -63,6 +63,8 @@ less but is consistent. Show what exists, omit what doesn't, never pretend.
 
   -Also maybe move email verification to profile & homepage, it gets annoying on the signup page and can draw away users (my sister got annoyed at it)
 
+  -Notification bell in top right next to profile, for price drops and possibly app-wide notifs i sent out
+
 ---
 
 ## Being honest about why limits exist
