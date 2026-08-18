@@ -98,9 +98,11 @@ const PRICING: Record<Tier, PlanPricing> = {
   },
   ultimate: {
     monthly: 11.99,
-    yearly: 130,
-    yearlySavingPercent: savingPercent(11.99, 130),
-    yearlyPerMonth: perMonth(130),
+    // 129.99, matching what Play charges — same local-pricing adjustment it
+    // made to Pro's yearly plan.
+    yearly: 129.99,
+    yearlySavingPercent: savingPercent(11.99, 129.99),
+    yearlyPerMonth: perMonth(129.99),
   },
 };
 
