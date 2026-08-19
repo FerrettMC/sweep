@@ -404,6 +404,7 @@ export const en = {
       "This erases your tracked products, lists, budget, radars and XP. It cannot be undone.",
     rate: "Rate Sweep",
     rateHint: "Leave a review on Google Play",
+    cancelSubscription: "Cancel subscription",
   },
 
   offline: {
@@ -548,6 +549,11 @@ export const en = {
     notReady: "Subscriptions aren't available in this build yet.",
     signUpFirst: "Create an account first — a subscription needs somewhere to live.",
     thanks: "You're on {{plan}}. Thank you — genuinely.",
+    upgrade: "Upgrade",
+    switchTo: "Switch to {{plan}}",
+    includedInYours: "Included in your plan",
+    cancel: "Cancel subscription",
+    cancelNote: "You keep {{plan}} until the period you've paid for ends.",
   },
   card: {
     added: "Added",
@@ -989,6 +995,7 @@ export const es: Translations = {
       "Esto borra tus productos seguidos, listas, gastos, radares y XP. No se puede deshacer.",
     rate: "Valorar Sweep",
     rateHint: "Deja una reseña en Google Play",
+    cancelSubscription: "Cancelar suscripción",
   },
 
   offline: {
@@ -1134,6 +1141,11 @@ export const es: Translations = {
     notReady: "Las suscripciones aún no están disponibles en esta versión.",
     signUpFirst: "Crea una cuenta primero — una suscripción necesita dónde vivir.",
     thanks: "Estás en {{plan}}. Gracias, de verdad.",
+    upgrade: "Mejorar",
+    switchTo: "Cambiar a {{plan}}",
+    includedInYours: "Incluido en tu plan",
+    cancel: "Cancelar suscripción",
+    cancelNote: "Conservas {{plan}} hasta que termine el periodo que ya pagaste.",
   },
   card: {
     added: "Añadido",

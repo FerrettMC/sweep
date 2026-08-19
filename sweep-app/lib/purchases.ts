@@ -15,6 +15,7 @@
 // Everything is a no-op when no key is configured, so a build without
 // credentials behaves exactly as the app did before subscriptions existed.
 
+import { Linking } from "react-native";
 import Purchases, {
   type CustomerInfo,
   type PurchasesOffering,
@@ -112,4 +113,42 @@ export async function restore(): Promise<PurchaseOutcome> {
 
 function activeEntitlements(info: CustomerInfo): string[] {
   return Object.keys(info.entitlements.active);
+}
+
+/**
+ * Open Play's subscription settings, where cancelling actually happens.
+ *
+ * There is no API for cancelling — Google requires it to go through the Play
+ * Store, deliberately, so an app can't quietly make leaving hard. All we can
+ * do is take them straight there rather than making them hunt.
+ *
+ * Cancelling stops the next renewal. It does not end the current period: they
+ * keep what they paid for until it runs out, and our webhook only downgrades
+ * on EXPIRATION for exactly that reason.
+ */
+export async function openSubscriptionSettings(productId?: string) {
+  const base = "https://play.google.com/store/account/subscriptions";
+  // Naming the product opens that subscription rather than the whole list.
+  const url = productId
+    ? `${base}?sku=${encodeURIComponent(productId)}&package=com.sweepshopping.app`
+    : `${base}?package=com.sweepshopping.app`;
+  try {
+    await Linking.openURL(url);
+  } catch {
+    // Play Store missing or the link refused — nothing useful to do, and it is
+    // not worth an error message for something they can reach themselves.
+  }
+}
+
+/** The product id backing the current entitlement, for deep-linking to it. */
+export async function activeProductId(): Promise<string | null> {
+  if (!KEY) return null;
+  startPurchases();
+  try {
+    const info = await Purchases.getCustomerInfo();
+    const active = Object.values(info.entitlements.active)[0];
+    return active?.productIdentifier ?? null;
+  } catch {
+    return null;
+  }
 }

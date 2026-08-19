@@ -18,8 +18,10 @@ import { useTranslate } from "@/lib/i18n";
 import { type Plan, type PlanFeature, getPlans } from "@/lib/api";
 import {
   BILLING_ENABLED,
+  activeProductId,
   buy,
   getOffering,
+  openSubscriptionSettings,
   restore,
 } from "@/lib/purchases";
 import type {
@@ -69,6 +71,12 @@ export default function PlansScreen() {
     } finally {
       setBuying(null);
     }
+  }
+
+  /** Play is the only place a subscription can actually be cancelled. */
+  async function onCancel() {
+    const productId = await activeProductId();
+    await openSubscriptionSettings(productId ?? undefined);
   }
 
   async function onRestore() {
@@ -147,6 +155,9 @@ export default function PlansScreen() {
             packages={offering?.availablePackages ?? []}
             buyingId={buying}
             onBuy={onBuy}
+            rank={index}
+            currentRank={plans.findIndex((p) => p.tier === (currentTier ?? "free"))}
+            onCancel={onCancel}
           />
         ))}
 
@@ -180,6 +191,9 @@ function PlanCard({
   packages,
   buyingId,
   onBuy,
+  rank,
+  currentRank,
+  onCancel,
 }: {
   plan: Plan;
   billing: Billing;
@@ -191,6 +205,10 @@ function PlanCard({
   packages: PurchasesPackage[];
   buyingId: string | null;
   onBuy: (pkg: PurchasesPackage, planName: string) => void;
+  /** Position of this plan in the ladder, and of the one they're on. */
+  rank: number;
+  currentRank: number;
+  onCancel: () => void;
 }) {
   const t = useTranslate();
   const { colors } = useTheme();
@@ -310,9 +328,30 @@ function PlanCard({
           gets one — there is nothing to buy. */}
       {(() => {
         if (plan.tier === "free") return null;
+
+        // The current plan offers a way out, not a way in.
         if (isCurrent) {
-          return <Text style={styles.currentNote}>{t("plans.currentPlan")}</Text>;
+          return (
+            <View style={styles.buyRow}>
+              <Text style={styles.currentNote}>{t("plans.currentPlan")}</Text>
+              <Pressable onPress={onCancel} hitSlop={8}>
+                <Text style={styles.cancelText}>{t("plans.cancel")}</Text>
+              </Pressable>
+              <Text style={styles.trialNote}>
+                {t("plans.cancelNote", { plan: plan.name })}
+              </Text>
+            </View>
+          );
         }
+
+        // A tier below the one you're on has nothing to sell you — everything
+        // in it is already included. Offering "Subscribe" there invited an
+        // Ultimate subscriber to buy Pro, which would be a downgrade dressed
+        // up as a purchase.
+        if (rank < currentRank) {
+          return <Text style={styles.includedNote}>{t("plans.includedInYours")}</Text>;
+        }
+
         const pkg = packages.find((p) =>
           p.product.identifier.includes(`${plan.tier}`) &&
           (billing === "yearly"
@@ -320,10 +359,13 @@ function PlanCard({
             : !/year|annual/i.test(p.product.identifier)),
         );
         if (!pkg) return null;
+
         return (
           <View style={styles.buyRow}>
             <Button
-              label={t("plans.subscribe")}
+              // "Upgrade" when they already pay for something; "Subscribe"
+              // only when they're coming from free.
+              label={currentRank > 0 ? t("plans.upgrade") : t("plans.subscribe")}
               onPress={() => onBuy(pkg, plan.name)}
               busy={buyingId === pkg.identifier}
             />
@@ -512,6 +554,19 @@ const makeStyles = (colors: Palette) =>
       color: colors.textTertiary,
       fontSize: type.caption.fontSize,
       textAlign: "center",
+    },
+    cancelText: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      fontWeight: "700",
+      textAlign: "center",
+      paddingVertical: 6,
+    },
+    includedNote: {
+      color: colors.textTertiary,
+      fontSize: type.label.fontSize,
+      textAlign: "center",
+      marginTop: spacing.sm,
     },
     currentNote: {
       color: colors.accent,

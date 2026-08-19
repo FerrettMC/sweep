@@ -16,6 +16,7 @@ import { resetOnboarding } from "@/lib/onboarding";
 import { setPushRegistered, usePushRegistered } from "@/lib/pushStatus";
 import { type ThemeMode, useTheme, useThemedStyles } from "@/lib/theme";
 import { LANGUAGES, setLanguage, useLanguage, useTranslate } from "@/lib/i18n";
+import { activeProductId, openSubscriptionSettings } from "@/lib/purchases";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import UsernameSheet from "@/components/UsernameSheet";
 import {
@@ -222,6 +223,24 @@ export default function ProfileScreen() {
           )}
           {searchesLeft !== null && (
             <Text style={styles.sub}>{pluralize(searchesLeft, "search")} left today</Text>
+          )}
+          {/* Only for someone actually paying. Cancelling opens Play, because
+              Google requires it to happen there — an app can't quietly make
+              leaving difficult. */}
+          {tier && tier !== "free" && (
+            <Pressable
+              onPress={async () => {
+                const productId = await activeProductId();
+                await openSubscriptionSettings(productId ?? undefined);
+              }}
+              hitSlop={8}
+              style={styles.cancelRow}
+            >
+              <Text style={styles.cancelRowText}>
+                {t("profile.cancelSubscription")}
+              </Text>
+              <Ionicons name="open-outline" size={14} color={colors.textTertiary} />
+            </Pressable>
           )}
           <Text style={styles.comparePlans}>
             {tier === null || tier === "free" ? t("profile.comparePlans") : t("profile.seeIncluded")}
@@ -496,6 +515,18 @@ const THEME_OPTIONS: {
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
+    cancelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      alignSelf: "flex-start",
+      paddingVertical: 8,
+    },
+    cancelRowText: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      fontWeight: "600",
+    },
     themeRow: { flexDirection: "row", gap: spacing.sm },
     themeOption: {
       flex: 1,
