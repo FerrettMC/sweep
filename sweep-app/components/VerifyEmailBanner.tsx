@@ -24,6 +24,13 @@ import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase";
+import {
+  clearVerifyNag,
+  loadVerifyNag,
+  shouldShowVerifyNag,
+  snoozeVerifyNag,
+  useVerifyNagSnoozedUntil,
+} from "@/lib/verifyNag";
 
 export default function VerifyEmailBanner() {
   const { colors } = useTheme();
@@ -31,17 +38,24 @@ export default function VerifyEmailBanner() {
   const t = useTranslate();
 
   const [email, setEmail] = useState<string | null>(null);
-  const [dismissed, setDismissed] = useState(false);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState<"ok" | "failed" | null>(null);
+  // Shared across every copy of this banner, so dismissing it on Home also
+  // dismisses the one on Profile.
+  const snoozedUntil = useVerifyNagSnoozedUntil();
 
   const check = useCallback(async () => {
+    await loadVerifyNag();
     try {
       const { data } = await supabase.auth.getUser();
       const user = data.user;
       // Deliberately checked on the user rather than the session: a session
       // exists either way, and it's the confirmation timestamp that decides.
-      setEmail(user && !user.email_confirmed_at ? (user.email ?? null) : null);
+      const unconfirmed = Boolean(user && !user.email_confirmed_at);
+      setEmail(unconfirmed ? (user?.email ?? null) : null);
+      // Confirmed now, so a future account on this device isn't silently
+      // snoozed by a decision this person made.
+      if (user && !unconfirmed) await clearVerifyNag();
     } catch {
       // Offline, or no session. Either way there's nothing to nag about.
       setEmail(null);
@@ -59,7 +73,14 @@ export default function VerifyEmailBanner() {
     return () => subscription.remove();
   }, [check]);
 
-  if (!email || dismissed) return null;
+  const show = shouldShowVerifyNag({
+    unconfirmed: email !== null,
+    snoozedUntil,
+    now: Date.now(),
+  });
+  // `email === null` is redundant with `show` but the compiler can't see that
+  // through the helper, and it's what narrows the type for the copy below.
+  if (!show || email === null) return null;
 
   async function resend() {
     if (!email) return;
@@ -94,10 +115,10 @@ export default function VerifyEmailBanner() {
           </Pressable>
         )}
       </View>
-      {/* Dismissible for this launch only, never permanently: an unconfirmed
-          address is worth mentioning again, but not worth trapping anyone
-          on a screen over. */}
-      <Pressable onPress={() => setDismissed(true)} hitSlop={10}>
+      {/* Snoozed, not dismissed: an unconfirmed address is worth raising
+          again — it's the difference between recovering an account and losing
+          it — but never worth trapping anyone over. */}
+      <Pressable onPress={() => void snoozeVerifyNag()} hitSlop={10}>
         <Ionicons name="close" size={16} color={colors.textTertiary} />
       </Pressable>
     </View>
