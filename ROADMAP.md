@@ -1,8 +1,12 @@
 # Sweep — next release
 
 Rewritten from the 2am notes, with what we worked out since. Ordered roughly by
-what I'd do first, not by size. Items marked SHIPPED are done and are kept for
-the reasoning behind them, not as a to-do.
+what I'd do first, not by size.
+
+Struck-through and SHIPPED items are done. They're kept rather than deleted
+because the reasoning is the useful part — several of them turned out to be
+wrong in an interesting way, and a list that only records what's left invites
+re-deriving the same wrong answer twice.
 
 ---
 
@@ -54,29 +58,96 @@ in the onboarding redo.
 
 ## Quick wins
 
-- **Signup errors** — a failed signup should say "something went wrong, try
-  again", not surface a provider error.
-- **Fix the add-to-list popup** — Make it towards the top of the screen so keyboard doesnt cover the text input.
-- ~~**Free searches 1/day → 5/day.**~~ **Done**, along with the rest: guest
-  1→2, free 1→5, Pro 30→75, Ultimate 200→400. Free users are ~98% of traffic
-  and one search a day is not a product anyone can judge. The cost note below
-  still applies — pair with caching.
-- **Estimated wait times per store.** Nearly free: `ScrapeCheck` already stores
-  `durationMs` for every call, so a median per retailer is a query against data
-  we have.
-- **Title → "Sweep: Shopping Assistant".** Weaker for search than
-  "Price Tracker & Deals" — nobody searches "shopping assistant" — but it fits
-  where the product is heading. Changeable any time without a build. (I'll keep it PT&D for now)
+### Shipped
+
+- ~~**Free searches 1/day → 5/day.**~~ Along with the rest: guest 1→2, free
+  1→5, Pro 30→75, Ultimate 200→400. Free users are ~98% of traffic and one
+  search a day is not a product anyone can judge.
+- ~~**Signup errors.**~~ Two paths passed Supabase's message straight to the
+  screen; those are written for whoever integrates the SDK, not whoever is
+  signing up. Now mapped to copy you can act on, as a tested pure function.
+  It caught two things worth knowing: Supabase has **two** duplicate-account
+  phrasings, and its cooldown says "for security purposes, you can only
+  request this after 51 seconds" — mentioning neither "rate" nor "limit", so
+  it was falling through to the generic message and inviting a retry that
+  extends the cooldown.
+- ~~**Fix the add-to-list popup.**~~ The bug had **three** instances, not one:
+  BudgetEntrySheet (amount, category, note) and TrackedItemSheet (price
+  threshold) had it too. All top-anchored now. No bottom-anchored sheet with a
+  text input remains.
+- ~~**Email verification off the signup page.**~~ Tried, reverted, see below.
+
+### Still to do
+
+- **Custom SMTP.** Supabase's built-in mailer is rate-limited to a handful of
+  messages per hour **for the whole project**, and that limit applies to real
+  signups, not just testing. With confirmation required, a rate-limited
+  confirmation email is a signup that silently fails. This is now on the
+  critical path rather than a nicety — it should happen before any real
+  marketing push. Resend or Postmark, set under Auth → SMTP Settings. The
+  backend already sends mail through nodemailer for health alerts, so
+  credentials for a provider may already be half in place.
+- **Estimated wait times per store.** Nearly free: `ScrapeCheck` already
+  stores `durationMs` for every call, so a median per retailer is a query
+  against data we have.
 - **Price history as a line graph.** Continuous line, dollar axis, like a FRED
   chart. Bars read as discrete events; the data is a time series and the line
   is the honest shape. Now visible on every lookup, so it matters more than it
-  did. Note the constraint: no charting library, because they all pull in
-  react-native-svg and this project ships a prebuilt `android/`. A line can be
-  drawn with rotated Views without adding a native module.
+  did. Constraint: no charting library — they all pull in react-native-svg and
+  this project ships a prebuilt `android/`. A line can be drawn with rotated
+  Views without adding a native module.
+- **Notification bell** top right, beside profile, for price drops and
+  app-wide notices. Not actually a quick win: it needs somewhere to store a
+  feed and a read/unread state, so it's a feature.
+- **Title → "Sweep: Shopping Assistant".** Weaker for search than "Price
+  Tracker & Deals" — nobody searches "shopping assistant" — but it fits where
+  the product is heading. Changeable any time without a build. (Keeping PT&D
+  for now.)
 
-  -Also maybe move email verification to profile & homepage, it gets annoying on the signup page and can draw away users (my sister got annoyed at it)
+---
 
-  -Notification bell in top right next to profile, for price drops and possibly app-wide notifs i sent out
+## Email verification: tried removing it, put it back
+
+Worth writing down, because the reasoning is easy to re-derive badly.
+
+**The complaint was real.** The confirmation wall at signup is where people
+abandon — a tester bounced on exactly that.
+
+**The first fix was wrong.** Turning Supabase's "Confirm email" off and
+nagging later doesn't work, because Supabase has no "signed in but
+unconfirmed" state. The toggle is binary: on means no session until the link
+is clicked, off means the user is created **already confirmed**. A banner
+checking `email_confirmed_at` can never fire. Verified rather than assumed —
+a signup against the dev project, where confirmation is still required, comes
+back with no session at all.
+
+**What removing it actually costs** is not what it looked like. Nothing in the
+app gates on a confirmed address, so day to day nothing breaks. But anyone can
+sign up as anyone — `mrbeast@gmail.com` — and while the real owner can always
+reclaim it (password reset sends a code to the inbox, so whoever reads the
+inbox owns the account), they inherit a stranger's data, get no warning, and
+hit a message that presumed the account was theirs.
+
+**So confirmation is back on**, and the effort went into the screen people
+wait on instead, since that screen is the whole cost of the decision:
+
+- A screen of its own, not a panel above the form. The panel left "Sign up"
+  and "Log in" underneath it, so the obvious next action was pressing Sign up
+  again.
+- **"I've confirmed it"** — the automatic retry fires when the app returns to
+  the foreground, which never happens if the link is opened on a laptop. That
+  left the phone stuck forever.
+- **"Use a different email"** — a typo was otherwise a dead end that survived
+  restarting the app: the account exists, so sign-in is refused until it's
+  confirmed, and it never can be.
+- **A resend cooldown that counts down**, because Supabase rate-limits resends
+  and answers an eager double-tap with what reads as breakage.
+
+**And a typo guard at signup** — "did you mean gmail.com?" — which matters
+more with confirmation on, not less: it stops people waiting on an email that
+was never going to arrive. Suggests only, never blocks or rewrites. The
+known-provider list is checked before any edit distance, which is what stops
+`mail.com` becoming `gmail.com` and `pm.me` becoming `me.com`.
 
 ---
 
@@ -107,12 +178,16 @@ and then actually doing.
 
 ## Features, in order of cost
 
-**Similar products** — cheaper than it sounds; reuses the title-matching from
-Sweep This Deal. Metered 1 / 8 / 50 per day.
+**Similar products** — cheaper than it sounds; `lib/matching.ts` still has the
+title-matching that Sweep This Deal used, and it outlived the feature it was
+written for. Natural home is a row on the lookup page. Metered 1 / 8 / 50 per
+day.
 
 **Share from Amazon into the app** — Android intent filter plus the existing
 `resolveProduct`, landing on tracking or the new product page. Good win,
-moderate cost. Amazon first; other stores are the same mechanism with more URL
+moderate cost — and it now has an obvious destination, which it didn't when
+this was written: a shared link lands on the lookup page. Amazon first; other
+stores are the same mechanism with more URL
 patterns.
 
 _Discoverability is the hard half._ The feature lives in **another app's**
@@ -246,16 +321,18 @@ absorbing "judge it", since price history is the evidence behind both.
 
 ## Sequencing
 
-1. **Dev Supabase project** — tests currently write to the database testers
-   live in. Highest risk, smallest job.
-2. **Subscriptions** — the thing that makes any of this sustainable, and it
-   needs the closed test running anyway.
-3. **Quick wins + the "why limited" page** — small, and the honesty page pairs
-   naturally with subscriptions going live.
-4. **Tester feedback lands** — two weeks of real usage. Ideas from studying
-   competitors and ideas from watching your own users disagree, and when they
-   do, users win. Re-order everything below this line at that point.
-5. ~~**Product lookup page**~~ — done, ahead of schedule.
-6. **Similar products, share-to-app.**
-7. **Onboarding, redone last** — it should introduce the app as it ends up,
-   not as it is now.
+1. ~~**Dev Supabase project**~~ — done.
+2. ~~**Subscriptions**~~ — done and live; purchases confirmed working.
+3. ~~**Product lookup page**~~ — done, well ahead of where it sat on this list.
+4. ~~**Signup quick wins**~~ — done.
+5. **Custom SMTP** — moved up. With confirmation required, the mail limit is
+   the signup funnel, and it is the one item here that silently breaks real
+   users rather than merely annoying them.
+6. **The "why limited" page** — pairs naturally with subscriptions being live.
+7. **Remaining quick wins** — line graph, wait times, notification bell.
+8. **Tester feedback lands** — real usage. Ideas from studying competitors and
+   ideas from watching your own users disagree, and when they do, users win.
+   Re-order everything below this line at that point.
+9. **Similar products, share-to-app.**
+10. **Onboarding, redone last** — it should introduce the app as it ends up,
+    not as it is now. Product lookup now deserves a slide of its own.
