@@ -3,6 +3,25 @@
 // The only place the app talks to the backend. Every call carries the Supabase
 // access token when signed in, and the anonymous device id otherwise, so the
 // server can apply the right limits without the client asserting anything.
+//
+// ---- the rule for these types ----
+//
+// The backend's rule is that changes are additive, so an OLD app keeps working
+// against a NEW server (see sweep-backend/src/test-contract.ts). This file
+// carries the other half of that bargain, which is easier to forget because
+// it only bites in development and during deploys:
+//
+//   A NEW APP MUST SURVIVE AN OLD SERVER.
+//
+// A field added to a response after a release is absent for every client
+// running against a backend that predates it — every phone mid-rollout, every
+// dev build pointed at production, and the whole window between pushing the
+// app and pushing the server. So a newly added response field is declared
+// OPTIONAL here, and stays that way until no deployed backend can omit it.
+//
+// This is not hypothetical: `similar` on LookupResult was typed as required,
+// and reading `.length` on it crashed the lookup screen against a server that
+// simply hadn't been redeployed yet.
 
 import Constants from "expo-constants";
 import { markReachable, markUnreachable } from "./connection";
@@ -914,9 +933,15 @@ export interface LookupResult {
   history: { price: number; checkedAt: string }[];
   /**
    * Other listings that look like the same thing, from what the server has
-   * already cached — never a fresh store search. Empty is normal.
+   * already cached — never a fresh store search.
+   *
+   * OPTIONAL because a server that predates this feature simply won't send
+   * it, and the app has to survive that: a released build outlives whatever
+   * backend was deployed the day it shipped, and there is always a window
+   * mid-deploy where both are live. Undefined and empty mean the same thing
+   * here — nothing to show.
    */
-  similar: SimilarProduct[];
+  similar?: SimilarProduct[];
   productId: string;
   isTracked: boolean;
   /** False when the store couldn't be reached and this came from cache. */

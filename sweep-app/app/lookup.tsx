@@ -38,6 +38,7 @@ import {
   type ApiError,
   type LookupQuota,
   type LookupResult,
+  type SimilarProduct,
   getLookupQuota,
   lookUpProduct,
 } from "@/lib/api";
@@ -322,9 +323,9 @@ export default function LookupScreen() {
               )
             )}
 
-            {result.similar.length > 0 && (
+            {(result.similar?.length ?? 0) > 0 && (
               <SimilarPanel
-                items={result.similar}
+                items={result.similar ?? []}
                 onOpen={(item) =>
                   router.push(`/lookup?productId=${item.productId}`)
                 }
@@ -489,8 +490,10 @@ function SimilarPanel({
   items,
   onOpen,
 }: {
-  items: LookupResult["similar"];
-  onOpen: (item: LookupResult["similar"][number]) => void;
+  // Non-optional here on purpose: the caller has already decided there is
+  // something to show, so this component never has to ask again.
+  items: SimilarProduct[];
+  onOpen: (item: SimilarProduct) => void;
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
