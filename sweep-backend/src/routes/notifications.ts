@@ -307,12 +307,7 @@ export async function notificationRoutes(app: FastifyInstance) {
       // Says so explicitly, because "0 pushes" looks like failure when it
       // usually means notifications simply aren't switched on — and the bell
       // entry was still filed either way.
-      note:
-        tokens === 0
-          ? "This account has no registered device, so nothing could buzz. Open the app, allow notifications, and check Profile says alerts are on. The bell entry was filed either way."
-          : sent === 0
-            ? "A device is registered but no message was built — the drop may not have met the alert rules."
-            : "Accepted by Expo. If nothing arrived, check pushOutcomes above and that notifications are allowed for Sweep in Android settings.",
+      note: describeOutcome(tokens, sent, sent > 0 ? lastPushOutcomes() : []),
     };
   });
 }
@@ -328,4 +323,42 @@ function secretsMatch(provided: string, expected: string): boolean {
   // length. Compare lengths separately and still run the check.
   if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
+}
+
+/**
+ * Plain-English reading of a test send.
+ *
+ * Written after a test reported "Accepted by Expo" while every ticket said
+ * InvalidCredentials — the note was built from how many messages were handed
+ * over rather than from what came back, which is the same mistake the
+ * pushesSent field made. It reads the outcomes now.
+ */
+function describeOutcome(
+  devices: number,
+  attempted: number,
+  outcomes: string[],
+): string {
+  if (devices === 0) {
+    return "No registered device on this account, so nothing could buzz. Open the app, allow notifications, and check Profile says alerts are on. The bell entry was filed either way.";
+  }
+  if (attempted === 0) {
+    return "A device is registered but no message was built — the drop may not have met the alert rules.";
+  }
+
+  const failed = outcomes.filter((o) => o !== "ok");
+  if (failed.length === 0) {
+    return "Accepted by Expo and no errors came back. If nothing appeared, check notifications are allowed for Sweep in Android settings.";
+  }
+
+  // The one that looks like an app bug and isn't. Expo could not authenticate
+  // with Firebase, so the pushes never left its servers — nothing about the
+  // device, the token or the app is at fault.
+  if (failed.includes("InvalidCredentials")) {
+    return "Expo could not authenticate with Firebase, so nothing was sent. Upload an FCM V1 service account key to the Expo project (Firebase console → Project settings → Service accounts → Generate new private key, then `eas credentials` → Android → Push Notifications). google-services.json in the app is only the client half.";
+  }
+  if (failed.includes("DeviceNotRegistered")) {
+    return "That device's token was stale and has now been deleted. Reopen the app to register a fresh one, then try again.";
+  }
+
+  return `Expo rejected the send: ${[...new Set(failed)].join(", ")}.`;
 }

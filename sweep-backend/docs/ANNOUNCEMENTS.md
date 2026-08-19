@@ -117,6 +117,29 @@ silently when the channel doesn't exist.
 **`pushOutcomes: ["DeviceNotRegistered"]`** — the token was stale; it has now
 been deleted. Reopen the app to register a fresh one and try again.
 
+**`pushOutcomes: ["InvalidCredentials"]`** — Expo could not authenticate with
+Firebase, so nothing was sent. Nothing about the device, the token or the app
+is wrong.
+
+`google-services.json` in `android/app/` is only the **client** half: it tells
+the app which Firebase project to register with. Expo also needs **server**
+credentials to send on your behalf, and those live in the Expo project rather
+than in this repo.
+
+To fix, once:
+
+1. Firebase console → your project → **Project settings** → **Service accounts**
+2. **Generate new private key** — downloads a JSON file
+3. In `sweep-app/`, run `eas credentials` → Android → your build profile →
+   **Push Notifications: Manage your FCM V1 service account key** → upload it
+
+It must be an **FCM V1 service account key**. Google removed the old server
+keys in 2024, so any guide telling you to paste a "FCM server key" into Expo
+is out of date.
+
+Nothing needs rebuilding afterwards — this is server-side credentials, not app
+config, so the next send just works.
+
 ## Note
 
 This writes to the in-app feed only — it does **not** send a push. That's
