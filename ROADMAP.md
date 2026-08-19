@@ -85,14 +85,14 @@ in the onboarding redo.
 
 ### Still to do
 
-- **Custom SMTP.** Supabase's built-in mailer is rate-limited to a handful of
-  messages per hour **for the whole project**, and that limit applies to real
-  signups, not just testing. With confirmation required, a rate-limited
-  confirmation email is a signup that silently fails. This is now on the
-  critical path rather than a nicety — it should happen before any real
-  marketing push. Resend or Postmark, set under Auth → SMTP Settings. The
-  backend already sends mail through nodemailer for health alerts, so
-  credentials for a provider may already be half in place.
+- ~~**Custom SMTP.**~~ Already done — Resend is verified and Supabase Auth is
+  sending through it, so confirmation emails were never on the rate-limited
+  built-in mailer. Verified from DNS: DKIM at `resend._domainkey`, SPF and
+  bounce MX on `send.sweepshopping.com`, and the root MX/SPF still Cloudflare's,
+  so inbound `support@` is unaffected. See `sweep-backend/docs/email/`.
+  Optional leftover: paste the branded confirm-signup template into Supabase,
+  and set `SMTP_*` on Railway so scraper health alerts stop going only to the
+  console.
 - **Estimated wait times per store.** Nearly free: `ScrapeCheck` already
   stores `durationMs` for every call, so a median per retailer is a query
   against data we have.
@@ -326,9 +326,7 @@ absorbing "judge it", since price history is the evidence behind both.
 2. ~~**Subscriptions**~~ — done and live; purchases confirmed working.
 3. ~~**Product lookup page**~~ — done, well ahead of where it sat on this list.
 4. ~~**Signup quick wins**~~ — done.
-5. **Custom SMTP** — moved up. With confirmation required, the mail limit is
-   the signup funnel, and it is the one item here that silently breaks real
-   users rather than merely annoying them.
+5. ~~**Custom SMTP**~~ — already in place before it reached the top of the list.
 6. **The "why limited" page** — pairs naturally with subscriptions being live.
 7. **Remaining quick wins** — wait times, notification bell.
 8. **Tester feedback lands** — real usage. Ideas from studying competitors and
