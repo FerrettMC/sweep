@@ -1,47 +1,54 @@
 # Sweep — next release
 
-Rewritten from the 2am notes, with what we worked out since. Nothing here is
-started. Ordered roughly by what I'd do first, not by size.
+Rewritten from the 2am notes, with what we worked out since. Ordered roughly by
+what I'd do first, not by size. Items marked SHIPPED are done and are kept for
+the reasoning behind them, not as a to-do.
 
 ---
 
-## The big one: product lookup
+## Product lookup — SHIPPED
 
-The clearest signal from competitor reviews was that **product pages are hard
-to read**. That's real user pain rather than an invented feature, and it points
-at a repositioning: "Sweep this deal" is currently a rationed novelty at 1/day,
-when it should be the thing people open the app for.
+Replaced "Sweep this deal" entirely. Paste a link, or tap Details on anything
+searched or tracked, and get one page about that product.
 
-**What it becomes:** paste or tap a product, get one good page about _that
-product_.
+**What each store actually returns**, verified against live payloads rather
+than assumed — this was the open question and it's now closed:
 
-- Price history (a graph — see below)
-- Star rating and review count
-- Buyer/seller reviews, **where the store's API returns them**
-- Shipping cost, **where the store's API returns it**
-- Coupons — deferred, see Parked
+| Store  | What it gives                                                                 |
+| ------ | ----------------------------------------------------------------------------- |
+| Amazon | Its own review summary, keywords split positive/negative/mixed, per-topic sentiment with buyer quotes, review photos, spec table, features, trust badges, `frequently returned` flag, **and coupon fields** |
+| eBay   | Seller feedback % and score, shipping cost, delivery window, condition, specs |
+| Etsy   | Listing detail, tags, materials; per-listing reviews, often absent            |
 
-**What it stops doing:** no fanning out to every store, no re-reading history
-across retailers. That's what made it expensive enough to ration.
+Amazon is far richer than the old note assumed. eBay has no product reviews at
+all — it rates sellers, not products — and that is not a gap to fill: showing
+99.3% seller feedback under a "reviews" heading would let someone compare it
+against Amazon's 4.6 stars as though they measured the same thing.
 
-**Why that matters for pricing:** enriching one product is one API call to one
-store. That's what makes the numbers below affordable, where 1/day was not.
+**Two traps found in the real data, both now guarded:**
+
+- Amazon's `mentions_count` reads **5** alongside **4497** positive mentions,
+  so it is not a total. Any percentage built on it would be fiction, so it
+  isn't carried through the type at all. Counts are shown as counts.
+- A missing shipping cost is not free shipping. Zero and null are different
+  claims and are worded differently.
+
+**Coverage is declared per store**, not inferred from nulls, so the page can
+tell "this store never returns reviews" from "this listing has none" — they get
+different wording, and a thin page reads as a limit of the store rather than a
+bug in the app.
+
+**Limits** — its own counter, not shared with search:
 
 | Tier     | Lookups/day |
 | -------- | ----------- |
-| Free     | 5           |
+| Guest    | 3           |
+| Free     | 12          |
 | Pro      | 30          |
-| Ultimate | 200         |
+| Ultimate | 100         |
 
-**Known risk — uneven coverage.** Reviews and shipping vary by store: Best Buy
-and eBay expose ratings, Etsy exposes neither (favourites are deliberately not
-mapped to ratings — a listing with 400 favourites has not been rated 400
-times), and what Bright Data returns for Amazon beyond rating and review count
-is **unverified**. One Amazon call logging the raw payload would settle it, and
-should happen before the page is designed.
-
-A page that's rich for eBay and skeletal for Etsy is worse than one that shows
-less but is consistent. Show what exists, omit what doesn't, never pretend.
+**Still to do here:** price history as a line graph (below), and a lookup slide
+in the onboarding redo.
 
 ---
 
@@ -50,7 +57,10 @@ less but is consistent. Show what exists, omit what doesn't, never pretend.
 - **Signup errors** — a failed signup should say "something went wrong, try
   again", not surface a provider error.
 - **Fix the add-to-list popup** — Make it towards the top of the screen so keyboard doesnt cover the text input.
-- **Free searches 1/day → 5/day.** See the cost note below before shipping. (Most are free, and the api i plan on switching to only uses 1 credit for a search on multiple products.)
+- ~~**Free searches 1/day → 5/day.**~~ **Done**, along with the rest: guest
+  1→2, free 1→5, Pro 30→75, Ultimate 200→400. Free users are ~98% of traffic
+  and one search a day is not a product anyone can judge. The cost note below
+  still applies — pair with caching.
 - **Estimated wait times per store.** Nearly free: `ScrapeCheck` already stores
   `durationMs` for every call, so a median per retailer is a query against data
   we have.
@@ -59,7 +69,10 @@ less but is consistent. Show what exists, omit what doesn't, never pretend.
   where the product is heading. Changeable any time without a build. (I'll keep it PT&D for now)
 - **Price history as a line graph.** Continuous line, dollar axis, like a FRED
   chart. Bars read as discrete events; the data is a time series and the line
-  is the honest shape.
+  is the honest shape. Now visible on every lookup, so it matters more than it
+  did. Note the constraint: no charting library, because they all pull in
+  react-native-svg and this project ships a prebuilt `android/`. A line can be
+  drawn with rotated Views without adding a native module.
 
   -Also maybe move email verification to profile & homepage, it gets annoying on the signup page and can draw away users (my sister got annoyed at it)
 
@@ -148,8 +161,11 @@ official API or a paid residential proxy.
   to maintain, and not worth it.
 - **Shipment tracking** — needs paid carrier APIs and is arguably a different
   product. Highest cost-to-value on the list.
-- **Coupons** — no store offers these via API. Would mean scraping coupon
-  sites, which is its own project. Revisit after the product page exists.
+- **Coupons** — partly unparked. This said no store offers them via API, and
+  that turned out to be wrong: Amazon's payload carries `coupon` and
+  `coupon_description`, and the lookup page already shows them when present.
+  What's still parked is coupons for stores that don't publish them, which
+  would mean scraping coupon sites — its own project.
 - **Dropping to $4.99 / $9.99** — decided against for now. Worth remembering
   _why_: lowering later is easy, raising is not. Existing subscribers keep their
   price and Play requires consent for increases, so starting low is closer to a
@@ -222,7 +238,7 @@ absorbing "judge it", since price history is the evidence behind both.
 4. **Tester feedback lands** — two weeks of real usage. Ideas from studying
    competitors and ideas from watching your own users disagree, and when they
    do, users win. Re-order everything below this line at that point.
-5. **Product lookup page** — the big one.
+5. ~~**Product lookup page**~~ — done, ahead of schedule.
 6. **Similar products, share-to-app.**
 7. **Onboarding, redone last** — it should introduce the app as it ends up,
    not as it is now.

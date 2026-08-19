@@ -292,12 +292,34 @@ export default function LookupScreen() {
               <PriceChart history={result.history} currentPrice={detail.price} />
             </View>
 
-            {result.detail.reviews && <ReviewPanel reviews={result.detail.reviews} />}
+            {/* Three states, not two. A store that never returns reviews shows
+                nothing at all (the closing note explains why); a store that
+                does, on an item with none, says so — otherwise "no reviews
+                yet" and "we can't see reviews here" look identical. */}
+            {result.detail.reviews ? (
+              <ReviewPanel reviews={result.detail.reviews} />
+            ) : (
+              result.coverage.reviews && (
+                <View style={styles.card}>
+                  <SectionTitle>{t("lookup.reviewsTitle")}</SectionTitle>
+                  <Text style={styles.emptySection}>{t("lookup.noReviews")}</Text>
+                </View>
+              )
+            )}
 
             {result.detail.seller && <SellerPanel seller={result.detail.seller} />}
 
-            {result.detail.shipping && (
+            {result.detail.shipping ? (
               <ShippingPanel shipping={result.detail.shipping} />
+            ) : (
+              result.coverage.shipping && (
+                <View style={styles.card}>
+                  <SectionTitle>{t("lookup.shippingTitle")}</SectionTitle>
+                  <Text style={styles.emptySection}>
+                    {t("lookup.shippingNotListed")}
+                  </Text>
+                </View>
+              )
             )}
 
             {detail.features.length > 0 && (
@@ -790,6 +812,8 @@ const makeStyles = (colors: Palette) =>
     },
 
     description: { color: colors.textSecondary, fontSize: type.caption.fontSize, lineHeight: 18 },
+
+    emptySection: { color: colors.textTertiary, fontSize: type.caption.fontSize },
 
     missing: {
       color: colors.textTertiary,
