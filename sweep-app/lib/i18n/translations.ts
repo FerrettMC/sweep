@@ -96,6 +96,14 @@ export const en = {
       "There's already an account with that email, and that password doesn't match it. Use 'Forgot your password?' below — that works even if you never made this account, as long as you can read that inbox.",
     offline: "Couldn't reach Sweep. Check your connection and try again.",
     didYouMean: "Did you mean",
+    stillWaiting:
+      "Not confirmed yet. Open the link in the email, then try again.",
+    confirmWaiting: "Waiting for you to confirm…",
+    confirmAuto: "Tap the link, come back, and we'll sign you in automatically.",
+    confirmSpam: "Nothing yet? Check your spam folder.",
+    checkNow: "I've confirmed it",
+    differentEmail: "Use a different email",
+    resendIn: "You can send another in {{seconds}}s",
     tooManyAttempts: "Too many attempts just now. Wait a minute and try again.",
     badEmail: "That email address doesn't look right.",
     signupFailed: "Something went wrong. Please try again in a moment.",
@@ -103,8 +111,7 @@ export const en = {
     guestNote:
       "Compare prices across {{stores}} in one search. Guests get one a day.",
     confirmTitle: "Confirm your email",
-    confirmBody:
-      "We sent a link to {{email}}. Open it, then come back and log in.",
+    confirmBody: "We sent a link to {{email}}.",
     confirmBlocked:
       "That link hasn't been opened yet. Check your inbox (and spam) for the email from Sweep.",
     resend: "Resend email",
@@ -709,6 +716,14 @@ export const es: Translations = {
     offline:
       "No se pudo conectar con Sweep. Revisa tu conexión e inténtalo de nuevo.",
     didYouMean: "¿Quisiste decir",
+    stillWaiting:
+      "Aún sin confirmar. Abre el enlace del correo y vuelve a intentarlo.",
+    confirmWaiting: "Esperando a que lo confirmes…",
+    confirmAuto: "Toca el enlace, vuelve y te firmaremos automáticamente.",
+    confirmSpam: "¿No llega? Revisa la carpeta de spam.",
+    checkNow: "Ya lo confirmé",
+    differentEmail: "Usar otro correo",
+    resendIn: "Puedes enviar otro en {{seconds}} s",
     tooManyAttempts: "Demasiados intentos. Espera un minuto e inténtalo otra vez.",
     badEmail: "Esa dirección de correo no parece correcta.",
     signupFailed: "Algo salió mal. Inténtalo de nuevo en un momento.",
@@ -716,8 +731,7 @@ export const es: Translations = {
     guestNote:
       "Compara precios en {{stores}} con una sola búsqueda. Los invitados tienen una al día.",
     confirmTitle: "Confirma tu correo",
-    confirmBody:
-      "Te enviamos un enlace a {{email}}. Ábrelo y luego vuelve para entrar.",
+    confirmBody: "Te enviamos un enlace a {{email}}.",
     confirmBlocked:
       "Todavía no has abierto el enlace. Revisa tu bandeja (y spam) por el correo de Sweep.",
     resend: "Reenviar correo",

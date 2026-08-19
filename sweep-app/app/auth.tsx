@@ -18,7 +18,8 @@ import { useTranslate } from "@/lib/i18n";
 import { friendlyAuthErrorKey } from "@/lib/authErrors";
 import { suggestEmail } from "@/lib/emailTypos";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   AppState,
   Keyboard,
@@ -29,6 +30,9 @@ import {
   TextInput,
   View,
 } from "react-native";
+
+/** Supabase refuses rapid resends; this keeps the button honest about it. */
+const RESEND_COOLDOWN_MS = 60_000;
 
 export default function Auth() {
   const { colors } = useTheme();
@@ -51,6 +55,13 @@ export default function Auth() {
   // was pressed, which reads as the button doing nothing.
   const [awaitingConfirm, setAwaitingConfirm] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
+  const [checking, setChecking] = useState(false);
+  // Epoch ms until which resend is refused. Supabase rate-limits these, and a
+  // provider error after an eager double-tap reads as "it's broken".
+  const [resendReadyAt, setResendReadyAt] = useState(0);
+  // Re-renders once a second so the cooldown label counts down instead of
+  // freezing at whatever it said when the button was pressed.
+  const [, setTick] = useState(0);
   // Scrolling is only enabled when the content genuinely overflows. A
   // ScrollView claims a touch as a scroll the moment the finger drifts a few
   // pixels, which cancels the press underneath it — so on a screen that fits,
@@ -71,29 +82,48 @@ export default function Auth() {
   const credentials = useRef({ email: "", password: "" });
   credentials.current = { email, password };
 
+  /**
+   * Try to sign in with what's already in the form.
+   *
+   * Returns whether it worked, so the manual "I've confirmed" button can say
+   * something when it hasn't while the automatic retry stays silent.
+   */
+  const tryConfirmedSignIn = useCallback(async (): Promise<boolean> => {
+    const { email: address, password: secret } = credentials.current;
+    if (!address || !secret) return false;
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: address,
+      password: secret,
+    });
+    if (error || !data.session) return false;
+
+    setAwaitingConfirm(null);
+    await setGuestMode(false);
+    router.replace("/(tabs)");
+    return true;
+  }, [router]);
+
+  useEffect(() => {
+    if (Date.now() >= resendReadyAt) return;
+    const timer = setInterval(() => setTick((n) => n + 1), 1000);
+    // Stops as soon as the cooldown lapses, so nothing ticks on a screen with
+    // nothing counting.
+    return () => clearInterval(timer);
+  }, [resendReadyAt]);
+
   useEffect(() => {
     if (!awaitingConfirm) return;
 
-    const subscription = AppState.addEventListener("change", async (state) => {
-      if (state !== "active") return;
-      const { email: address, password: secret } = credentials.current;
-      if (!address || !secret) return;
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: address,
-        password: secret,
-      });
-      // Still unconfirmed is the expected case on most returns — say nothing
-      // rather than nagging someone who just switched apps for a second.
-      if (error || !data.session) return;
-
-      setAwaitingConfirm(null);
-      await setGuestMode(false);
-      router.replace("/(tabs)");
+    const subscription = AppState.addEventListener("change", (state) => {
+      // Still unconfirmed is the expected case on most returns — this stays
+      // silent either way rather than nagging someone who switched apps for a
+      // second.
+      if (state === "active") void tryConfirmedSignIn();
     });
 
     return () => subscription.remove();
-  }, [awaitingConfirm, router]);
+  }, [awaitingConfirm, tryConfirmedSignIn]);
 
   function fail(text: string) {
     setIsError(true);
@@ -200,7 +230,7 @@ export default function Auth() {
   }
 
   async function resendConfirmation() {
-    if (!awaitingConfirm) return;
+    if (!awaitingConfirm || Date.now() < resendReadyAt) return;
     setResending(true);
     try {
       const { error } = await supabase.auth.resend({
@@ -210,11 +240,43 @@ export default function Auth() {
       setIsError(Boolean(error));
       // Supabase rate-limits resends; saying so beats a raw provider error.
       setMessage(error ? t("auth.resendFailed") : t("auth.resent"));
+      // Set on failure too. A refusal is usually the rate limit itself, and
+      // letting someone tap straight into another one just repeats it.
+      setResendReadyAt(Date.now() + RESEND_COOLDOWN_MS);
     } catch {
       fail(t("auth.offline"));
     } finally {
       setResending(false);
     }
+  }
+
+  /**
+   * "I've confirmed" — the manual version of the automatic retry.
+   *
+   * Exists because the automatic one is driven by the app returning to the
+   * foreground, which never happens if the link is opened somewhere else. A
+   * confirmation email read on a laptop leaves the phone sitting on this
+   * screen forever with no way forward.
+   */
+  async function checkConfirmed() {
+    setChecking(true);
+    setMessage(null);
+    try {
+      const signedIn = await tryConfirmedSignIn();
+      if (!signedIn) fail(t("auth.stillWaiting"));
+    } catch {
+      fail(t("auth.offline"));
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  /** Back to the form, so a wrong address doesn't mean restarting the app. */
+  function useDifferentEmail() {
+    setAwaitingConfirm(null);
+    setMessage(null);
+    setPassword("");
+    setResendReadyAt(0);
   }
 
   async function continueAsGuest() {
@@ -234,6 +296,64 @@ export default function Auth() {
       return false;
     }
     return true;
+  }
+
+  // A screen of its own rather than a panel above the form. The panel left
+  // "Sign up" and "Log in" sitting underneath it, so the most common next
+  // action was pressing Sign up again — which does nothing useful and reads
+  // as the app having ignored you. There is exactly one thing to do here.
+  if (awaitingConfirm) {
+    const waitSeconds = Math.ceil((resendReadyAt - Date.now()) / 1000);
+    const canResend = waitSeconds <= 0;
+
+    return (
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.confirmIcon}>
+          <Ionicons name="mail-outline" size={30} color={colors.accent} />
+        </View>
+
+        <Text style={styles.confirmHeading}>{t("auth.confirmTitle")}</Text>
+        <Text style={styles.confirmBody}>
+          {t("auth.confirmBody", { email: awaitingConfirm })}
+        </Text>
+        <Text style={styles.confirmAuto}>{t("auth.confirmAuto")}</Text>
+
+        {message && (
+          <Text style={[styles.message, !isError && styles.messageOk]}>
+            {message}
+          </Text>
+        )}
+
+        {/* First, because it's the one that works when the link was opened on
+            a different device — where nothing else on this screen will ever
+            fire on its own. */}
+        <Button
+          label={t("auth.checkNow")}
+          onPress={checkConfirmed}
+          busy={checking}
+        />
+        <Button
+          label={canResend ? t("auth.resend") : t("auth.resendIn", { seconds: waitSeconds })}
+          onPress={resendConfirmation}
+          busy={resending}
+          disabled={!canResend}
+          variant="secondary"
+        />
+
+        <Text style={styles.confirmSpam}>{t("auth.confirmSpam")}</Text>
+
+        {/* The way out of a typo. Without it a wrong address is a dead end
+            that survives restarting the app, because the account already
+            exists and signing in is refused until it's confirmed. */}
+        <Pressable style={styles.forgotButton} onPress={useDifferentEmail} hitSlop={8}>
+          <Text style={styles.forgotText}>{t("auth.differentEmail")}</Text>
+        </Pressable>
+      </ScrollView>
+    );
   }
 
   return (
@@ -292,22 +412,6 @@ export default function Auth() {
         onChangeText={setPassword}
         textContentType="password"
       />
-
-      {awaitingConfirm && (
-        <View style={styles.confirmPanel}>
-          <Text style={styles.confirmTitle}>{t("auth.confirmTitle")}</Text>
-          <Text style={styles.confirmBody}>
-            {t("auth.confirmBody", { email: awaitingConfirm })}
-          </Text>
-          <Button
-            label={t("auth.resend")}
-            onPress={resendConfirmation}
-            busy={resending}
-            variant="secondary"
-            compact
-          />
-        </View>
-      )}
 
       {message && (
         <Text style={[styles.message, !isError && styles.messageOk]}>
@@ -383,6 +487,28 @@ const makeStyles = (colors: Palette) =>
       textAlign: "center",
       marginBottom: spacing.lg,
     },
+    confirmIcon: {
+      alignSelf: "center",
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      backgroundColor: colors.accentMuted,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: spacing.sm,
+    },
+    confirmAuto: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      textAlign: "center",
+      marginBottom: spacing.sm,
+    },
+    confirmSpam: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      textAlign: "center",
+      marginTop: spacing.xs,
+    },
     suggestion: { paddingHorizontal: spacing.xs, marginTop: -spacing.xs },
     suggestionText: { color: colors.textSecondary, fontSize: type.caption.fontSize },
     suggestionEmail: { color: colors.accent, fontWeight: "700" },
@@ -395,24 +521,18 @@ const makeStyles = (colors: Palette) =>
       color: colors.textPrimary,
       fontSize: 16,
     },
-    confirmPanel: {
-      gap: 6,
-      padding: spacing.md,
-      borderRadius: radius.md,
-      backgroundColor: colors.accentMuted,
-      borderWidth: 1,
-      borderColor: colors.accent,
-    },
-    confirmTitle: {
+    confirmHeading: {
       color: colors.textPrimary,
-      fontSize: type.label.fontSize,
+      fontSize: type.title.fontSize,
       fontWeight: "800",
+      textAlign: "center",
     },
     confirmBody: {
-      color: colors.textSecondary,
-      fontSize: type.label.fontSize,
-      lineHeight: 18,
-      marginBottom: 4,
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+      lineHeight: 20,
+      textAlign: "center",
+      fontWeight: "600",
     },
     message: {
       color: colors.danger,
