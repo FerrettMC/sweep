@@ -372,6 +372,11 @@ export const en = {
     noReviews: "No reviews for this item yet.",
     shippingUnknown: "The store didn't quote a shipping cost.",
     arrives: "Arrives {{when}}",
+    similarTitle: "You might also want",
+    similarNote:
+      "Found among products people have already searched for, so this isn't every option — just ones we've seen.",
+    looseMatch: "not identical",
+    saves: "saves {{amount}}",
     featuresTitle: "Highlights",
     specsTitle: "Details",
     aboutTitle: "About this item",
@@ -1045,6 +1050,11 @@ export const es: Translations = {
     noReviews: "Este artículo aún no tiene opiniones.",
     shippingUnknown: "La tienda no indicó el coste de envío.",
     arrives: "Llega {{when}}",
+    similarTitle: "También te puede interesar",
+    similarNote:
+      "Encontrados entre productos que otras personas ya han buscado, así que no están todas las opciones: solo las que hemos visto.",
+    looseMatch: "no es idéntico",
+    saves: "ahorras {{amount}}",
     featuresTitle: "Destacados",
     specsTitle: "Detalles",
     aboutTitle: "Sobre este artículo",

@@ -885,6 +885,24 @@ export interface DetailCoverage {
   specs: boolean;
 }
 
+export interface SimilarProduct {
+  productId: string;
+  retailer: string;
+  retailerLabel: string;
+  title: string;
+  url: string;
+  imageUrl: string | null;
+  price: number;
+  /** Positive means cheaper than the product being viewed. */
+  saving: number;
+  /**
+   * "same" is a confident like-for-like; "similar" is explicitly not claimed
+   * to be identical, and the caveats say why.
+   */
+  confidence: "same" | "similar";
+  caveats: string[];
+}
+
 export interface LookupResult {
   detail: ProductDetail;
   /**
@@ -894,6 +912,11 @@ export interface LookupResult {
   sale: SaleAssessment | null;
   coverage: DetailCoverage;
   history: { price: number; checkedAt: string }[];
+  /**
+   * Other listings that look like the same thing, from what the server has
+   * already cached — never a fresh store search. Empty is normal.
+   */
+  similar: SimilarProduct[];
   productId: string;
   isTracked: boolean;
   /** False when the store couldn't be reached and this came from cache. */

@@ -182,10 +182,16 @@ than only for them.
 
 ## Features, in order of cost
 
-**Similar products** — cheaper than it sounds; `lib/matching.ts` still has the
-title-matching that Sweep This Deal used, and it outlived the feature it was
-written for. Natural home is a row on the lookup page. Metered 1 / 8 / 50 per
-day.
+~~**Similar products**~~ — **shipped, and free.** The obvious build was a
+fan-out across every store, which is exactly what made Sweep This Deal cost
+enough to ration at one a day. Instead it queries our own `Product` cache,
+which every search, radar run and job already writes to — so it costs one
+database query, no retailer call, no quota, and needs no metering at all.
+
+The trade is coverage: it can only suggest things somebody has already
+searched for, so it shows nothing when it knows nothing and gets better every
+time anyone uses the app. `lib/matching.ts` did the hard part, which is why
+this was small.
 
 **Share from Amazon into the app** — Android intent filter plus the existing
 `resolveProduct`, landing on tracking or the new product page. Good win,

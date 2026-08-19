@@ -322,6 +322,15 @@ export default function LookupScreen() {
               )
             )}
 
+            {result.similar.length > 0 && (
+              <SimilarPanel
+                items={result.similar}
+                onOpen={(item) =>
+                  router.push(`/lookup?productId=${item.productId}`)
+                }
+              />
+            )}
+
             {detail.features.length > 0 && (
               <View style={styles.card}>
                 <SectionTitle>{t("lookup.featuresTitle")}</SectionTitle>
@@ -472,6 +481,71 @@ function ReviewPanel({
           </ScrollView>
         </>
       )}
+    </View>
+  );
+}
+
+function SimilarPanel({
+  items,
+  onOpen,
+}: {
+  items: LookupResult["similar"];
+  onOpen: (item: LookupResult["similar"][number]) => void;
+}) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const t = useTranslate();
+
+  return (
+    <View style={styles.card}>
+      <SectionTitle>{t("lookup.similarTitle")}</SectionTitle>
+      {/* Said once, at the top: these come from what other people have already
+          searched, so an empty or thin row is about our data rather than about
+          the product. */}
+      <Text style={styles.similarNote}>{t("lookup.similarNote")}</Text>
+
+      {items.map((item) => (
+        <Pressable
+          key={item.productId}
+          style={styles.similarRow}
+          onPress={() => onOpen(item)}
+        >
+          {item.imageUrl ? (
+            <Image source={{ uri: item.imageUrl }} style={styles.similarImage} />
+          ) : (
+            <View style={styles.similarImage} />
+          )}
+
+          <View style={styles.similarBody}>
+            <Text style={styles.similarTitle} numberOfLines={2}>
+              {item.title}
+            </Text>
+            <View style={styles.similarMeta}>
+              <View
+                style={[
+                  styles.storeDot,
+                  { backgroundColor: retailerColor(colors, item.retailer) },
+                ]}
+              />
+              <Text style={styles.similarStore}>{item.retailerLabel}</Text>
+              {/* Only "same" is ever claimed. Anything less says so in words
+                  rather than being presented as a like-for-like swap. */}
+              {item.confidence === "similar" && (
+                <Text style={styles.similarLoose}>{t("lookup.looseMatch")}</Text>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.similarPrices}>
+            <Text style={styles.similarPrice}>{formatPrice(item.price)}</Text>
+            {item.saving > 0 && (
+              <Text style={styles.similarSaving}>
+                {t("lookup.saves", { amount: formatPrice(item.saving) })}
+              </Text>
+            )}
+          </View>
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -813,6 +887,40 @@ const makeStyles = (colors: Palette) =>
 
     description: { color: colors.textSecondary, fontSize: type.caption.fontSize, lineHeight: 18 },
 
+    similarNote: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    similarRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      paddingVertical: spacing.xs,
+    },
+    similarImage: {
+      width: 46,
+      height: 46,
+      borderRadius: radius.sm,
+      backgroundColor: colors.background,
+      resizeMode: "contain",
+    },
+    similarBody: { flex: 1, gap: 2 },
+    similarTitle: {
+      color: colors.textPrimary,
+      fontSize: type.caption.fontSize,
+      lineHeight: 16,
+    },
+    similarMeta: { flexDirection: "row", alignItems: "center", gap: 5 },
+    similarStore: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    similarLoose: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      fontStyle: "italic",
+    },
+    similarPrices: { alignItems: "flex-end" },
+    similarPrice: {
+      color: colors.textPrimary,
+      fontSize: type.label.fontSize,
+      fontWeight: "700",
+    },
+    similarSaving: { color: colors.success, fontSize: type.caption.fontSize, fontWeight: "600" },
     emptySection: { color: colors.textTertiary, fontSize: type.caption.fontSize },
 
     missing: {

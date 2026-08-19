@@ -32,7 +32,8 @@
     "test:concurrency": "tsx src/test-concurrency.ts",
     "test:billing": "tsx src/test-billing.ts",
     "test:contract": "tsx src/test-contract.ts",
-    "test:lookup": "tsx src/test-lookup.ts"
+    "test:lookup": "tsx src/test-lookup.ts",
+    "test:similar": "tsx src/test-similar.ts"
   },
   "keywords": [],
   "author": "",

@@ -26,6 +26,7 @@ import { prisma } from "./prisma.js";
 import { upsertScrapedProduct } from "./priceChecker.js";
 import { adapters } from "./scrapers/index.js";
 import { judgeSale, type SaleAssessment } from "./saleVerdict.js";
+import { findSimilarProducts, type SimilarProduct } from "./similar.js";
 import type { Retailer, ScrapedProduct } from "./scrapers/types.js";
 
 export interface PricePoint {
@@ -47,6 +48,12 @@ export interface LookupResult {
   /** Which sections this store can fill at all — see productDetail.ts. */
   coverage: DetailCoverage;
   history: PricePoint[];
+  /**
+   * Other listings that look like the same thing, from what we've already
+   * cached. Never a retailer call — see similar.ts. Empty is normal and means
+   * nothing worth showing, not that nothing exists.
+   */
+  similar: SimilarProduct[];
   /** Our product row, so the page can offer to track it. */
   productId: string;
   isTracked: boolean;
@@ -106,7 +113,7 @@ export async function lookupProduct(
     }
   }
 
-  const [history, tracked] = await Promise.all([
+  const [history, tracked, similar] = await Promise.all([
     loadHistory(productId, options.historyDays),
     options.userId
       ? prisma.trackedProduct.findUnique({
@@ -114,6 +121,11 @@ export async function lookupProduct(
           select: { id: true },
         })
       : Promise.resolve(null),
+    // Deliberately after the cache write above, so the price it compares
+    // against is the one we just read rather than the stale one. Touches only
+    // our own tables, so it adds a query rather than a wait, and it never
+    // fails the lookup — a missing row is not worth losing the page over.
+    findSimilarProducts(productId).catch(() => [] as SimilarProduct[]),
   ]);
 
   const shown = detail ?? fromCache(product);
@@ -141,6 +153,7 @@ export async function lookupProduct(
       specs: false,
     },
     history,
+    similar,
     productId,
     isTracked: tracked !== null,
     fresh: detail !== null,
