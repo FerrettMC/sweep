@@ -133,7 +133,16 @@ export async function notifyPriceDrop({
       kind: "price-drop",
       title: truncate(product.title, 60),
       body,
-      href: `/lookup?productId=${product.id}`,
+      // The tracked-product page, NOT /lookup. Two reasons, and the second is
+      // the one that matters: /lookup spends a product lookup from the user's
+      // daily allowance, so tapping a notification we sent would quietly cost
+      // them something. It's also the wrong screen — someone told a price
+      // dropped wants the history and the tracking controls for the item they
+      // already follow, not a fresh page about it.
+      //
+      // This is also where the push itself goes, so both routes to the same
+      // event land in the same place.
+      href: `/product/${product.id}`,
     });
 
     for (const { token } of tracked.user.pushTokens) {
@@ -278,6 +287,9 @@ export async function notifyRadarMatch(input: {
     kind: "radar-match",
     title: truncate(input.title, 60),
     body,
+    // Matches where the push goes. A radar hit is about the saved search
+    // rather than one product — the interesting thing is what it found and
+    // whether the search is still worth keeping.
     href: "/radar",
   });
 

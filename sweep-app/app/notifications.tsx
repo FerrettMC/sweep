@@ -23,6 +23,28 @@ import { type AppNotification, getNotifications, markNotificationsRead } from "@
 import { formatRelativeTime } from "@/lib/format";
 import { setUnreadCount } from "@/lib/unreadCount";
 
+/**
+ * Follow a link that came from the server.
+ *
+ * The href is stored text — a price drop builds one, and an announcement can
+ * carry whatever path was typed when it was sent. A build that predates a
+ * route, or a typo at send time, would otherwise throw inside a tap handler
+ * and take the screen down with it.
+ *
+ * Failing to navigate is a dead tap, which is bad. Crashing the notifications
+ * screen is worse.
+ */
+function useOpenHref() {
+  const router = useRouter();
+  return (href: string) => {
+    try {
+      router.push(href as never);
+    } catch {
+      // Nowhere to go. The row stays where it is.
+    }
+  };
+}
+
 /** Icon per kind, with a fallback so a kind added later still renders. */
 const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   "price-drop": "trending-down-outline",
@@ -34,7 +56,7 @@ export default function Notifications() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const t = useTranslate();
-  const router = useRouter();
+  const openHref = useOpenHref();
 
   const [items, setItems] = useState<AppNotification[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -113,7 +135,7 @@ export default function Notifications() {
             return item.href ? (
               <Pressable
                 key={item.id}
-                onPress={() => router.push(item.href as never)}
+                onPress={() => openHref(item.href!)}
                 style={({ pressed }) => [styles.card, pressed && styles.pressed]}
               >
                 {row}
