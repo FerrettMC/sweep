@@ -93,8 +93,29 @@ it safe:
 - **The cooldown is cleared first**, so running it twice in a row works
   instead of silently doing nothing and looking broken.
 
-`pushesSent: 0` is not a failure — it means that account has no push token, and
-the response says so. The bell entry is filed either way.
+### Reading the response
+
+The bell entry is always filed. The push is the part that can fail quietly, so
+the response says which stage it reached:
+
+| Field               | Means                                                     |
+| ------------------- | --------------------------------------------------------- |
+| `devicesRegistered` | Push tokens on that account. **0 is the usual reason nothing buzzes** |
+| `pushesAttempted`   | Messages handed to Expo — attempted, not delivered          |
+| `pushOutcomes`      | What Expo said per message: `ok`, `DeviceNotRegistered`, or its error name |
+
+**`devicesRegistered: 0`** — the app never registered this device. Open Sweep,
+allow notifications when asked, and check Profile reports alerts as on. Note
+that signing out deregisters the device on purpose, so a fresh sign-in has to
+grant again.
+
+**`pushOutcomes: ["ok"]` but nothing arrived** — Expo accepted it and Android
+didn't show it. Usually notifications are blocked for Sweep in Android
+settings, or the build predates the `price-drops` channel, which Android drops
+silently when the channel doesn't exist.
+
+**`pushOutcomes: ["DeviceNotRegistered"]`** — the token was stale; it has now
+been deleted. Reopen the app to register a fresh one and try again.
 
 ## Note
 

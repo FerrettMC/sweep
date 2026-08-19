@@ -14,7 +14,7 @@ import type { FastifyInstance } from "fastify";
 import { Expo } from "expo-server-sdk";
 import { requireAuth } from "../lib/auth.js";
 import { prisma } from "../lib/prisma.js";
-import { notifyPriceDrop } from "../lib/push.js";
+import { lastPushOutcomes, notifyPriceDrop } from "../lib/push.js";
 import { timingSafeEqual } from "node:crypto";
 import {
   countUnread,
@@ -288,18 +288,31 @@ export async function notificationRoutes(app: FastifyInstance) {
       onlyUserId: user.id,
     });
 
+    const tokens = await prisma.pushToken.count({ where: { userId: user.id } });
+
     return {
       product: target.product.title,
       previousPrice,
       newPrice,
-      pushesSent: sent,
+      // Attempted, not delivered — which is exactly why the two fields below
+      // exist. Expo accepting a message says nothing about it arriving.
+      pushesAttempted: sent,
+      devicesRegistered: tokens,
+      /**
+       * What Expo said about each message. "ok" means accepted;
+       * "DeviceNotRegistered" means the token is dead and has now been
+       * removed; anything else is Expo's own error name.
+       */
+      pushOutcomes: sent > 0 ? lastPushOutcomes() : [],
       // Says so explicitly, because "0 pushes" looks like failure when it
       // usually means notifications simply aren't switched on — and the bell
       // entry was still filed either way.
       note:
-        sent === 0
-          ? "No push token on this account, so nothing buzzed — but the notification is in the bell."
-          : "Push sent, and the notification is in the bell.",
+        tokens === 0
+          ? "This account has no registered device, so nothing could buzz. Open the app, allow notifications, and check Profile says alerts are on. The bell entry was filed either way."
+          : sent === 0
+            ? "A device is registered but no message was built — the drop may not have met the alert rules."
+            : "Accepted by Expo. If nothing arrived, check pushOutcomes above and that notifications are allowed for Sweep in Android settings.",
     };
   });
 }

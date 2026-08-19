@@ -25,6 +25,23 @@ import { TIER_LIMITS, type Tier, effectiveTier } from "./tiers.js";
 // only matters if you enable enhanced push security in your Expo account.
 const expo = new Expo({ accessToken: process.env.EXPO_ACCESS_TOKEN });
 
+/**
+ * Outcome of the most recent send, for diagnostics only.
+ *
+ * A push that Expo accepts and then fails to deliver is otherwise invisible:
+ * the count of messages sent says nothing about whether any arrived. The admin
+ * test endpoint reads this to answer "it didn't buzz — why?" with the reason
+ * rather than a shrug.
+ *
+ * Deliberately a single module-level value rather than anything durable. It is
+ * a debugging aid, and giving it a table would imply somebody reads it later.
+ */
+let lastTickets: string[] = [];
+
+export function lastPushOutcomes(): string[] {
+  return lastTickets;
+}
+
 /** Don't notify for trivial movement — noise costs trust. */
 const MIN_DROP_PERCENT = 3;
 const MIN_DROP_CENTS = 100;
@@ -153,6 +170,11 @@ export async function notifyPriceDrop({
 
   const tickets = await send(messages);
   await pruneDeadTokens(messages, tickets);
+  lastTickets = tickets.map((ticket) =>
+    ticket.status === "error"
+      ? (ticket.details?.error ?? "error")
+      : "ok",
+  );
 
   // Stamp the cooldown for everyone told, by push or in the app.
   if (notifiedTrackedIds.length > 0) {
