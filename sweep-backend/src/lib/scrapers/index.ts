@@ -21,11 +21,13 @@ import {
   RETAILERS,
   fail,
   isRetailer,
+  ok,
   type Retailer,
   type ScrapeResult,
   type ScrapedProduct,
 } from "./types.js";
 import type { ProductDetail } from "../productDetail.js";
+import { readSearchCache, writeSearchCache } from "./searchCache.js";
 import { throttled } from "./rateGate.js";
 import { cooldownRemaining, noteBlocked, noteSuccess } from "./cooldown.js";
 
@@ -202,8 +204,13 @@ export const adapters: Record<Retailer, RetailerAdapter> = Object.fromEntries(
       retailer,
       {
         ...adapter,
+        // Cache first, then the gate. Wrapped here for the same reason the
+        // gate is: there are six call sites, and the one that forgets is the
+        // one that spends money re-asking a question we already paid for.
         search: (keyword: string, limit: number) =>
-          guarded(retailer, () => adapter.search(keyword, limit)),
+          cached(retailer, keyword, limit, adapter.metered, () =>
+            guarded(retailer, () => adapter.search(keyword, limit)),
+          ),
         scrapeProduct: (url: string) =>
           guarded(retailer, () => adapter.scrapeProduct(url)),
         // Gated for the same reason as the others: a lookup is a real request
@@ -217,6 +224,45 @@ export const adapters: Record<Retailer, RetailerAdapter> = Object.fromEntries(
     ],
   ),
 ) as Record<Retailer, RetailerAdapter>;
+
+/**
+ * Answer from the cache when we can, and record the answer when we can't.
+ *
+ * Sits outside the rate gate deliberately: a question we already have the
+ * answer to should not wait for a slot, and should not consume one that a
+ * genuine new search could use.
+ *
+ * Only successes are cached. A blocked or failed call is never recorded, so a
+ * store having a bad minute can't be served back as "this store has nothing"
+ * for the next few hours.
+ */
+async function cached(
+  retailer: Retailer,
+  keyword: string,
+  limit: number,
+  metered: boolean,
+  work: () => Promise<ScrapeResult<ScrapedProduct[]>>,
+): Promise<ScrapeResult<ScrapedProduct[]>> {
+  try {
+    const hit = await readSearchCache(retailer, keyword, limit, metered);
+    if (hit) return ok(hit, 0);
+  } catch {
+    // A cache that can't be read is a cache miss, never an error the user
+    // sees. The whole point is to be invisible.
+  }
+
+  const result = await work();
+
+  if (result.status === "success") {
+    try {
+      await writeSearchCache(retailer, keyword, limit, result.data);
+    } catch {
+      // Failing to record it costs us the next call, not this one.
+    }
+  }
+
+  return result;
+}
 
 /**
  * Pacing plus the circuit breaker, in that order.

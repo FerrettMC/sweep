@@ -117,6 +117,12 @@ model Product {
   availability  String?   // free-text from the retailer, normalized where possible
   rating        Float?
   ratingCount   Int?
+  // Marketplace seller feedback, kept separate from `rating` because 99.3%
+  // positive feedback and 4.4 stars on a product are not the same claim.
+  // eBay is the only source today. Added so the search cache can rebuild a
+  // result faithfully rather than quietly dropping the seller half.
+  sellerRating      Float?
+  sellerRatingCount Int?
   lastCheckedAt DateTime?
   // Outcome of the most recent check. Mirrors ScrapeCheck.status but kept here
   // so a stale/blocked product can be filtered without joining the log.
@@ -222,6 +228,31 @@ model IpQuota {
   searchesUsedToday Int      @default(0)
   searchesResetAt   DateTime @default(now())
   createdAt         DateTime @default(now())
+}
+
+// One row per (keyword, retailer) search we've already paid for.
+//
+// Stores WHICH PRODUCTS matched, not what they cost. Prices live on Product
+// and are refreshed by scheduled checks and by anyone looking a product up, so
+// rebuilding a cached search reads today's prices rather than replaying the
+// ones that were current when the search ran. The expensive part of a search
+// is discovering the matches; that is the part worth keeping.
+model SearchCache {
+  id         String   @id @default(uuid())
+  // Normalized: lowercased, trimmed, whitespace collapsed. "AirPods  Pro" and
+  // "airpods pro" are the same question and should not be paid for twice.
+  keyword    String
+  retailer   String
+  // Product ids, in the order the retailer returned them. Relevance order is
+  // part of what we paid for.
+  productIds String[]
+  // How many results were asked for. A cache filled by a request for 4 can't
+  // answer a request for 8, so this is checked before the entry is used.
+  limit      Int
+  fetchedAt  DateTime @default(now())
+
+  @@unique([keyword, retailer])
+  @@index([fetchedAt])
 }
 
 model GuestQuota {

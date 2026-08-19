@@ -1,0 +1,2 @@
+-No AI, so we almost never hallucinate products and prices.
+-No ads except the one to get more searches (reword this)

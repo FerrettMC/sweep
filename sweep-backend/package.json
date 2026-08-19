@@ -33,7 +33,8 @@
     "test:billing": "tsx src/test-billing.ts",
     "test:contract": "tsx src/test-contract.ts",
     "test:lookup": "tsx src/test-lookup.ts",
-    "test:similar": "tsx src/test-similar.ts"
+    "test:similar": "tsx src/test-similar.ts",
+    "test:searchcache": "tsx src/test-searchcache.ts"
   },
   "keywords": [],
   "author": "",

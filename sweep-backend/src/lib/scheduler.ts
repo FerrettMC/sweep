@@ -8,6 +8,7 @@
 // SCHEDULER_ENABLED=false on all but one instance when that day comes.
 
 import cron from "node-cron";
+import { pruneSearchCache } from "./scrapers/searchCache.js";
 import { recordCheck, runHealthCheck } from "./health.js";
 import { adapters, disabledRetailers } from "./scrapers/index.js";
 import { cooldownRemaining } from "./scrapers/cooldown.js";
@@ -57,6 +58,19 @@ export function startScheduler() {
       }
     } catch (err) {
       console.error("[scheduler] health check threw:", err);
+    }
+  });
+
+  // Sweep out search-cache entries nothing can use any more. Hourly and off
+  // the hour, because it competes with nothing and matters to nobody — an
+  // expired row is already ignored on read, so this is housekeeping rather
+  // than correctness.
+  cron.schedule("47 * * * *", async () => {
+    try {
+      const removed = await pruneSearchCache();
+      if (removed > 0) console.log(`[scheduler] pruned ${removed} search-cache entries`);
+    } catch (err) {
+      console.error("[scheduler] search-cache prune threw:", err);
     }
   });
 

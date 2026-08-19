@@ -286,10 +286,20 @@ banner already names Amazon as unavailable. So it degrades to "Amazon is
 missing from results" rather than breaking search, and there's no cliff to
 plan around.
 
-**Still worth doing: caching searches by keyword.** Right now every user
-searching "airpods" triggers a fresh scrape. Caching even briefly collapses
-repeat traffic, and popular queries repeat constantly. It's the single biggest
-lever on cost, it's free, and it makes both providers go further.
+~~**Caching searches by keyword.**~~ **Done.** Wrapped around
+`adapters[retailer].search` — the same choke point the rate gate uses — so
+every path gets it by construction rather than by remembering.
+
+What's cached is the **match set, not the prices**: a row records which
+products a keyword returned, and prices are read back from `Product`, which
+scheduled checks and product lookups keep current. Discovering matches is the
+expensive half and ages slowly; prices are the cheap half and age fast, so
+they're deliberately not frozen in.
+
+TTL is split by cost, not by taste — 3 hours for Amazon, the only retailer
+that charges us, and 45 minutes for the free APIs. Failures and empty results
+are never cached, so a store having a bad minute can't be served back as "this
+store has nothing" for hours.
 
 ---
 
