@@ -37,6 +37,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase";
 
 /** Supabase allows 6–10; don't hard-code the project's current choice. */
+// Supabase's email OTP length is a project setting, valid from 6 to 10, so
+// both ends are accepted rather than one length assumed. Six is what it should
+// be set to: a code is read in another app and typed back in this one, and six
+// digits survive that trip in one glance where eight does not.
 const MIN_CODE_LENGTH = 6;
 const MAX_CODE_LENGTH = 10;
 
@@ -174,6 +178,11 @@ export default function ForgotPasswordSheet({
                   autoCapitalize="characters"
                   autoCorrect={false}
                   maxLength={MAX_CODE_LENGTH}
+                  // Lets the OS offer the code straight from the notification
+                  // where it can, which is the whole trip to the mail app and
+                  // back. Ignored where it can't; costs nothing to ask.
+                  textContentType="oneTimeCode"
+                  autoComplete="one-time-code"
                   autoFocus
                 />
                 <PasswordInput

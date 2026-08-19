@@ -75,6 +75,22 @@ whichever device opened the email — for a reset read on a laptop, that's the
 wrong device, and the phone is still sitting there asking for a code. One route
 through, and it's the one the app implements.
 
+## Set the OTP length to 6
+
+Supabase → Authentication → Providers → Email → **Email OTP Length**. It
+defaults to 8 and is valid from 6 to 10.
+
+Six, because of how the code is actually used: it arrives in an email, so the
+person reads it in their mail app and types it into Sweep. Six digits survive
+that trip in one glance; eight means going back to check, and each round trip
+is a chance to give up. The app accepts anything from 6 to 10, so changing
+this needs no release.
+
+While in there, **Minimum password length** should be 8, matching
+`MIN_PASSWORD_LENGTH` in the app. If Supabase's is lower the app is simply
+stricter, which is harmless; if it's higher, a password the app accepted gets
+refused by the server.
+
 ## Why the plaintext looks the way it does
 
 Supabase derives the plaintext copy of each email from the HTML, line by line.
