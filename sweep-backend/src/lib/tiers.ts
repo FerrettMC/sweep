@@ -70,14 +70,19 @@ export interface TierLimits {
   budgetExport: boolean;
 
   /**
-   * "Sweep this deal" runs a day. Zero means the tier doesn't get it.
+   * Product lookups a day — one enriched page about one product.
    *
-   * The most expensive single action in the app: a full retailer fan-out plus
-   * history analysis for one product. Priced accordingly, and deliberately a
-   * small number — it's meant to be used on the purchase you're about to make,
-   * not on everything you glance at.
+   * Replaces "Sweep this deal", and the numbers moved a long way because the
+   * work did. A sweep fanned out to every retailer and re-read history across
+   * all of them, which is why it was rationed at 1/day. A lookup is a single
+   * call to a single store, so it can be the thing people open the app for
+   * rather than a rationed novelty.
+   *
+   * Metered on its own counter rather than sharing the search allowance: the
+   * two are different actions with different costs, and a person who spends
+   * their day reading product pages shouldn't lose the ability to search.
    */
-  sweepsPerDay: number;
+  lookupsPerDay: number;
 
   // ---- deal radar ----
   //
@@ -140,7 +145,11 @@ export interface TierLimits {
 export const TIER_LIMITS: Record<Tier, TierLimits> = {
   free: {
     maxTrackedProducts: 3,
-    searchesPerDay: 1,
+    // Raised from 1. One search a day is not a product anyone can form an
+    // opinion about, and free users are ~98% of traffic — they are the top of
+    // the funnel, not a cost centre to be minimised. Paired with keyword
+    // caching, which is what makes five affordable.
+    searchesPerDay: 5,
     historyDays: 30,
     // Free users choose 2 fixed times of day instead of a rolling interval,
     // which bounds scraping load predictably.
@@ -159,7 +168,9 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     budgetLimits: false,
     customCategories: false,
     budgetExport: false,
-    sweepsPerDay: 0,
+    // Deliberately generous, and deliberately more than the search allowance:
+    // a lookup is one call to one store, so it costs less than a fan-out.
+    lookupsPerDay: 12,
     resultsPerRetailer: { min: 4, max: 4, default: 4 },
     maxSavedSearches: 1,
     savedSearchIntervalMinutes: 0,
@@ -175,7 +186,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     // Raised from 10. Under Bright Data a compiled search cost 4 credits (one
     // per Amazon result); amazonscraperapi bills per request, so it's 1. The
     // old cap was priced for the old billing.
-    searchesPerDay: 30,
+    searchesPerDay: 75,
     historyDays: 90,
     // Every 4 hours. Six checks a day catches any real drop — price cuts last
     // hours or days, not minutes — and it leaves a genuine 4× step up to
@@ -194,7 +205,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     budgetLimits: true,
     customCategories: true,
     budgetExport: true,
-    sweepsPerDay: 1,
+    lookupsPerDay: 30,
     resultsPerRetailer: { min: 3, max: 6, default: 4 },
     maxSavedSearches: 5,
     savedSearchIntervalMinutes: 12 * 60,
@@ -210,7 +221,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     // Effectively unlimited for a human — nobody runs 200 searches a day — but
     // still a number. "Unlimited" is the one knob that scales with signups
     // rather than with bounded usage, which is the trap worth avoiding.
-    searchesPerDay: 200,
+    searchesPerDay: 400,
     historyDays: null,
     // Hourly rather than every 30 minutes. Halves the Amazon bill for the
     // tier that was consuming half the entire budget, for a difference nobody
@@ -232,7 +243,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     budgetLimits: true,
     customCategories: true,
     budgetExport: true,
-    sweepsPerDay: 3,
+    lookupsPerDay: 100,
     resultsPerRetailer: { min: 3, max: 8, default: 4 },
     maxSavedSearches: 15,
     savedSearchIntervalMinutes: 6 * 60,
@@ -246,9 +257,15 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
   },
 };
 
-/** Guests have no account. One search a day, and nothing else. */
+/**
+ * Guests have no account: enough to see the app work, not enough to live on.
+ *
+ * Kept small because a guest is identified only by a device id, which is the
+ * one identity in the app that costs nothing to discard and reissue.
+ */
 export const GUEST_LIMITS = {
-  searchesPerDay: 1,
+  searchesPerDay: 2,
+  lookupsPerDay: 3,
   maxTrackedProducts: 0,
 } as const;
 

@@ -31,7 +31,8 @@
     "test:cooldown": "tsx src/test-cooldown.ts",
     "test:concurrency": "tsx src/test-concurrency.ts",
     "test:billing": "tsx src/test-billing.ts",
-    "test:contract": "tsx src/test-contract.ts"
+    "test:contract": "tsx src/test-contract.ts",
+    "test:lookup": "tsx src/test-lookup.ts"
   },
   "keywords": [],
   "author": "",

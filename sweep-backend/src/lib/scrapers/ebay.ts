@@ -22,6 +22,13 @@ import {
   toCents,
 } from "./types.js";
 
+import {
+  type ProductDetail,
+  type SpecRow,
+  num,
+  strings,
+} from "../productDetail.js";
+
 const OAUTH_URL = "https://api.ebay.com/identity/v1/oauth2/token";
 const BROWSE_URL = "https://api.ebay.com/buy/browse/v1";
 const SCOPE = "https://api.ebay.com/oauth/api_scope";
@@ -115,6 +122,155 @@ export async function scrapeEbayProduct(
   } catch (err) {
     return fail(kindOf(err), messageOf(err), elapsed(started));
   }
+}
+
+/**
+ * Product lookup — the same getItem call, keeping what a reader wants.
+ *
+ * eBay's shape is the inverse of Amazon's: no product review corpus at all
+ * (it rates sellers, not products), but a real shipping cost and a delivery
+ * window, which Amazon's payload does not carry. Neither store is "better" —
+ * they answer different questions, and the page shows whichever it was given.
+ */
+export async function enrichEbayProduct(
+  url: string,
+): Promise<ScrapeResult<ProductDetail>> {
+  const started = Date.now();
+
+  if (!isEbayConfigured()) {
+    return fail("failed", NOT_CONFIGURED, elapsed(started));
+  }
+
+  const itemId = extractItemId(url);
+  if (!itemId) {
+    return fail("failed", `could not read an item id out of ${url}`, elapsed(started));
+  }
+
+  try {
+    const token = await getToken();
+    const endpoint = itemId.startsWith("v1|")
+      ? `${BROWSE_URL}/item/${encodeURIComponent(itemId)}`
+      : `${BROWSE_URL}/item/get_item_by_legacy_id?legacy_item_id=${itemId}`;
+
+    const item = await fetchJson<any>(endpoint, {
+      headers: browseHeaders(token),
+      retries: 1,
+    });
+
+    const detail = parseEbayDetail(item);
+    if (!detail) {
+      return fail("failed", "item payload had no usable id/title", elapsed(started));
+    }
+    return ok(detail, elapsed(started));
+  } catch (err) {
+    return fail(kindOf(err), messageOf(err), elapsed(started));
+  }
+}
+
+function parseEbayDetail(item: any): ProductDetail | null {
+  const base = parseItem(item);
+  if (!base) return null;
+
+  // localizedAspects is eBay's spec table — "Brand: Apple", "Model: A2084".
+  const specs: SpecRow[] = Array.isArray(item?.localizedAspects)
+    ? item.localizedAspects
+        .map((aspect: any) => ({
+          label: typeof aspect?.name === "string" ? aspect.name.trim() : "",
+          value: typeof aspect?.value === "string" ? aspect.value.trim() : "",
+        }))
+        .filter((row: SpecRow) => row.label && row.value)
+    : [];
+
+  const shippingOption = Array.isArray(item?.shippingOptions)
+    ? item.shippingOptions[0]
+    : null;
+  // A missing shippingCost is not free shipping — it means eBay didn't quote
+  // one, usually because it depends on a destination we didn't supply. Only a
+  // present-and-zero value is reported as free.
+  const shippingCost = shippingOption?.shippingCost?.value;
+  const costCents =
+    shippingCost === null || shippingCost === undefined
+      ? null
+      : Math.round(Number(shippingCost) * 100);
+
+  const hasShipping =
+    shippingOption &&
+    (Number.isFinite(costCents) ||
+      shippingOption.minEstimatedDeliveryDate ||
+      shippingOption.maxEstimatedDeliveryDate);
+
+  const images = strings([
+    base.imageUrl,
+    ...(Array.isArray(item?.additionalImages)
+      ? item.additionalImages.map((i: any) => i?.imageUrl)
+      : []),
+  ]);
+
+  const sellerName =
+    typeof item?.seller?.username === "string" ? item.seller.username : null;
+
+  return {
+    retailer: "ebay",
+    retailerId: base.retailerId,
+    title: base.title,
+    url: base.url,
+    price: base.price,
+    listPrice: base.listPrice,
+    currency: base.currency,
+    availability: base.availability,
+    inStock:
+      item?.estimatedAvailabilities?.[0]?.estimatedAvailabilityStatus ===
+      "IN_STOCK"
+        ? true
+        : item?.estimatedAvailabilities?.[0]?.estimatedAvailabilityStatus ===
+            "OUT_OF_STOCK"
+          ? false
+          : null,
+
+    images,
+    brand:
+      typeof item?.brand === "string" && item.brand.trim() ? item.brand.trim() : null,
+    // shortDescription is plain text; `description` is seller-authored HTML,
+    // which has no business being rendered in the app.
+    description:
+      typeof item?.shortDescription === "string" && item.shortDescription.trim()
+        ? item.shortDescription.trim()
+        : null,
+    features: [],
+    specs,
+
+    rating: null,
+    ratingCount: null,
+    // eBay rates sellers, not products. Showing seller feedback under a
+    // "reviews" heading would let someone compare 99.3% against Amazon's 4.6
+    // stars as though they measured the same thing.
+    reviews: null,
+
+    seller: sellerName
+      ? {
+          name: sellerName,
+          ratingPercent: num(item?.seller?.feedbackPercentage),
+          ratingCount: num(item?.seller?.feedbackScore),
+          offerCount: null,
+          url: null,
+        }
+      : null,
+    shipping: hasShipping
+      ? {
+          costCents: Number.isFinite(costCents) ? (costCents as number) : null,
+          earliest: shippingOption?.minEstimatedDeliveryDate ?? null,
+          latest: shippingOption?.maxEstimatedDeliveryDate ?? null,
+        }
+      : null,
+    trust: null,
+
+    coupon: null,
+    condition:
+      typeof item?.condition === "string" && item.condition.trim()
+        ? item.condition.trim()
+        : null,
+    fetchedAt: new Date().toISOString(),
+  };
 }
 
 export function ebayProductUrl(retailerId: string) {

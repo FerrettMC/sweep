@@ -21,6 +21,7 @@ import { notificationRoutes } from "./routes/notifications.js";
 import { productRoutes } from "./routes/products.js";
 import { radarRoutes } from "./routes/radar.js";
 import { searchRoutes } from "./routes/search.js";
+import { lookupRoutes } from "./routes/lookup.js";
 import { sweepRoutes } from "./routes/sweep.js";
 
 const app = Fastify({
@@ -113,6 +114,7 @@ app.register(sharePageRoutes);
 app.register(notificationRoutes);
 app.register(productRoutes);
 app.register(radarRoutes);
+app.register(lookupRoutes);
 app.register(searchRoutes);
 app.register(sweepRoutes);
 

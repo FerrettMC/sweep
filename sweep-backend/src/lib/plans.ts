@@ -204,11 +204,11 @@ const DIALS: {
           }),
   },
   {
-    label: "dial.sweep",
+    label: "dial.lookup",
     value: (l, locale) =>
-      l.sweepsPerDay === 0
+      l.lookupsPerDay === 0
         ? t(locale, "dial.none")
-        : t(locale, "dial.perDay", { count: l.sweepsPerDay }),
+        : t(locale, "dial.perDay", { count: l.lookupsPerDay }),
   },
   {
     label: "dial.history",
@@ -378,11 +378,11 @@ function featuresFor(tier: Tier, locale: Locale): PlanFeature[] {
     },
     {
       group: "search",
-      included: l.sweepsPerDay > 0,
+      included: l.lookupsPerDay > 0,
       label:
-        l.sweepsPerDay > 0
-          ? t(locale, "plan.sweepCount", { count: l.sweepsPerDay })
-          : t(locale, "plan.sweepNone"),
+        l.lookupsPerDay > 0
+          ? t(locale, "plan.lookupCount", { count: l.lookupsPerDay })
+          : t(locale, "plan.lookupNone"),
     },
 
     // ---- budget ----

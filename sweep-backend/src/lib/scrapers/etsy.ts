@@ -19,6 +19,14 @@
 
 import { fail, ok, type ScrapeResult, type ScrapedProduct } from "./types.js";
 
+import {
+  type ProductDetail,
+  type ReviewTopic,
+  cleanQuote,
+  num,
+  strings,
+} from "../productDetail.js";
+
 const BASE = "https://openapi.etsy.com/v3/application";
 const TIMEOUT_MS = 8_000;
 
@@ -188,6 +196,194 @@ export async function scrapeEtsyProduct(
   } catch (err) {
     return fail("failed", describe(err), Date.now() - started);
   }
+}
+
+/**
+ * Product lookup for one Etsy listing.
+ *
+ * Two calls: the listing itself (with images), and the listing's reviews.
+ * Reviews are fetched separately because Etsy does not fold them into the
+ * listing payload, and they are the one thing this store has that the price
+ * check throws away.
+ *
+ * Coverage here is genuinely thinner than Amazon's, and that is reported
+ * rather than padded. `num_favorers` is deliberately NOT mapped to a rating:
+ * a listing favourited 400 times has not been rated 400 times, and putting
+ * that number under a star would be a lie with a number attached.
+ */
+export async function enrichEtsyProduct(
+  url: string,
+): Promise<ScrapeResult<ProductDetail>> {
+  const started = Date.now();
+  const id = url.match(/\/listing\/(\d+)/)?.[1] ?? (/^\d+$/.test(url) ? url : null);
+  if (!id) {
+    return fail("failed", `no listing id in ${url.slice(0, 120)}`, Date.now() - started);
+  }
+
+  try {
+    const [raw] = await fetchWithImages([Number(id)]);
+    const base = raw ? toProduct(raw) : null;
+    if (!base || !raw) {
+      return fail("failed", `listing ${id} returned nothing usable`, Date.now() - started);
+    }
+
+    // A listing with no reviews is the common case, and a failure here must
+    // not lose the listing we already have — the page is still worth showing.
+    let reviews: Awaited<ReturnType<typeof fetchEtsyReviews>> = null;
+    try {
+      reviews = await fetchEtsyReviews(id);
+    } catch {
+      reviews = null;
+    }
+
+    const anyRaw = raw as Record<string, unknown>;
+    const specs = [
+      ["Materials", strings(anyRaw.materials).join(", ")],
+      ["Made by", etsyEnum(anyRaw.who_made, WHO_MADE)],
+      ["When made", etsyEnum(anyRaw.when_made, WHEN_MADE)],
+    ]
+      .filter(([, value]) => value)
+      .map(([label, value]) => ({ label, value: String(value) }));
+
+    return ok(
+      {
+        retailer: "etsy",
+        retailerId: base.retailerId,
+        title: base.title,
+        url: base.url,
+        price: base.price,
+        listPrice: base.listPrice,
+        currency: base.currency,
+        availability: base.availability,
+        inStock: typeof raw.quantity === "number" ? raw.quantity > 0 : null,
+
+        images: strings([
+          base.imageUrl,
+          ...(raw.images ?? []).map((i) => i?.url_fullxfull ?? i?.url_570xN),
+        ]),
+        brand: null,
+        description:
+          typeof anyRaw.description === "string" && anyRaw.description.trim()
+            ? anyRaw.description.trim()
+            : null,
+        features: strings(anyRaw.tags).slice(0, 8),
+        specs,
+
+        rating: reviews?.average ?? null,
+        ratingCount: reviews?.count ?? null,
+        reviews: reviews && reviews.topics.length > 0
+          ? {
+              text: null,
+              positive: [],
+              negative: [],
+              mixed: [],
+              topics: reviews.topics,
+              images: reviews.images,
+            }
+          : null,
+
+        seller: null,
+        shipping: null,
+        trust: null,
+        coupon: null,
+        condition: null,
+        fetchedAt: new Date().toISOString(),
+      },
+      Date.now() - started,
+    );
+  } catch (err) {
+    return fail("failed", describe(err), Date.now() - started);
+  }
+}
+
+/**
+ * Reviews for one listing.
+ *
+ * Etsy returns individual reviews rather than a summary, so unlike Amazon
+ * there is nothing pre-aggregated to pass through — the average is computed
+ * here from the ratings in the page we were given, and is therefore an average
+ * of THOSE reviews, not of every review ever left. The count is Etsy's own
+ * total, so the two are reported as what they are and never blended.
+ */
+async function fetchEtsyReviews(listingId: string): Promise<{
+  average: number | null;
+  count: number | null;
+  topics: ReviewTopic[];
+  images: string[];
+} | null> {
+  const body = (await call(`listings/${listingId}/reviews`, {
+    limit: "20",
+  })) as {
+    count?: number;
+    results?: {
+      rating?: number;
+      review?: string;
+      image_url_fullxfull?: string | null;
+    }[];
+  };
+
+  const results = body.results ?? [];
+  if (results.length === 0) {
+    return { average: null, count: num(body.count), topics: [], images: [] };
+  }
+
+  const ratings = results
+    .map((r) => num(r.rating))
+    .filter((r): r is number => r !== null);
+  const average =
+    ratings.length > 0
+      ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10
+      : null;
+
+  // Etsy has no topic model, so the reviews are presented as a single group
+  // rather than invented topics. Positive/negative counts come from the star
+  // ratings actually attached to the quotes shown.
+  const quotes = results
+    .map((r) => cleanQuote(r.review))
+    .filter((q): q is string => q !== null)
+    .slice(0, 6);
+
+  const topics: ReviewTopic[] =
+    quotes.length > 0
+      ? [
+          {
+            topic: "What buyers said",
+            positiveMentions: ratings.filter((r) => r >= 4).length,
+            negativeMentions: ratings.filter((r) => r <= 2).length,
+            description: null,
+            quotes,
+          },
+        ]
+      : [];
+
+  return {
+    average,
+    count: num(body.count),
+    topics,
+    images: strings(results.map((r) => r.image_url_fullxfull)),
+  };
+}
+
+// Etsy returns these fields as raw enum tokens. "someone_else" is a database
+// value, not something to show a person, and an unmapped token is dropped
+// rather than printed — a blank row beats a row that reads like a bug.
+const WHO_MADE: Record<string, string> = {
+  i_did: "The shop owner",
+  collective: "A member of the shop",
+  someone_else: "Another company",
+};
+
+const WHEN_MADE: Record<string, string> = {
+  made_to_order: "Made to order",
+  "2020_2026": "2020s",
+  "2010_2019": "2010s",
+  "2000_2009": "2000s",
+  before_2000: "Before 2000",
+  vintage: "Vintage",
+};
+
+function etsyEnum(value: unknown, table: Record<string, string>): string {
+  return typeof value === "string" ? (table[value] ?? "") : "";
 }
 
 export function etsyProductUrl(retailerId: string) {

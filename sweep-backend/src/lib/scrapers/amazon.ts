@@ -12,6 +12,13 @@
 // poll — both paths are handled below.
 
 import {
+  type ProductDetail,
+  type ReviewTopic,
+  cleanQuote,
+  num,
+  strings,
+} from "../productDetail.js";
+import {
   type ScrapeResult,
   type ScrapedProduct,
   fail,
@@ -248,6 +255,206 @@ function parseAmazonProduct(raw: any, fallbackUrl: string): ScrapedProduct | nul
     ratingCount: numberOrNull(raw?.reviews_count),
     sellerRating: null,
     sellerRatingCount: null,
+  };
+}
+
+// ---- 3. Product lookup — one enriched page about one item ----
+//
+// Same dataset and the same single billed record as a price check; the only
+// difference is how much of the payload we keep. A price check needs four
+// fields, so it throws the rest away. This keeps the parts a person reading a
+// product page actually wants: what buyers say, what's in the box, and whether
+// the listing itself is trustworthy.
+export async function enrichAmazonProduct(
+  url: string,
+): Promise<ScrapeResult<ProductDetail>> {
+  const started = Date.now();
+  const { apiKey, productDataset } = config();
+
+  if (!apiKey || !productDataset) {
+    return fail("failed", NOT_CONFIGURED, elapsed(started));
+  }
+
+  try {
+    const rows = await runJob(
+      `${API_BASE}/scrape?dataset_id=${productDataset}&format=json`,
+      { input: [{ url }] },
+      apiKey,
+    );
+    const detail = rows?.[0] ? parseAmazonDetail(rows[0], url) : null;
+    if (!detail) {
+      return fail("failed", "Bright Data returned no rows for this url", elapsed(started));
+    }
+    return ok(detail, elapsed(started));
+  } catch (err) {
+    return fail(kindOf(err), messageOf(err), elapsed(started));
+  }
+}
+
+/** Exported for tests, which run it against a recorded Bright Data payload. */
+export function parseAmazonDetail(raw: any, fallbackUrl: string): ProductDetail | null {
+  const base = parseAmazonProduct(raw, fallbackUrl);
+  if (!base) return null;
+
+  const price = base.price;
+
+  // `customers_say` is Amazon's own summary of its review corpus. We have no
+  // access to the reviews themselves, so everything here is passed through
+  // unmodified — there is nothing for us to recompute, and inventing a
+  // derived number would imply an analysis we did not do.
+  const say = raw?.customers_say ?? raw?.customers_says ?? null;
+  const keywords = say?.keywords ?? {};
+
+  const topics: ReviewTopic[] = Array.isArray(raw?.customers_say_topics)
+    ? raw.customers_say_topics
+        .map((topic: any): ReviewTopic | null => {
+          const name = typeof topic?.topic === "string" ? topic.topic.trim() : "";
+          if (!name) return null;
+          return {
+            topic: name,
+            // Deliberately NOT using `mentions_count`: observed payloads carry
+            // mentions_count 5 alongside 4497 positive mentions, so it is not
+            // a total and any "x of y" or percentage built on it would be
+            // fiction. Positive and negative are internally consistent.
+            positiveMentions: num(topic?.positive_mentions_count) ?? 0,
+            negativeMentions: num(topic?.negative_mentions_count) ?? 0,
+            description:
+              typeof topic?.topic_description === "string"
+                ? topic.topic_description.trim() || null
+                : null,
+            quotes: Array.isArray(topic?.example_quotes)
+              ? topic.example_quotes
+                  .map(cleanQuote)
+                  .filter((q: string | null): q is string => q !== null)
+              : [],
+          };
+        })
+        .filter((t: ReviewTopic | null): t is ReviewTopic => t !== null)
+    : [];
+
+  const summaryText =
+    typeof say?.text === "string" && say.text.trim() ? say.text.trim() : null;
+  const reviewImages = strings(raw?.review_images);
+
+  const hasReviewData =
+    summaryText !== null || topics.length > 0 || reviewImages.length > 0;
+
+  const specs = Array.isArray(raw?.product_details)
+    ? raw.product_details
+        .map((row: any) => ({
+          label: typeof row?.type === "string" ? row.type.trim() : "",
+          value: row?.value === null || row?.value === undefined ? "" : String(row.value).trim(),
+        }))
+        .filter((row: { label: string; value: string }) => row.label && row.value)
+    : [];
+
+  // Amazon itself is the seller on most first-party listings, and returns null
+  // for seller_name there. Only claimed when there is a name to show.
+  const sellerName =
+    typeof raw?.seller_name === "string" && raw.seller_name.trim()
+      ? raw.seller_name.trim()
+      : null;
+  const offerCount = num(raw?.number_of_sellers);
+  const sellerRating = num(raw?.buybox_seller_rating);
+
+  const couponText =
+    (typeof raw?.coupon_description === "string" && raw.coupon_description.trim()) ||
+    (typeof raw?.coupon === "string" && raw.coupon.trim()) ||
+    null;
+
+  const badge =
+    typeof raw?.badge === "string" && raw.badge.trim() ? raw.badge.trim() : null;
+  const returnedNote =
+    typeof raw?.frequently_returned_item_message === "string" &&
+    raw.frequently_returned_item_message.trim()
+      ? raw.frequently_returned_item_message.trim()
+      : null;
+  const boughtRecently =
+    typeof raw?.bought_past_month_text === "string" && raw.bought_past_month_text.trim()
+      ? raw.bought_past_month_text.trim()
+      : null;
+  const bsRank = num(raw?.bs_rank) ?? num(raw?.root_bs_rank);
+  const bsCategory =
+    (typeof raw?.bs_category === "string" && raw.bs_category.trim()) ||
+    (typeof raw?.root_bs_category === "string" && raw.root_bs_category.trim()) ||
+    null;
+
+  const hasTrust =
+    badge !== null ||
+    raw?.amazon_choice === true ||
+    raw?.is_frequently_returned_item_badge === true ||
+    boughtRecently !== null ||
+    bsRank !== null;
+
+  // Lead with the main image, then the gallery, without repeating it.
+  const images = strings([base.imageUrl, ...(Array.isArray(raw?.images) ? raw.images : [])]);
+
+  return {
+    retailer: "amazon",
+    retailerId: base.retailerId,
+    title: base.title,
+    url: base.url,
+    price,
+    listPrice: base.listPrice,
+    currency: base.currency,
+    availability: base.availability,
+    // `is_available` is the store's own boolean; the availability string is
+    // prose and varies too much to parse.
+    inStock: typeof raw?.is_available === "boolean" ? raw.is_available : null,
+
+    images,
+    brand:
+      (typeof raw?.brand === "string" && raw.brand.trim()) ||
+      (typeof raw?.manufacturer === "string" && raw.manufacturer.trim()) ||
+      null,
+    description:
+      (typeof raw?.description === "string" && raw.description.trim()) ||
+      (typeof raw?.product_description === "string" && raw.product_description.trim()) ||
+      null,
+    features: strings(raw?.features),
+    specs,
+
+    rating: base.rating,
+    ratingCount: base.ratingCount,
+    reviews: hasReviewData
+      ? {
+          text: summaryText,
+          positive: strings(keywords?.positive),
+          negative: strings(keywords?.negative),
+          mixed: strings(keywords?.mixed),
+          topics,
+          images: reviewImages,
+        }
+      : null,
+
+    seller:
+      sellerName || offerCount !== null || sellerRating !== null
+        ? {
+            name: sellerName,
+            ratingPercent: sellerRating,
+            ratingCount: null,
+            offerCount,
+            url: typeof raw?.seller_url === "string" ? raw.seller_url : null,
+          }
+        : null,
+    // Amazon's payload carries no usable shipping cost or delivery window, so
+    // this is null rather than a guess. See COVERAGE.
+    shipping: null,
+    trust: hasTrust
+      ? {
+          badge,
+          amazonChoice: raw?.amazon_choice === true,
+          frequentlyReturned: raw?.is_frequently_returned_item_badge === true,
+          frequentlyReturnedNote: returnedNote,
+          boughtRecently,
+          bestSellerRank: bsRank,
+          bestSellerCategory: bsCategory,
+        }
+      : null,
+
+    coupon: couponText,
+    condition: null,
+    fetchedAt: new Date().toISOString(),
   };
 }
 

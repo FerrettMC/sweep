@@ -213,7 +213,14 @@ export async function sweepProduct(productId: string): Promise<SweepResult | nul
  * observed history is the only number here that can't be staged, so when the
  * two disagree we say so plainly.
  */
-function judgeSale(input: {
+/**
+ * Is this sale real, judged against the product's own history?
+ *
+ * Exported for product lookup, which reuses it unchanged. This was always the
+ * genuinely useful half of "Sweep this deal" and it costs nothing: it reads
+ * price history we already store, with no retailer call at all.
+ */
+export function judgeSale(input: {
   price: number;
   listPrice: number | null;
   low: number | null;

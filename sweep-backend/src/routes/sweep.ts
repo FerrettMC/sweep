@@ -1,48 +1,47 @@
 // routes/sweep.ts
 //
-// "Sweep this deal" — the paid verdict on whether to actually buy something.
+// Backwards compatibility only. Nothing new should call this.
 //
-// Two things are enforced here rather than trusted to the client: whether the
-// tier includes the feature at all, and the daily allowance. Both matter more
-// than usual because this is the most expensive action in the app — a full
-// retailer fan-out for a single product.
+// "Sweep this deal" was replaced by product lookup, but builds already on
+// people's phones still POST here and still expect the old SweepResult shape.
+// They can't be updated, so this translates a lookup into that shape.
 //
-// The quota is spent only once the work is known to be doable. Refusing after
-// taking someone's allowance would be the worst of both.
+// The one thing that must not happen is a quiet lie. A sweep fanned out to
+// every other retailer to answer "is it cheaper elsewhere?"; a lookup does
+// not, so `cheaperElsewhere` is empty here — and an empty list in the old UI
+// renders as "nothing cheaper anywhere", which would be a claim we did not
+// check. The fix is `unreachable`: the old client already says "nothing
+// cheaper on the stores we could reach" whenever that list is non-empty, so
+// naming the stores we didn't ask keeps the old screen truthful.
+//
+// New clients use /lookup, which says all of this directly.
 
 import type { FastifyInstance } from "fastify";
 import { requireAuth } from "../lib/auth.js";
 import { SCRAPE_LIMIT } from "../lib/rateLimit.js";
 import { prisma } from "../lib/prisma.js";
-import { consumeSweep, getSweepQuota } from "../lib/quota.js";
+import { consumeLookup, getLookupQuota, refundUserLookup } from "../lib/quota.js";
+import { lookupProduct } from "../lib/lookup.js";
 import { resolveProduct } from "../lib/resolveProduct.js";
-import { sweepProduct } from "../lib/sweep.js";
-import { effectiveTier, limitsFor } from "../lib/tiers.js";
+import { judgeSale, type SweepResult } from "../lib/sweep.js";
+import { TIER_LIMITS, effectiveTier } from "../lib/tiers.js";
+import { isRetailerEnabled } from "../lib/scrapers/index.js";
+import { RETAILERS, RETAILER_LABELS, type Retailer } from "../lib/scrapers/types.js";
 
 export async function sweepRoutes(app: FastifyInstance) {
-  // How many sweeps are left, so the button can render its state without
-  // spending one to find out.
-  app.get(
-    "/sweep/quota",
-    { preHandler: requireAuth },
-    async (request, reply) => {
-      const quota = await getSweepQuota(request.userId!);
-      if (!quota)
-        return reply.status(404).send({ error: "No wallet for user" });
+  app.get("/sweep/quota", { preHandler: requireAuth }, async (request, reply) => {
+    const quota = await getLookupQuota(request.userId!);
+    if (!quota) return reply.status(404).send({ error: "No wallet for user" });
 
-      const wallet = await prisma.wallet.findUnique({
-        where: { userId: request.userId! },
-      });
-      return { quota, tier: wallet ? effectiveTier(wallet) : "free" };
-    },
-  );
+    const wallet = await prisma.wallet.findUnique({
+      where: { userId: request.userId! },
+    });
+    return { quota, tier: wallet ? effectiveTier(wallet) : "free" };
+  });
 
   app.post(
     "/sweep",
-    {
-      preHandler: requireAuth,
-      config: { rateLimit: SCRAPE_LIMIT },
-    },
+    { preHandler: requireAuth, config: { rateLimit: SCRAPE_LIMIT } },
     async (request, reply) => {
       const userId = request.userId!;
       const body = (request.body ?? {}) as {
@@ -53,33 +52,23 @@ export async function sweepRoutes(app: FastifyInstance) {
       };
 
       const wallet = await prisma.wallet.findUnique({ where: { userId } });
-      if (!wallet)
-        return reply.status(404).send({ error: "No wallet for user" });
+      if (!wallet) return reply.status(404).send({ error: "No wallet for user" });
 
       const tier = effectiveTier(wallet);
-      if (limitsFor(wallet).sweepsPerDay === 0) {
-        return reply.status(403).send({
-          error: "Sweep this deal is a Pro and Ultimate feature.",
-          code: "SWEEP_REQUIRES_TIER",
-          tier,
-        });
-      }
 
-      const quota = await getSweepQuota(userId);
+      // No tier check any more: lookups are on every tier, so an old free-tier
+      // build that used to be refused here now works. Gaining a feature is a
+      // safe direction for a client we can't update.
+      const quota = await getLookupQuota(userId);
       if (!quota || quota.remaining <= 0) {
         return reply.status(429).send({
-          error:
-            quota && quota.limit === 1
-              ? "That's your sweep for today. Ultimate gets three."
-              : "You've used all your sweeps today.",
+          error: "You've used all your product lookups today.",
           code: "SWEEP_QUOTA_EXHAUSTED",
           quota,
           tier,
         });
       }
 
-      // Resolve first. If we can't even identify the product there's nothing to
-      // sweep, and the user shouldn't be charged for our failure to find it.
       let productId = body.productId;
       if (!productId) {
         const resolved = await resolveProduct(body);
@@ -91,33 +80,99 @@ export async function sweepRoutes(app: FastifyInstance) {
         productId = resolved.product.id;
       }
 
-      const exists = await prisma.product.findUnique({
-        where: { id: productId },
-        select: { id: true, currentPrice: true },
-      });
-      if (!exists) {
-        return reply.status(404).send({ error: "Product not found" });
-      }
-      if (exists.currentPrice === null) {
-        return reply.status(409).send({
-          error:
-            "That item has no price right now, so there's nothing to compare.",
-          code: "NO_PRICE",
+      const spent = await consumeLookup(userId);
+      if (!spent) {
+        return reply.status(429).send({
+          error: "You've used all your product lookups today.",
+          code: "SWEEP_QUOTA_EXHAUSTED",
+          quota,
+          tier,
         });
       }
 
-      const result = await sweepProduct(productId);
-      if (!result) {
+      const lookup = await lookupProduct(productId, {
+        userId,
+        historyDays: TIER_LIMITS[tier].historyDays,
+      });
+
+      // The old client can't render a product with no price — its result type
+      // declares price as non-null — so this stays a failure rather than
+      // sending a shape it will crash on.
+      if (!lookup || lookup.detail.price === null) {
+        await refundUserLookup(userId, spent.resetsAt);
         return reply.status(502).send({
           error: "Couldn't sweep that item. Try again in a moment.",
           code: "SWEEP_FAILED",
         });
       }
 
-      // Charged only now that there's a real result to hand back.
-      const spent = await consumeSweep(userId);
-
-      return { result, quota: spent ?? quota, tier };
+      return { result: toSweepShape(lookup, productId), quota: spent, tier };
     },
   );
+}
+
+/** A lookup, dressed as the SweepResult old builds parse. */
+function toSweepShape(
+  lookup: NonNullable<Awaited<ReturnType<typeof lookupProduct>>>,
+  productId: string,
+): SweepResult {
+  const detail = lookup.detail;
+  const price = detail.price!;
+  const prices = lookup.history.map((point) => point.price);
+
+  const low = prices.length ? Math.min(...prices) : null;
+  const high = prices.length ? Math.max(...prices) : null;
+  const average = prices.length
+    ? Math.round(prices.reduce((sum, p) => sum + p, 0) / prices.length)
+    : null;
+
+  const claimedPercentOff =
+    detail.listPrice !== null && detail.listPrice > price
+      ? Math.round(((detail.listPrice - price) / detail.listPrice) * 100)
+      : null;
+
+  const sale = judgeSale({
+    price,
+    listPrice: detail.listPrice,
+    low,
+    average,
+    points: prices.length,
+    claimedPercentOff,
+  });
+
+  // Every store we did NOT ask. This is the whole reason the old screen stays
+  // honest: it turns an empty "cheaper elsewhere" list from a claim into an
+  // admission.
+  // Only stores that are actually switched on. Naming a disabled retailer as
+  // "couldn't reach" would invent an outage that doesn't exist.
+  const unreachable = RETAILERS.filter(
+    (retailer): retailer is Retailer =>
+      retailer !== detail.retailer && isRetailerEnabled(retailer),
+  ).map((retailer) => RETAILER_LABELS[retailer]);
+
+  return {
+    product: {
+      id: productId,
+      title: detail.title,
+      retailer: detail.retailer,
+      retailerLabel: RETAILER_LABELS[detail.retailer],
+      url: detail.url,
+      imageUrl: detail.images[0] ?? null,
+      price,
+      listPrice: detail.listPrice,
+    },
+    sale,
+    history: {
+      points: prices.length,
+      low,
+      high,
+      average,
+      firstSeen: lookup.history[0] ? new Date(lookup.history[0].checkedAt) : null,
+    },
+    cheaperElsewhere: [],
+    similar: [],
+    unreachable,
+    bestSaving: 0,
+    headline: sale.headline,
+  };
 }

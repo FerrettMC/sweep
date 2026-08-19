@@ -346,6 +346,125 @@ export async function consumeGuestSearch(
   );
 }
 
+/**
+ * A guest's product-lookup allowance.
+ *
+ * Small, because a guest is identified only by a device id — the one identity
+ * in the app that can be discarded and reissued for free. This is a taste of
+ * the feature, not a way to live without an account.
+ */
+export async function getGuestLookupQuota(
+  deviceId: string,
+): Promise<LookupQuotaState> {
+  const limit = GUEST_LIMITS.lookupsPerDay;
+  const row = await prisma.guestQuota.findUnique({ where: { deviceId } });
+
+  if (!row || isStale(row.lookupsResetAt)) {
+    return {
+      used: 0,
+      limit,
+      remaining: limit,
+      resetsAt: row?.lookupsResetAt ?? nextResetAt(),
+      available: limit > 0,
+    };
+  }
+
+  return {
+    used: row.lookupsUsedToday,
+    limit,
+    remaining: Math.max(0, limit - row.lookupsUsedToday),
+    resetsAt: row.lookupsResetAt,
+    available: limit > 0,
+  };
+}
+
+/**
+ * Spend one guest lookup, creating the row on first use.
+ *
+ * Same shape as consumeGuestSearch, including the reason every branch writes
+ * through a condition rather than a bare update: two requests from one device
+ * arriving together must not both pass.
+ */
+export async function consumeGuestLookup(
+  deviceId: string,
+): Promise<LookupQuotaState | null> {
+  const limit = GUEST_LIMITS.lookupsPerDay;
+  const reset = nextResetAt();
+  const spent = (used: number, resetsAt: Date): LookupQuotaState => ({
+    used,
+    limit,
+    remaining: Math.max(0, limit - used),
+    resetsAt,
+    available: limit > 0,
+  });
+
+  const existing = await prisma.guestQuota.findUnique({ where: { deviceId } });
+
+  if (!existing) {
+    // createMany rather than create: two first-ever requests from the same
+    // device race here, and the loser would otherwise throw on the unique
+    // index instead of simply spending from the row that won.
+    const made = await prisma.guestQuota.createMany({
+      data: [{ deviceId, lookupsUsedToday: 1, lookupsResetAt: reset }],
+      skipDuplicates: true,
+    });
+    if (made.count === 1) return spent(1, reset);
+    return consumeGuestLookup(deviceId);
+  }
+
+  if (isStale(existing.lookupsResetAt)) {
+    // Guarded on the timestamp we read, so concurrent rollovers don't each
+    // reset the counter and hand out an extra lookup apiece.
+    const rolled = await prisma.guestQuota.updateMany({
+      where: { deviceId, lookupsResetAt: existing.lookupsResetAt },
+      data: { lookupsUsedToday: 1, lookupsResetAt: reset },
+    });
+    if (rolled.count === 0) return consumeGuestLookup(deviceId);
+    return spent(1, reset);
+  }
+
+  if (existing.lookupsUsedToday >= limit) return null;
+
+  const updated = await prisma.guestQuota.updateMany({
+    where: {
+      deviceId,
+      lookupsUsedToday: { lt: limit },
+      lookupsResetAt: existing.lookupsResetAt,
+    },
+    data: { lookupsUsedToday: { increment: 1 } },
+  });
+
+  if (updated.count === 0) return null;
+
+  return spent(existing.lookupsUsedToday + 1, existing.lookupsResetAt);
+}
+
+/**
+ * Give a lookup back when it produced nothing.
+ *
+ * Same contract as refundUserSearch: never below zero, and never across a
+ * rollover, because refunding into a fresh day is just a free extra.
+ */
+export async function refundUserLookup(
+  userId: string,
+  resetsAt: Date,
+): Promise<void> {
+  await prisma.wallet.updateMany({
+    where: { userId, sweepsUsedToday: { gt: 0 }, sweepsResetAt: resetsAt },
+    data: { sweepsUsedToday: { decrement: 1 } },
+  });
+}
+
+export async function refundGuestLookup(
+  deviceId: string,
+  resetsAt: Date,
+): Promise<void> {
+  await prisma.guestQuota.updateMany({
+    where: { deviceId, lookupsUsedToday: { gt: 0 }, lookupsResetAt: resetsAt },
+    data: { lookupsUsedToday: { decrement: 1 } },
+  });
+}
+
 // ---- shared ----------------------------------------------------------------
 
 function state(
@@ -368,13 +487,18 @@ function state(
   };
 }
 
-// ---- "Sweep this deal" -----------------------------------------------------
+// ---- product lookups -------------------------------------------------------
 //
-// Metered separately from search. A sweep fans out to every other retailer AND
-// reads price history, so it costs more than a search and is deliberately a
-// small daily allowance rather than something to spend casually.
+// Metered separately from search, on its own counter, because they are
+// different actions: a search finds candidates across stores, a lookup reads
+// one product deeply. Someone spending an afternoon reading product pages
+// shouldn't lose the ability to search, and vice versa.
+//
+// The database columns are still named `sweeps*`. This counter replaced "Sweep
+// this deal" in place, and renaming a live column buys a migration and a
+// window where old and new backends disagree — for a name only we read.
 
-export interface SweepQuotaState {
+export interface LookupQuotaState {
   used: number;
   limit: number;
   remaining: number;
@@ -383,11 +507,11 @@ export interface SweepQuotaState {
   available: boolean;
 }
 
-export async function getSweepQuota(userId: string): Promise<SweepQuotaState | null> {
+export async function getLookupQuota(userId: string): Promise<LookupQuotaState | null> {
   const wallet = await prisma.wallet.findUnique({ where: { userId } });
   if (!wallet) return null;
 
-  const limit = TIER_LIMITS[effectiveTier(wallet)].sweepsPerDay;
+  const limit = TIER_LIMITS[effectiveTier(wallet)].lookupsPerDay;
 
   if (isStale(wallet.sweepsResetAt)) {
     const resetsAt = nextResetAt();
@@ -399,7 +523,7 @@ export async function getSweepQuota(userId: string): Promise<SweepQuotaState | n
       where: { userId, sweepsResetAt: wallet.sweepsResetAt },
       data: { sweepsUsedToday: 0, sweepsResetAt: resetsAt },
     });
-    if (rolled.count === 0) return getSweepQuota(userId);
+    if (rolled.count === 0) return getLookupQuota(userId);
     return { used: 0, limit, remaining: limit, resetsAt, available: limit > 0 };
   }
 
@@ -414,18 +538,19 @@ export async function getSweepQuota(userId: string): Promise<SweepQuotaState | n
 }
 
 /**
- * Spend one sweep. Returns null if the user has none left, so the caller can
+ * Spend one lookup. Returns null if the user has none left, so the caller can
  * refuse before doing any of the expensive work.
  */
-export async function consumeSweep(userId: string): Promise<SweepQuotaState | null> {
-  const state = await getSweepQuota(userId);
+export async function consumeLookup(userId: string): Promise<LookupQuotaState | null> {
+  const state = await getLookupQuota(userId);
   if (!state || state.remaining <= 0) return null;
 
   // The limit lives in the WHERE, not in the check above, so the read and the
   // write can't be separated. Two requests arriving together both pass the
   // check; only one matches this condition, because Postgres serialises
-  // updates to a row. Sweeps are 1/day on Pro, so "one extra" was a doubling
-  // of the most expensive operation in the app.
+  // updates to a row. The margin is wider than it was when this was 1/day,
+  // but the reason is unchanged: a limit enforced by a read-then-write is not
+  // a limit, it's a suggestion.
   const updated = await prisma.wallet.updateMany({
     where: {
       userId,

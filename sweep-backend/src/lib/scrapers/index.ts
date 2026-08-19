@@ -4,16 +4,16 @@
 // Each retailer supplies the same three things: search, re-check one product
 // by url, and recognize its own urls.
 
-import { scrapeAmazonProduct, searchAmazonProducts } from "./amazon.js";
+import { enrichAmazonProduct, scrapeAmazonProduct, searchAmazonProducts } from "./amazon.js";
 import { bestBuyProductUrl, scrapeBestBuyProduct, searchBestBuy } from "./bestbuy.js";
 import {
   bestBuyApiKey,
   scrapeBestBuyApiProduct,
   searchBestBuyApi,
 } from "./bestbuyApi.js";
-import { ebayProductUrl, scrapeEbayProduct, searchEbay } from "./ebay.js";
+import { ebayProductUrl, enrichEbayProduct, scrapeEbayProduct, searchEbay } from "./ebay.js";
 import { asosProductUrl, scrapeAsosProduct, searchAsos } from "./asos.js";
-import { etsyProductUrl, scrapeEtsyProduct, searchEtsy } from "./etsy.js";
+import { enrichEtsyProduct, etsyProductUrl, scrapeEtsyProduct, searchEtsy } from "./etsy.js";
 import { neweggProductUrl, scrapeNeweggProduct, searchNewegg } from "./newegg.js";
 import { scrapeWalmartProduct, searchWalmart, walmartProductUrl } from "./walmart.js";
 import { type Category, classifyQuery } from "../categories.js";
@@ -25,12 +25,22 @@ import {
   type ScrapeResult,
   type ScrapedProduct,
 } from "./types.js";
+import type { ProductDetail } from "../productDetail.js";
 import { throttled } from "./rateGate.js";
 import { cooldownRemaining, noteBlocked, noteSuccess } from "./cooldown.js";
 
 interface RetailerAdapter {
   search(keyword: string, limit: number): Promise<ScrapeResult<ScrapedProduct[]>>;
   scrapeProduct(url: string): Promise<ScrapeResult<ScrapedProduct>>;
+  /**
+   * Everything worth showing about one product, for the lookup page.
+   *
+   * Optional: a store with no richer endpoint than the price check simply
+   * doesn't define it, and the lookup falls back to what we already know
+   * rather than pretending. See COVERAGE in productDetail.ts for which
+   * sections each store can actually fill.
+   */
+  enrich?(url: string): Promise<ScrapeResult<ProductDetail>>;
   productUrl(retailerId: string): string;
   /** Does this url belong to this retailer? Used to resolve pasted links. */
   matchesUrl(url: string): boolean;
@@ -68,6 +78,7 @@ export const unthrottledAdapters: Record<Retailer, RetailerAdapter> = {
   amazon: {
     search: searchAmazonProducts,
     scrapeProduct: scrapeAmazonProduct,
+    enrich: enrichAmazonProduct,
     productUrl: (id) => `https://www.amazon.com/dp/${id}`,
     matchesUrl: (url) => /(^|\.)amazon\.[a-z.]+$/i.test(hostOf(url)),
     metered: true,
@@ -118,6 +129,7 @@ export const unthrottledAdapters: Record<Retailer, RetailerAdapter> = {
   etsy: {
     search: searchEtsy,
     scrapeProduct: scrapeEtsyProduct,
+    enrich: enrichEtsyProduct,
     productUrl: etsyProductUrl,
     matchesUrl: (url) => /(^|\.)etsy\.com$/i.test(hostOf(url)),
     metered: false,
@@ -152,6 +164,7 @@ export const unthrottledAdapters: Record<Retailer, RetailerAdapter> = {
   ebay: {
     search: searchEbay,
     scrapeProduct: scrapeEbayProduct,
+    enrich: enrichEbayProduct,
     productUrl: ebayProductUrl,
     matchesUrl: (url) => /(^|\.)ebay\.[a-z.]+$/i.test(hostOf(url)),
     metered: false,
@@ -193,6 +206,13 @@ export const adapters: Record<Retailer, RetailerAdapter> = Object.fromEntries(
           guarded(retailer, () => adapter.search(keyword, limit)),
         scrapeProduct: (url: string) =>
           guarded(retailer, () => adapter.scrapeProduct(url)),
+        // Gated for the same reason as the others: a lookup is a real request
+        // to a real store, and the un-gated path is the one that gets us
+        // blocked. Preserved as undefined where the store has no enricher, so
+        // callers can still test for its presence.
+        enrich: adapter.enrich
+          ? (url: string) => guarded(retailer, () => adapter.enrich!(url))
+          : undefined,
       },
     ],
   ),

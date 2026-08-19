@@ -66,9 +66,14 @@ model Wallet {
   manualChecksResetAt DateTime @default(now())
   lastManualCheckAt DateTime?
 
-  // "Sweep this deal" — the cross-retailer verdict. Metered separately from
-  // search because one sweep fans out to every retailer AND re-reads history,
-  // so it costs more than a search and is priced to match.
+  // Product lookups — one enriched page about one product. Metered separately
+  // from search because they are different actions and spending one shouldn't
+  // consume the other.
+  //
+  // Named `sweeps*` because this counter used to meter "Sweep this deal",
+  // which product lookup replaced. Kept rather than renamed: a column rename
+  // is a migration plus a window where old and new backends disagree about a
+  // live table, bought for nothing but a nicer name.
   sweepsUsedToday   Int       @default(0)
   sweepsResetAt     DateTime  @default(now())
 
@@ -224,6 +229,12 @@ model GuestQuota {
   deviceId          String   @unique
   searchesUsedToday Int      @default(0)
   searchesResetAt   DateTime @default(now())
+  // Product lookups, on their own counter for the same reason accounts have
+  // one: reading product pages and searching are different actions, and
+  // spending one shouldn't consume the other. Additive with defaults, so a
+  // backend running the previous schema simply ignores these.
+  lookupsUsedToday  Int      @default(0)
+  lookupsResetAt    DateTime @default(now())
   createdAt         DateTime @default(now())
 }
 
