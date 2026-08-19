@@ -130,11 +130,9 @@ export default function AddToListSheet({ product, onClose, onAdded }: Props) {
   const atListLimit = limits ? limits.used >= limits.maxLists : false;
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
-          <View style={styles.grabber} />
-
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text style={styles.heading}>{t("addToList.heading")}</Text>
             <Text style={styles.product} numberOfLines={2}>
@@ -242,22 +240,26 @@ export default function AddToListSheet({ product, onClose, onAdded }: Props) {
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
-    backdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: "flex-end" },
+    // Anchored to the TOP, not the bottom, because this sheet has a text
+    // input in it. A bottom sheet puts that input exactly where the keyboard
+    // opens, so naming a new list meant typing into a box you couldn't see.
+    // Matches UsernameSheet and ForgotPasswordSheet, which are top-anchored
+    // for the same reason — every sheet in the app with an input is.
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.scrim,
+      justifyContent: "flex-start",
+      padding: spacing.lg,
+    },
     sheet: {
       backgroundColor: colors.background,
-      borderTopLeftRadius: radius.lg,
-      borderTopRightRadius: radius.lg,
-      maxHeight: "80%",
-      borderTopWidth: 1,
+      borderRadius: radius.lg,
+      // Leaves room for the keyboard beneath rather than assuming it isn't
+      // there: 80% of the screen from the top is still under it on a short
+      // phone.
+      maxHeight: "70%",
+      borderWidth: 1,
       borderColor: colors.surfaceBorder,
-    },
-    grabber: {
-      alignSelf: "center",
-      width: 38,
-      height: 4,
-      borderRadius: radius.pill,
-      backgroundColor: colors.surfaceBorder,
-      marginTop: spacing.sm,
     },
     content: { padding: spacing.md, gap: spacing.sm },
     heading: {

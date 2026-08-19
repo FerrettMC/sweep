@@ -15,6 +15,7 @@ import { setGuestMode } from "@/lib/guestMode";
 import { supabase } from "@/lib/supabase";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
+import { friendlyAuthErrorKey } from "@/lib/authErrors";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -126,7 +127,7 @@ export default function Auth() {
         setAwaitingConfirm(email.trim());
         return fail(t("auth.confirmBlocked"));
       }
-      return fail(error.message);
+      return fail(t(friendlyAuthErrorKey(error.message)));
     }
 
     await setGuestMode(false);
@@ -142,7 +143,7 @@ export default function Auth() {
 
     try {
       const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) return fail(error.message);
+      if (error) return fail(t(friendlyAuthErrorKey(error.message)));
 
       // Supabase does not error on a duplicate email — it returns a
       // success-shaped response with no session, identical to a genuine new

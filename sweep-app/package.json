@@ -43,7 +43,8 @@
     "web": "expo start --web",
     "android": "adb reverse tcp:8081 tcp:8081 && adb reverse tcp:3001 tcp:3001 && expo run:android",
     "test:review": "npx tsx lib/reviewGate.test.ts",
-    "test:i18n": "node lib/i18n/checkKeys.mjs"
+    "test:i18n": "node lib/i18n/checkKeys.mjs",
+    "test:auth-errors": "npx tsx lib/authErrors.test.ts"
   },
   "private": true
 }
