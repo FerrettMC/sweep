@@ -178,16 +178,33 @@ official API or a paid residential proxy.
 
 ---
 
-## Cost note before raising free searches
+## The Bright Data ceiling, and why it isn't scary
 
-Amazon goes through Bright Data and bills per record. It's in most searches, so
-**1/day → 5/day multiplies the main variable cost by five**, paid for users who
-generate no revenue. (We will switch from bright data soon to a cheaper provider so this is fine)
+Amazon goes through Bright Data and bills **per record**, on a free tier of
+5,000 a month — roughly 166 a day shared across everyone. Raising the free
+limits multiplies the main variable cost, paid for users who generate no
+revenue.
 
-Worth pairing with **caching searches by keyword**. Right now every user
-searching "airpods" triggers a fresh scrape; caching even briefly collapses
+**This is fine, and the reason is worth writing down.** Running out of credits
+is the signal that there are enough users to justify moving to
+**amazonscraperapi**, which is far cheaper — as low as $0.50 per 1,000 requests
+— and bills **per request rather than per record**, so one search costs 1
+instead of one per result. A whole month of the Bright Data free tier is about
+$2.50 there. The ceiling can only be hit by the kind of usage that pays for
+leaving it behind.
+
+**What actually happens when the credits run out**, verified rather than
+assumed: Bright Data answers 429 (treated as `blocked`) or another error
+(`failed`), the circuit breaker pauses Amazon, and `searchAllRetailers` returns
+the other stores regardless — it deliberately never rejects. The store-trouble
+banner already names Amazon as unavailable. So it degrades to "Amazon is
+missing from results" rather than breaking search, and there's no cliff to
+plan around.
+
+**Still worth doing: caching searches by keyword.** Right now every user
+searching "airpods" triggers a fresh scrape. Caching even briefly collapses
 repeat traffic, and popular queries repeat constantly. It's the single biggest
-lever on cost and it's free.
+lever on cost, it's free, and it makes both providers go further.
 
 ---
 
