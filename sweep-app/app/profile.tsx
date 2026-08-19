@@ -59,6 +59,7 @@ export default function ProfileScreen() {
   // advertised Pro at 10 searches a day months after the cap moved to 30.
   const [planSummary, setPlanSummary] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -153,6 +154,7 @@ export default function ProfileScreen() {
   }
 
   async function onSignOut() {
+    setConfirmingSignOut(false);
     // Deregister first: after signOut there's no token to authenticate the
     // delete, and a shared device would keep alerting the previous account.
     await deregisterPushNotifications();
@@ -462,7 +464,11 @@ export default function ProfileScreen() {
           {isGuest ? (
             <Button label={t("profile.createAccount")} onPress={() => router.push("/auth")} />
           ) : (
-            <Button label={t("profile.signOut")} onPress={onSignOut} variant="secondary" />
+            <Button
+              label={t("profile.signOut")}
+              onPress={() => setConfirmingSignOut(true)}
+              variant="secondary"
+            />
           )}
         </View>
       </ScrollView>
@@ -473,6 +479,28 @@ export default function ProfileScreen() {
         onClose={() => setEditingName(false)}
         onSaved={load}
       />
+      {/* Its own dialog rather than sharing the delete one: the two have
+          different handlers, and wiring one dialog to whichever action is
+          pending is how a "sign out" tap eventually deletes an account. */}
+      <ConfirmDialog
+        content={
+          confirmingSignOut
+            ? {
+                icon: "log-out-outline",
+                title: t("profile.signOutTitle"),
+                body: t("profile.signOutBody"),
+                subject: email
+                  ? { title: email, caption: t("profile.signedInAs") }
+                  : undefined,
+                confirmLabel: t("profile.signOut"),
+                cancelLabel: t("common.cancel"),
+              }
+            : null
+        }
+        onCancel={() => setConfirmingSignOut(false)}
+        onConfirm={onSignOut}
+      />
+
       <ConfirmDialog
         content={
           confirmingDelete && !deleting

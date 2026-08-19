@@ -407,6 +407,10 @@ export const en = {
     replayHint: "See how Sweep works again",
     version: "Version",
     signOut: "Sign out",
+    signOutTitle: "Sign out of Sweep?",
+    signOutBody:
+      "Your tracked products, lists and budget stay safe — you'll just need to sign back in to see them.",
+    signedInAs: "Signed in as",
     deleteAccount: "Delete my account",
     deleteTitle: "Delete your account?",
     deleteBody:
@@ -1031,6 +1035,10 @@ export const es: Translations = {
     replayHint: "Repasa cómo funciona Sweep",
     version: "Versión",
     signOut: "Cerrar sesión",
+    signOutTitle: "¿Cerrar sesión en Sweep?",
+    signOutBody:
+      "Tus productos seguidos, listas y presupuesto se quedan a salvo; solo tendrás que volver a iniciar sesión para verlos.",
+    signedInAs: "Sesión iniciada como",
     deleteAccount: "Eliminar mi cuenta",
     deleteTitle: "¿Eliminar tu cuenta?",
     deleteBody:
