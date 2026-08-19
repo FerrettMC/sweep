@@ -33,6 +33,10 @@ async function seed(
       title,
       currentPrice: price,
       currency: "USD",
+      // Every real write path sets this (cacheSearchResults and
+      // upsertScrapedProduct both do), and similar products filters on it, so
+      // a seed without it isn't a realistic row.
+      lastCheckedAt: new Date(),
     },
   });
   made.push(row.id);
@@ -116,6 +120,37 @@ try {
   );
   check("every row carries a store label", results.every((r) => r.retailerLabel.length > 0));
   check("respects the limit", (await findSimilarProducts(source, 2)).length <= 2);
+
+  console.log("\n— stale rows are not suggestions —");
+  // Untracked products are never re-checked on a schedule, so a row can hold a
+  // price from whenever anyone last searched it. This is the only place in the
+  // caching design with no natural floor under how old that can get.
+  const staleId = await seed(
+    "ebay",
+    `Sony WH-1000XM5 Wireless Noise Cancelling Headphones ${TAG} B`,
+    // Comfortably above the accessory floor — 9900 against 39900 is 24.8%,
+    // which the "that's a case, not the headphones" filter correctly rejects.
+    29900,
+  );
+  await prisma.product.update({
+    where: { id: staleId },
+    data: { lastCheckedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+  });
+  const withStale = await findSimilarProducts(source, 10);
+  check(
+    "a month-old price is not offered as a cheaper option",
+    !withStale.some((r) => r.productId === staleId),
+    withStale.map((r) => ({ id: r.productId, price: r.price })),
+  );
+
+  await prisma.product.update({
+    where: { id: staleId },
+    data: { lastCheckedAt: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+  });
+  check(
+    "a day-old price still counts",
+    (await findSimilarProducts(source, 10)).some((r) => r.productId === staleId),
+  );
 
   console.log("\n— nothing to say —");
   const lonely = await seed("amazon", `Utterly Unique Widget ${TAG}`, 5000);

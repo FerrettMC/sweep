@@ -53,6 +53,25 @@ const CANDIDATE_LIMIT = 60;
 /** Below this the listing is almost always an accessory, not the product. */
 const ABSURDLY_CHEAP = 0.25;
 
+/**
+ * How old a cached product may be before it stops being worth suggesting.
+ *
+ * This is the one place the cache can genuinely go stale. An untracked product
+ * is never checked on a schedule — nothing refreshes it unless somebody
+ * searches its keyword again — so a row can sit at whatever price it had the
+ * last time anyone looked, indefinitely.
+ *
+ * Elsewhere that's bounded: a keyword-cache entry expires and forces a fresh
+ * scrape, and a product lookup always calls the store. Here there is no such
+ * floor, so it has to be imposed. Two weeks is generous for "is this roughly
+ * still the price" and short enough that nobody is sent to a listing that
+ * stopped existing last month.
+ *
+ * Showing nothing is the right failure. This row is a convenience; a wrong
+ * price on it would be a reason not to trust the ones that matter.
+ */
+const MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+
 export async function findSimilarProducts(
   productId: string,
   limit = 4,
@@ -78,6 +97,9 @@ export async function findSimilarProducts(
       })),
       id: { not: productId },
       currentPrice: { not: null },
+      // See MAX_AGE_MS. Nothing refreshes an untracked product on its own, so
+      // without this a price from months ago reads exactly like today's.
+      lastCheckedAt: { gte: new Date(Date.now() - MAX_AGE_MS) },
     },
     select: {
       id: true,
