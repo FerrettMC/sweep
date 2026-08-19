@@ -14,6 +14,23 @@
 // The raw message still reaches Sentry. Nothing is lost for debugging by not
 // showing it to the person signing up.
 
+/**
+ * Shortest password we'll set.
+ *
+ * Lives here rather than in either screen because it was 6 on signup and 8 on
+ * password reset, which meant someone who signed up with six characters could
+ * not reset to the password they already had — refused by a rule that did not
+ * exist when they chose it.
+ *
+ * Eight is the floor NIST recommends for user-chosen secrets, and these
+ * accounts carry live subscriptions. The two keystrokes are not what makes
+ * people abandon a signup.
+ *
+ * Only checked when SETTING a password. Existing shorter ones keep working;
+ * nobody is locked out of an account they already have.
+ */
+export const MIN_PASSWORD_LENGTH = 8;
+
 export type AuthErrorKey =
   | "auth.tooManyAttempts"
   | "auth.tooShort"

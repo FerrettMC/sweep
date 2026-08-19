@@ -32,6 +32,7 @@ import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
+import { MIN_PASSWORD_LENGTH } from "@/lib/authErrors";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase";
 
@@ -105,7 +106,7 @@ export default function ForgotPasswordSheet({
     if (code.trim().length < MIN_CODE_LENGTH) {
       return setError(t("reset.enterCode"));
     }
-    if (password.length < 8) return setError(t("reset.tooShort"));
+    if (password.length < MIN_PASSWORD_LENGTH) return setError(t("reset.tooShort"));
 
     setBusy(true);
     setError(null);

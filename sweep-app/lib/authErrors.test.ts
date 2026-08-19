@@ -1,6 +1,6 @@
 // lib/authErrors.test.ts — what a person sees when auth refuses.
 //   npm run test:auth-errors     (plain node, no device)
-import { type AuthErrorKey, friendlyAuthErrorKey } from "./authErrors";
+import { MIN_PASSWORD_LENGTH, type AuthErrorKey, friendlyAuthErrorKey } from "./authErrors";
 import { en, es } from "./i18n/translations";
 
 let pass = 0,
@@ -75,6 +75,15 @@ check(
   "cooldown beats password wording",
   got("For security purposes, password reset can only be requested after 60 seconds") ===
     "auth.tooManyAttempts",
+);
+
+console.log("\n— one minimum, shared by both screens —");
+// Signup used 6 and password reset used 8, so anyone who signed up with six
+// characters was refused when resetting to the password they already had.
+check("minimum is 8", MIN_PASSWORD_LENGTH === 8, MIN_PASSWORD_LENGTH);
+check(
+  "Supabase's own too-short message still maps to our copy",
+  friendlyAuthErrorKey("Password should be at least 8 characters.") === "auth.tooShort",
 );
 
 console.log("\n— every key this can return actually exists —");

@@ -107,7 +107,7 @@ export const en = {
     tooManyAttempts: "Too many attempts just now. Wait a minute and try again.",
     badEmail: "That email address doesn't look right.",
     signupFailed: "Something went wrong. Please try again in a moment.",
-    tooShort: "Password must be at least 6 characters.",
+    tooShort: "Password must be at least 8 characters.",
     guestNote:
       "Compare prices across {{stores}} in one search. Guests get one a day.",
     confirmTitle: "Confirm your email",
@@ -731,7 +731,7 @@ export const es: Translations = {
     tooManyAttempts: "Demasiados intentos. Espera un minuto e inténtalo otra vez.",
     badEmail: "Esa dirección de correo no parece correcta.",
     signupFailed: "Algo salió mal. Inténtalo de nuevo en un momento.",
-    tooShort: "La contraseña debe tener al menos 6 caracteres.",
+    tooShort: "La contraseña debe tener al menos 8 caracteres.",
     guestNote:
       "Compara precios en {{stores}} con una sola búsqueda. Los invitados tienen una al día.",
     confirmTitle: "Confirma tu correo",

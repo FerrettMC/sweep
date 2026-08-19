@@ -15,7 +15,7 @@ import { setGuestMode } from "@/lib/guestMode";
 import { supabase } from "@/lib/supabase";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
-import { friendlyAuthErrorKey } from "@/lib/authErrors";
+import { MIN_PASSWORD_LENGTH, friendlyAuthErrorKey } from "@/lib/authErrors";
 import { suggestEmail } from "@/lib/emailTypos";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -290,8 +290,9 @@ export default function Auth() {
       return false;
     }
     // Supabase enforces this server-side too; catching it here saves a round
-    // trip and gives a clearer message than the API's.
-    if (password.length < 6) {
+    // trip and gives a clearer message than the API's. Set Supabase's own
+    // minimum to match, or it refuses after this passes.
+    if (password.length < MIN_PASSWORD_LENGTH) {
       fail(t("auth.tooShort"));
       return false;
     }
