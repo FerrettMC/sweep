@@ -37,6 +37,7 @@ import { Button, EmptyState, ErrorBanner, Loading, Screen } from "@/components/u
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
+import { maybeAskForReview } from "@/lib/reviewPrompt";
 import { storeListPhrase } from "@/lib/format";
 import {
   ApiError,
@@ -307,6 +308,10 @@ export default function SearchScreen() {
 
         if (progress.done) {
           setJobId(null);
+          // A search that found something is a moment the app just worked.
+          if (progress.results.some((r) => r.products.length > 0)) {
+            void maybeAskForReview();
+          }
           return;
         }
         timer = setTimeout(poll, SEARCH_POLL_MS);

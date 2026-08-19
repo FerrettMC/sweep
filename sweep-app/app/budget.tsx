@@ -29,6 +29,7 @@ import { Button, EmptyState, ErrorBanner, Loading, Screen } from "@/components/u
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
+import { maybeAskForReview } from "@/lib/reviewPrompt";
 import {
   ApiError,
   type BudgetEntry,
@@ -406,7 +407,12 @@ export default function BudgetScreen() {
         categories={data?.availableCategories ?? []}
         canUseCustomCategories={data?.limits.canUseCustomCategories ?? false}
         onClose={() => setDraft(null)}
-        onSaved={() => load(month)}
+        onSaved={() => {
+          void load(month);
+          // Logging a purchase is a completed action — the budget tracker
+          // just did its job.
+          void maybeAskForReview();
+        }}
       />
     </Screen>
   );

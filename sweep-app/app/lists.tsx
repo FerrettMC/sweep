@@ -27,6 +27,7 @@ import { Button, EmptyState, Loading, Screen } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
+import { maybeAskForReview } from "@/lib/reviewPrompt";
 import {
   ApiError,
   type GiftList,
@@ -108,6 +109,8 @@ export default function ListsScreen() {
       await createList(newName.trim());
       setNewName("");
       await load();
+      // Making a list is someone planning something — a real use of the app.
+      void maybeAskForReview();
     } catch (err) {
       setError((err as ApiError).message);
     } finally {

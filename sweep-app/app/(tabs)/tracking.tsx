@@ -227,7 +227,7 @@ export default function TrackingScreen() {
           // A moment the app has just been useful, which is the only kind
           // worth asking on. Fire-and-forget: it decides for itself whether
           // this is the right time, and stays silent when it isn't.
-          void maybeAskForReview((tracked ?? []).length + (isNew ? 1 : 0));
+          void maybeAskForReview();
 
           router.push(`/product/${added.product.id}`);
         }}

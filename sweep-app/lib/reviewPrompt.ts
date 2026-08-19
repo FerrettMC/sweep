@@ -26,6 +26,7 @@ import { shouldAskForReview } from "./reviewGate";
 
 const FIRST_SEEN_KEY = "sweep.review.firstSeen";
 const ASKED_KEY = "sweep.review.asked";
+const ACTIONS_KEY = "sweep.review.actions";
 
 /**
  * Stamp the install date. Safe to call on every launch — only the first sticks.
@@ -41,6 +42,23 @@ export async function noteAppOpened(): Promise<void> {
     }
   } catch {
     // A missed stamp only delays the prompt to the next launch.
+  }
+}
+
+/**
+ * Record that something worth counting finished.
+ *
+ * Called from the end of real actions — a search that returned results, a
+ * product tracked, a list made, a purchase logged — never from opening a
+ * screen. The count is what separates "has used the app" from "has it
+ * installed".
+ */
+export async function noteAction(): Promise<void> {
+  try {
+    const current = Number(await AsyncStorage.getItem(ACTIONS_KEY)) || 0;
+    await AsyncStorage.setItem(ACTIONS_KEY, String(current + 1));
+  } catch {
+    // A dropped count only delays the prompt.
   }
 }
 
@@ -61,18 +79,26 @@ export async function hasAsked(): Promise<boolean> {
  * the caller can reason about — and so it costs nothing on the common path
  * where we're not going to ask anyway.
  */
-export async function maybeAskForReview(trackedCount: number): Promise<boolean> {
+export async function maybeAskForReview(): Promise<boolean> {
   try {
     // The cheap disqualifier first, so the common path costs one read.
     if (await hasAsked()) return false;
 
-    const stored = await AsyncStorage.getItem(FIRST_SEEN_KEY);
-    const firstSeenAt = stored ? Number(stored) : null;
+    // Counted here rather than passed in, so every caller is just "something
+    // finished" and none of them has to know what the threshold is.
+    await noteAction();
+
+    const [stored, actions] = await AsyncStorage.multiGet([
+      FIRST_SEEN_KEY,
+      ACTIONS_KEY,
+    ]);
+    const firstSeenAt = stored[1] ? Number(stored[1]) : null;
+    const actionsCompleted = Number(actions[1]) || 0;
 
     // Availability is the platform; hasAction is whether a review flow can
     // actually be reached from here. Only asked once the cheap checks pass.
     const cheap = shouldAskForReview({
-      trackedCount,
+      actionsCompleted,
       firstSeenAt: Number.isFinite(firstSeenAt) ? firstSeenAt : null,
       alreadyAsked: false,
       reviewAvailable: true,
@@ -110,5 +136,5 @@ export function storeListingUrl(): string | null {
 
 /** Test/debug seam: forget that we asked. */
 export async function __resetReviewPrompt(): Promise<void> {
-  await AsyncStorage.multiRemove([FIRST_SEEN_KEY, ASKED_KEY]);
+  await AsyncStorage.multiRemove([FIRST_SEEN_KEY, ASKED_KEY, ACTIONS_KEY]);
 }

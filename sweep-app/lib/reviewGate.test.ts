@@ -14,7 +14,7 @@ const NOW = 1_700_000_000_000;
 const DAY_OLD = NOW - MIN_AGE_MS - 1;
 
 const base: ReviewGateInput = {
-  trackedCount: 1,
+  actionsCompleted: 1,
   firstSeenAt: DAY_OLD,
   alreadyAsked: false,
   reviewAvailable: true,
@@ -26,17 +26,17 @@ const gate = (over: Partial<ReviewGateInput> = {}) =>
 console.log("\n— the happy path —");
 check("asks after a day, tracking one product", gate().ask);
 
-console.log("\n— one tracked product is enough —");
-check("one product qualifies", gate({ trackedCount: 1 }).ask);
-check("zero products does not", !gate({ trackedCount: 0 }).ask);
+console.log("\n— one completed action is enough —");
+check("one action qualifies", gate({ actionsCompleted: 1 }).ask);
+check("zero actions does not", !gate({ actionsCompleted: 0 }).ask);
 
 console.log("\n— never twice, under any combination —");
 // The guarantee: no other input may override alreadyAsked.
 const permutations: Partial<ReviewGateInput>[] = [];
-for (const trackedCount of [0, 1, 5, 100]) {
+for (const actionsCompleted of [0, 1, 5, 100]) {
   for (const firstSeenAt of [null, NOW, DAY_OLD, 0]) {
     for (const reviewAvailable of [true, false]) {
-      permutations.push({ trackedCount, firstSeenAt, reviewAvailable, alreadyAsked: true });
+      permutations.push({ actionsCompleted, firstSeenAt, reviewAvailable, alreadyAsked: true });
     }
   }
 }
@@ -61,7 +61,7 @@ check("silent where no review flow exists", !gate({ reviewAvailable: false }).as
 console.log("\n— reasons are specific enough to debug —");
 const reasons = [
   [gate({ alreadyAsked: true }), "already-asked"],
-  [gate({ trackedCount: 0 }), "not-tracking"],
+  [gate({ actionsCompleted: 0 }), "no-actions"],
   [gate({ firstSeenAt: null }), "no-first-seen"],
   [gate({ firstSeenAt: NOW }), "too-new"],
   [gate({ reviewAvailable: false }), "unavailable"],
