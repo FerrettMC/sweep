@@ -2,8 +2,11 @@
 //
 // The first-run tour.
 //
-// Ordered as a story rather than a feature list — find it, watch it, judge it,
-// plan it — because "here are our six features" is what people skip. Each slide
+// Ordered as a story rather than a feature list — find it, look into it, watch
+// it, plan it — because "here are our six features" is what people skip. Slides
+// follow the order someone actually does those things: you look into a product
+// before deciding it's worth following, which is why the lookup slide sits
+// ahead of tracking rather than after it. Each slide
 // shows a small mock of the real UI instead of describing it, since a picture
 // of a price comparison explains a price comparison faster than a sentence can.
 //
@@ -32,7 +35,7 @@ import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { storeListPhrase } from "@/lib/format";
-import { getPlans } from "@/lib/api";
+import { getPlans, getRetailerStatus } from "@/lib/api";
 import { markOnboardingSeen } from "@/lib/onboarding";
 import { type Translate, useTranslate } from "@/lib/i18n";
 import { isGuestMode } from "@/lib/guestMode";
@@ -55,12 +58,31 @@ export default function Onboarding() {
   // Real free-tier numbers, so the tour can't promise something the server
   // then refuses. Falls back to prose if the API isn't reachable.
   const [freeLimits, setFreeLimits] = useState<string[] | null>(null);
+  // Named from live retailer status rather than the app's own list, which has
+  // no idea which stores are switched off server-side — onboarding is the
+  // worst possible place to promise a store we don't actually search.
+  const [stores, setStores] = useState<string | null>(null);
   // Offered here and not only in Profile, because someone who cannot read the
   // tour cannot get through the tour to reach Profile.
   const [languageOpen, setLanguageOpen] = useState(false);
   const t = useTranslate();
 
   useEffect(() => {
+    getRetailerStatus()
+      .then((status) => {
+        const live = status.retailers
+          .filter((r) => r.enabled !== false)
+          .map((r) => r.label);
+        if (live.length === 0) return;
+        setStores(
+          live.length <= 3
+            ? `${live.slice(0, -1).join(", ")} and ${live[live.length - 1]}`
+            : `${live.slice(0, 3).join(", ")} and more`,
+        );
+      })
+      // Falls back to the built-in phrase, which is still better than a gap.
+      .catch(() => {});
+
     getPlans()
       .then(({ plans }) => {
         const free = plans.find((p) => p.tier === "free");
@@ -92,7 +114,7 @@ export default function Onboarding() {
     router.replace(data.session || guest ? "/(tabs)" : "/auth");
   }, [router]);
 
-  const slides = buildSlides(styles, colors, freeLimits, t);
+  const slides = buildSlides(styles, colors, freeLimits, stores, t);
   const isLast = index === slides.length - 1;
 
   function next() {
@@ -173,6 +195,7 @@ function buildSlides(
   styles: Styles,
   colors: Palette,
   freeLimits: string[] | null,
+  stores: string | null,
   t: Translate,
 ): Slide[] {
   return [
@@ -195,8 +218,19 @@ function buildSlides(
       title: t("onboarding.findTitle"),
       // The store list is built from live retailer status, so it stays a
       // placeholder rather than being baked into the sentence.
-      body: t("onboarding.findBody", { stores: storeListPhrase() }),
+      body: t("onboarding.findBody", { stores: stores ?? storeListPhrase(3) }),
       visual: <FindVisual styles={styles} colors={colors} />,
+    },
+    {
+      // Replaced "judge it". Product lookup absorbed that question — "is this
+      // sale real" is now one section of a page that also carries ratings,
+      // what buyers said, and price history. Two slides for one screen would
+      // have been describing the app as it used to be.
+      key: "look",
+      eyebrow: t("onboarding.lookEyebrow"),
+      title: t("onboarding.lookTitle"),
+      body: t("onboarding.lookBody"),
+      visual: <LookVisual styles={styles} colors={colors} />,
     },
     {
       key: "watch",
@@ -204,13 +238,6 @@ function buildSlides(
       title: t("onboarding.watchTitle"),
       body: t("onboarding.watchBody"),
       visual: <WatchVisual styles={styles} colors={colors} />,
-    },
-    {
-      key: "judge",
-      eyebrow: t("onboarding.judgeEyebrow"),
-      title: t("onboarding.judgeTitle"),
-      body: t("onboarding.judgeBody"),
-      visual: <JudgeVisual styles={styles} colors={colors} />,
     },
     {
       key: "plan",
@@ -286,23 +313,33 @@ function WatchVisual({ styles, colors }: { styles: Styles; colors: Palette }) {
   );
 }
 
-function JudgeVisual({ styles, colors }: { styles: Styles; colors: Palette }) {
+function LookVisual({ styles, colors }: { styles: Styles; colors: Palette }) {
+  const t = useTranslate();
   return (
     <View style={styles.mock}>
+      {/* The rating and what buyers said — the half of the page that's new. */}
+      <View style={styles.mockRow}>
+        <Ionicons name="star" size={14} color={colors.warning} />
+        <Text style={styles.mockStore}>4.6</Text>
+        <Text style={styles.mockCount}>47,267 ratings</Text>
+      </View>
+      <View style={styles.chipRow}>
+        <Text style={styles.chipGood}>{t("onboarding.chipSound")}</Text>
+        <Text style={styles.chipMixed}>{t("onboarding.chipFit")}</Text>
+      </View>
+
+      {/* The verdict, kept from the slide this replaced. It was always the
+          strongest thing here: the one claim a shop can't stage. */}
       <View style={styles.verdict}>
         <View style={styles.verdictHalf}>
-          <Text style={styles.verdictLabel}>STORE CLAIMS</Text>
+          <Text style={styles.verdictLabel}>{t("onboarding.storeClaims")}</Text>
           <Text style={styles.verdictClaim}>40% off</Text>
         </View>
         <Ionicons name="arrow-forward" size={14} color={colors.textTertiary} />
         <View style={styles.verdictHalf}>
-          <Text style={styles.verdictLabel}>ACTUALLY</Text>
-          <Text style={styles.verdictReal}>its normal price</Text>
+          <Text style={styles.verdictLabel}>{t("onboarding.actually")}</Text>
+          <Text style={styles.verdictReal}>{t("onboarding.normalPrice")}</Text>
         </View>
-      </View>
-      <View style={styles.sweptRow}>
-        <Ionicons name="sparkles" size={14} color={colors.accent} />
-        <Text style={styles.sweptText}>Swept! $14.21 less at Newegg.</Text>
       </View>
     </View>
   );
@@ -486,6 +523,27 @@ const makeStyles = (colors: Palette) =>
     notificationTitle: { color: colors.textPrimary, fontSize: type.label.fontSize, fontWeight: "800" },
     notificationBody: { color: colors.textSecondary, fontSize: type.caption.fontSize },
 
+    chipRow: { flexDirection: "row", gap: spacing.xs, flexWrap: "wrap" },
+    chipGood: {
+      color: colors.success,
+      fontSize: type.caption.fontSize,
+      fontWeight: "600",
+      backgroundColor: colors.background,
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 3,
+      overflow: "hidden",
+    },
+    chipMixed: {
+      color: colors.warning,
+      fontSize: type.caption.fontSize,
+      fontWeight: "600",
+      backgroundColor: colors.background,
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 3,
+      overflow: "hidden",
+    },
     verdict: {
       flexDirection: "row",
       alignItems: "center",
@@ -510,8 +568,6 @@ const makeStyles = (colors: Palette) =>
       textDecorationLine: "line-through",
     },
     verdictReal: { color: colors.warning, fontSize: type.label.fontSize, fontWeight: "800" },
-    sweptRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-    sweptText: { flex: 1, color: colors.textPrimary, fontSize: type.label.fontSize, fontWeight: "700" },
 
     budget: { gap: 5, marginTop: 2 },
     budgetHead: { flexDirection: "row", justifyContent: "space-between" },

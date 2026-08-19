@@ -56,10 +56,15 @@ export const en = {
     watchTitle: "Never refresh a page again",
     watchBody:
       "Track something and Sweep checks it for you. Or set a Deal Radar — name a thing and a price, and it keeps looking until it finds one.",
-    judgeEyebrow: "JUDGE IT",
-    judgeTitle: "Is that sale even real?",
-    judgeBody:
-      "Sweep keeps its own price history, so it can tell you when a big red discount badge is sitting on the price the item always costs.",
+    lookEyebrow: "LOOK INTO IT",
+    lookTitle: "Everything about one product",
+    lookBody:
+      "Paste a link or tap any result: the rating, what buyers actually said, shipping, price history — and whether that big red discount is sitting on the price the item always costs.",
+    chipSound: "Sound quality",
+    chipFit: "Fit",
+    storeClaims: "STORE CLAIMS",
+    actually: "ACTUALLY",
+    normalPrice: "its normal price",
     planEyebrow: "PLAN IT",
     planTitle: "Lists and a budget",
     planBody:
@@ -738,10 +743,15 @@ export const es: Translations = {
     watchTitle: "No vuelvas a recargar una página",
     watchBody:
       "Sigue un producto y Sweep lo revisa por ti. O crea un Radar de Ofertas: di qué quieres y a qué precio, y seguirá buscando hasta encontrarlo.",
-    judgeEyebrow: "JÚZGALO",
-    judgeTitle: "¿Esa oferta es real?",
-    judgeBody:
-      "Sweep guarda su propio historial de precios, así que puede decirte cuándo ese descuento enorme está sobre el precio de siempre.",
+    lookEyebrow: "MÍRALO A FONDO",
+    lookTitle: "Todo sobre un producto",
+    lookBody:
+      "Pega un enlace o toca cualquier resultado: la valoración, lo que dicen de verdad los compradores, el envío, el historial de precios y si ese descuentazo está puesto sobre el precio de siempre.",
+    chipSound: "Calidad de sonido",
+    chipFit: "Ajuste",
+    storeClaims: "LA TIENDA DICE",
+    actually: "EN REALIDAD",
+    normalPrice: "su precio normal",
     planEyebrow: "ORGANÍZALO",
     planTitle: "Listas y presupuesto",
     planBody:

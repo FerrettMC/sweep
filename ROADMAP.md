@@ -319,39 +319,39 @@ store has nothing" for hours.
 
 ---
 
-## Onboarding, as it stands today
+## Onboarding — SHIPPED
 
-Six slides, ordered as a story rather than a feature list — find it, watch it,
-judge it, plan it — because "here are our six features" is what people skip.
-Each shows a small mock of the real UI instead of describing it. Skippable from
-the first frame, with a language picker in the header.
+Six slides, ordered as a story rather than a feature list, because "here are
+our six features" is what people skip.
 
-| #   | Key       | Eyebrow        | Title                      | What it says                                                                                                                                  |
-| --- | --------- | -------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | `welcome` | WELCOME        | Sweep                      | Your online shopping buddy — finds the best price, watches it, tells you when a sale is real. Shows the logo.                                 |
-| 2   | `find`    | FIND IT        | Every store, one search    | Names the live stores (generated, never hardcoded), cheapest and biggest drop pulled to the top. Mock of a comparison.                        |
-| 3   | `watch`   | WATCH IT       | Never refresh a page again | Tracking plus Deal Radar. Mock of a price-drop notification.                                                                                  |
-| 4   | `judge`   | JUDGE IT       | Is that sale even real?    | Own price history vs. a red discount badge on the usual price. Mock of a verdict.                                                             |
-| 5   | `plan`    | PLAN IT        | Lists and a budget         | Shareable lists, and logging what you spend. Mock of a budget and two lists.                                                                  |
-| 6   | `free`    | THE HONEST BIT | Free, genuinely            | What the free tier actually gives, pulled live from the API so it can't promise what the server refuses. Ends "No card, no trial, no expiry." |
+| #   | Key       | Eyebrow        | What it says                                                                          |
+| --- | --------- | -------------- | ------------------------------------------------------------------------------------- |
+| 1   | `welcome` | WELCOME        | Your online shopping buddy. Shows the logo.                                           |
+| 2   | `find`    | FIND IT        | Every store, one search. Store names pulled from **live retailer status**.            |
+| 3   | `look`    | LOOK INTO IT   | Rating, what buyers said, shipping, price history, and whether the sale is real.      |
+| 4   | `watch`   | WATCH IT       | Tracking plus Deal Radar. Mock of a price-drop notification.                          |
+| 5   | `plan`    | PLAN IT        | Shareable lists and a budget.                                                          |
+| 6   | `free`    | THE HONEST BIT | What the free tier actually gives, pulled live from `/plans`.                          |
 
-The last slide's limits come from `/plans`, so they can't drift from what's
-enforced. Slide 2's store list comes from `storeListPhrase()`, so adding or
-disabling a store updates it with no edit.
+**What changed in the redo:**
 
-**When it gets redone**, the things worth keeping:
+- **"Judge it" became "look into it."** Product lookup absorbed that question —
+  "is this sale real" is now one section of a page that also carries ratings,
+  reviews and history. Two slides for one screen would have described the app
+  as it used to be. The store-claims-vs-actually verdict survives inside it,
+  because it was always the strongest thing there.
+- **Reordered so lookup comes before tracking.** You look into a product before
+  deciding it's worth following; the old order asked people to watch first and
+  judge later.
+- **Store names now come from live retailer status.** The app's own
+  `storeListPhrase` doesn't know which stores are switched off server-side, so
+  onboarding was naming ones we don't search — the worst possible place for it.
+- **Dropped a mock referencing "Swept!" and Newegg**, one a removed feature and
+  the other a disabled store.
 
-- Story order, not a feature list
-- Mocks of real UI rather than descriptions
-- Limits and store names generated, never typed
-- The honest slide last — putting the caps in the tour rather than at the first
-  refusal is the difference between a limit that feels fair and one that feels
-  like a trap
-- Skippable from frame one
-
-**What will need to change:** the product lookup page becomes the thing people
-open the app for, so it likely deserves its own slide — probably replacing or
-absorbing "judge it", since price history is the evidence behind both.
+**What was kept**, all of it deliberate: story order, mocks of real UI rather
+than descriptions, limits and store names generated rather than typed, the
+honest slide last, and skippable from frame one.
 
 ---
 
@@ -368,5 +368,5 @@ absorbing "judge it", since price history is the evidence behind both.
    ideas from watching your own users disagree, and when they do, users win.
    Re-order everything below this line at that point.
 9. **Similar products, share-to-app.**
-10. **Onboarding, redone last** — it should introduce the app as it ends up,
-    not as it is now. Product lookup now deserves a slide of its own.
+10. ~~**Onboarding, redone last**~~ — done, and it does now introduce the app
+    as it ends up rather than as it was.
