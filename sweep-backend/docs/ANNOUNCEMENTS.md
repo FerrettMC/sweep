@@ -58,6 +58,44 @@ curl -X POST https://api.sweepshopping.com/notifications/announce \
 carry an arbitrary URL would be a way to put a link to anywhere in front of
 every user, which is worth not building.
 
+## Testing a price-drop notification
+
+`POST /notifications/test-drop` fires a real price-drop alert at one account,
+so the push, the bell entry and the tap-through can all be checked without
+waiting for a shop to actually cut a price.
+
+```bash
+curl -X POST https://api.sweepshopping.com/notifications/test-drop \
+  -H "x-admin-key: $ADMIN_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"email": "ferretonyt@gmail.com", "match": "train", "percent": 25}'
+```
+
+| Field     | Required | Notes                                                       |
+| --------- | -------- | ----------------------------------------------------------- |
+| `email`   | yes      | Whose account to notify                                      |
+| `match`   | no       | Substring of a tracked product's title. Omit for the newest  |
+| `percent` | no       | Size of the pretend drop, 1–89. Defaults to 20               |
+
+If `match` finds nothing the error lists what that account is tracking, so the
+next attempt doesn't need guessing.
+
+It goes through the real notification path — same wording, same push channel,
+same feed record, same cooldown — rather than a lookalike, because testing a
+lookalike proves nothing about the code that actually runs. Three things make
+it safe:
+
+- **One recipient, always.** Even for a product several people track, it
+  reaches only the named account. A test that can reach strangers is not a
+  test.
+- **No stored price changes.** Nothing is written to `Product` or price
+  history, so this can't pollute the data the sale verdict is judged against.
+- **The cooldown is cleared first**, so running it twice in a row works
+  instead of silently doing nothing and looking broken.
+
+`pushesSent: 0` is not a failure — it means that account has no push token, and
+the response says so. The bell entry is filed either way.
+
 ## Note
 
 This writes to the in-app feed only — it does **not** send a push. That's

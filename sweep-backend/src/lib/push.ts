@@ -36,6 +36,14 @@ export interface DropNotification {
   productId: string;
   previousPrice: number;
   newPrice: number;
+  /**
+   * Restrict to a single tracker.
+   *
+   * Only used by the admin test endpoint, so exercising the real notification
+   * path can't reach anyone else who happens to track the same product. A
+   * genuine drop always leaves this unset and tells everybody.
+   */
+  onlyUserId?: string;
 }
 
 /**
@@ -46,6 +54,7 @@ export async function notifyPriceDrop({
   productId,
   previousPrice,
   newPrice,
+  onlyUserId,
 }: DropNotification): Promise<number> {
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) return 0;
@@ -54,7 +63,7 @@ export async function notifyPriceDrop({
   const dropPercent = Math.round((dropCents / previousPrice) * 100);
 
   const trackers = await prisma.trackedProduct.findMany({
-    where: { productId },
+    where: { productId, ...(onlyUserId ? { userId: onlyUserId } : {}) },
     include: {
       user: {
         include: {

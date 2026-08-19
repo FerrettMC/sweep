@@ -14,6 +14,7 @@ import type { FastifyInstance } from "fastify";
 import { Expo } from "expo-server-sdk";
 import { requireAuth } from "../lib/auth.js";
 import { prisma } from "../lib/prisma.js";
+import { notifyPriceDrop } from "../lib/push.js";
 import { timingSafeEqual } from "node:crypto";
 import {
   countUnread,
@@ -203,6 +204,104 @@ export async function notificationRoutes(app: FastifyInstance) {
     return { sent: users.length };
   });
 
+  // ---- fire a test price drop ----
+  //
+  // Exercises the real notification path — the same wording, the same push
+  // channel, the same feed record, the same cooldown — rather than faking
+  // something that looks like it. Testing a lookalike proves nothing about
+  // the thing that actually runs.
+  //
+  // It sends to ONE person, always, even for a product several people track.
+  // A test that can reach strangers is not a test.
+  //
+  // It does NOT change any stored price. Nothing is written to price history,
+  // so this can't pollute the data the sale verdict is judged against.
+  app.post("/notifications/test-drop", async (request, reply) => {
+    const expected = process.env.ADMIN_API_KEY;
+    if (!expected) {
+      return reply.status(503).send({ error: "Announcements not configured" });
+    }
+    const provided = request.headers["x-admin-key"];
+    if (typeof provided !== "string" || !secretsMatch(provided, expected)) {
+      return reply.status(401).send({ error: "Unauthorized" });
+    }
+
+    const body = (request.body ?? {}) as {
+      email?: unknown;
+      match?: unknown;
+      percent?: unknown;
+    };
+    if (typeof body.email !== "string") {
+      return reply.status(400).send({ error: "email is required" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: body.email.trim().toLowerCase() },
+      select: { id: true },
+    });
+    if (!user) return reply.status(404).send({ error: "No user with that email" });
+
+    const tracked = await prisma.trackedProduct.findMany({
+      where: { userId: user.id },
+      include: { product: true },
+      orderBy: { addedAt: "desc" },
+    });
+
+    // `match` is a substring of the title, because finding a product id by
+    // hand to send yourself a test is exactly the sort of friction that means
+    // the test doesn't get run.
+    const needle = typeof body.match === "string" ? body.match.toLowerCase() : null;
+    const target = needle
+      ? tracked.find((t) => t.product.title.toLowerCase().includes(needle))
+      : tracked[0];
+
+    if (!target) {
+      return reply.status(404).send({
+        error: needle
+          ? `Nothing tracked matching "${needle}"`
+          : "That account isn't tracking anything",
+        tracking: tracked.map((t) => t.product.title),
+      });
+    }
+    if (target.product.currentPrice === null) {
+      return reply.status(409).send({ error: "That product has no price to drop from" });
+    }
+
+    // Clear the cooldown first, or a second test within the window would
+    // silently do nothing and look like a broken feature.
+    await prisma.trackedProduct.update({
+      where: { id: target.id },
+      data: { lastNotifiedAt: null },
+    });
+
+    const percent =
+      typeof body.percent === "number" && body.percent > 0 && body.percent < 90
+        ? body.percent
+        : 20;
+    const previousPrice = target.product.currentPrice;
+    const newPrice = Math.max(1, Math.round(previousPrice * (1 - percent / 100)));
+
+    const sent = await notifyPriceDrop({
+      productId: target.productId,
+      previousPrice,
+      newPrice,
+      onlyUserId: user.id,
+    });
+
+    return {
+      product: target.product.title,
+      previousPrice,
+      newPrice,
+      pushesSent: sent,
+      // Says so explicitly, because "0 pushes" looks like failure when it
+      // usually means notifications simply aren't switched on — and the bell
+      // entry was still filed either way.
+      note:
+        sent === 0
+          ? "No push token on this account, so nothing buzzed — but the notification is in the bell."
+          : "Push sent, and the notification is in the bell.",
+    };
+  });
 }
 
 /**
