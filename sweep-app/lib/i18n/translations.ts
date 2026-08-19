@@ -554,6 +554,7 @@ export const en = {
     includedInYours: "Included in your plan",
     cancel: "Cancel subscription",
     cancelNote: "You keep {{plan}} until the period you've paid for ends.",
+    createAccount: "Create an account",
   },
   card: {
     added: "Added",
@@ -1146,6 +1147,7 @@ export const es: Translations = {
     includedInYours: "Incluido en tu plan",
     cancel: "Cancelar suscripción",
     cancelNote: "Conservas {{plan}} hasta que termine el periodo que ya pagaste.",
+    createAccount: "Crear una cuenta",
   },
   card: {
     added: "Añadido",
