@@ -357,16 +357,46 @@ honest slide last, and skippable from frame one.
 
 ## Sequencing
 
-1. ~~**Dev Supabase project**~~ — done.
-2. ~~**Subscriptions**~~ — done and live; purchases confirmed working.
-3. ~~**Product lookup page**~~ — done, well ahead of where it sat on this list.
-4. ~~**Signup quick wins**~~ — done.
-5. ~~**Custom SMTP**~~ — already in place before it reached the top of the list.
-6. ~~**The "why limited" page**~~ — done.
-7. **Remaining quick wins** — notification bell.
-8. **Tester feedback lands** — real usage. Ideas from studying competitors and
-   ideas from watching your own users disagree, and when they do, users win.
-   Re-order everything below this line at that point.
-9. **Similar products, share-to-app.**
-10. ~~**Onboarding, redone last**~~ — done, and it does now introduce the app
-    as it ends up rather than as it was.
+**Next up: AdMob rewarded ads.** The backend half is done and tested
+(`admobSsv.ts`); the app half is stubbed in `lib/ads.ts` because
+`react-native-google-mobile-ads` pulls in `play-services-ads` compiled with
+Kotlin 2.3.0 while Expo SDK 57 uses 2.1.0.
+
+Two documented routes out, in `sweep-app/docs/INTEGRATIONS.md` §5:
+
+1. Raise the project's Kotlin version via `expo-build-properties` — cleaner
+2. Pin an older `play-services-ads` built against Kotlin ≤ 2.1
+
+Do it on a branch. It's a native dependency plus a toolchain bump, which is the
+riskiest change type in this repo, and a broken build shouldn't touch a
+shippable `master`. `lib/ads.ts` already mirrors the real module's API, so once
+the build compiles the rest is: reinstall the package, restore the real file,
+add the config plugin back to `app.json`.
+
+Worth knowing before spending a morning on it: at ~$0.05 per free user per
+month (from `scale-model.ts`), rewarded ads earn about $5/month at 100 users.
+The reason to do it now is that toolchain fixes are easier before anyone
+depends on your build cadence, not the revenue.
+
+---
+
+### Everything else, roughly in order
+
+1. **Tester feedback** — real usage from the release going out now. Ideas from
+   studying competitors and ideas from watching your own users disagree, and
+   when they do, users win. Re-order everything below this at that point.
+2. **Free searches ad top-up** — follows AdMob directly; the quota side already
+   exists (`MAX_REWARDED_SEARCHES_PER_DAY`).
+3. **Share from Amazon** — parked with the cost written down above.
+4. **Best Buy** — waiting on their API key. One line in `DISABLED_RETAILERS`.
+5. **Walmart** — the only major store left with a free official API.
+
+---
+
+### Done this release
+
+Product lookup (replacing Sweep this deal) · raised limits on every tier ·
+similar products · keyword caching · price history as a line · estimated wait
+times · notification bell and feed · announcements + test-drop endpoints ·
+"why are features limited?" · signup funnel fixes · email typo guard ·
+onboarding redone · custom SMTP verified · FCM push working.
