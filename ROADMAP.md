@@ -56,9 +56,7 @@ lookup slide that absorbed the old "judge it".
 
 ---
 
-## Quick wins
-
-### Shipped
+## Quick wins — all shipped
 
 - ~~**Free searches 1/day → 10/day.**~~ Along with the rest: guest 1→2, free
   1→10, Pro 30→75, Ultimate 200→400. Ten reads as a real allowance rather than
@@ -84,8 +82,6 @@ lookup slide that absorbed the old "judge it".
   so even spacing would stretch quiet periods and compress busy ones. The
   geometry is a tested pure module, because a chart that's subtly wrong still
   looks exactly like a chart.
-
-### Still to do
 
 - ~~**Custom SMTP.**~~ Already done — Resend is verified and Supabase Auth is
   sending through it, so confirmation emails were never on the rate-limited
@@ -121,10 +117,6 @@ lookup slide that absorbed the old "judge it".
   So price drops and radar matches are now filed for everyone who qualifies,
   including people with no push token — previously the send loop skipped them
   entirely. Announcements share the same table when you want to send one.
-- **Title → "Sweep: Shopping Assistant".** Weaker for search than "Price
-  Tracker & Deals" — nobody searches "shopping assistant" — but it fits where
-  the product is heading. Changeable any time without a build. (Keeping PT&D
-  for now.)
 
 ---
 
@@ -228,15 +220,47 @@ prebuilt and committed, a config-plugin library can't just install itself
 without a prebuild that would overwrite the manual manifest.
 
 So: a native dependency, hand-wiring into the existing Android project, and a
-rebuild that can break — against a feature that lives in someone else's share
-sheet, which is the discoverability problem noted below and the reason it's
-niche.
+rebuild that can break — against a feature nobody discovers, because it lives
+in someone else's share sheet rather than anywhere in Sweep. That is the real
+reason it's niche, and no amount of native wiring fixes it.
 
 _The free half is still worth doing:_ prompting at the moment someone is
 pasting a link by hand costs nothing and is the idea most likely to land.
 
-**Feedback banner** — somewhere for testers and users to say what they want
-built. Worth having while the tester group is small and talkative.
+---
+
+## Promo codes
+
+Half built already: `PromoCode` and `PromoCodeRedemption` exist in the schema,
+with `grantsTier` and `grantsDurationDays` and a unique constraint stopping the
+same person redeeming twice. There is no endpoint and no UI — nothing reads
+those tables except account deletion.
+
+**The important fork, because "% off" and "free for a month" are not the same
+job.**
+
+| Want                          | Who does it                                                                 |
+| ----------------------------- | --------------------------------------------------------------------------- |
+| **Free Pro/Ultimate for N days** | Ours. Grant a tier for a period, no money moves, no Play involvement. The existing tables already model exactly this. |
+| **A percentage off the price**   | **Google's.** Play controls subscription pricing — we cannot discount it ourselves. Set up an offer with a discounted phase in Play Console and hand out **promo codes** from there. Nothing to build. |
+
+So a code from a video is a choice between two mechanisms, not one feature:
+
+- `SWEEP30` → 30 days of Pro free, redeemed in the app, entirely ours. Best for
+  a creator's audience, since it costs nothing to honour and needs no card.
+- A Play offer code → an actual discount on a paid plan, created and tracked in
+  Play Console, redeemed in the Play billing sheet rather than in Sweep.
+
+**What's left to build for the first one:** a redeem endpoint (validate the
+code, check expiry and `maxRedemptions`, create the redemption, set
+`Wallet.tier` and `tierExpiresAt`), and a field to type it into — Profile or
+the plans screen. The atomic-increment pattern from `quota.ts` applies to
+`timesRedeemed`, or a code capped at 100 hands out 130 the day it goes public.
+
+**Worth knowing:** a granted tier and a paid one both live on `Wallet.tier`, so
+a promo expiring while someone also has a real subscription must not downgrade
+them. The billing webhook already guards the reverse case; this is the same
+problem from the other side and needs a test.
 
 ---
 
@@ -260,10 +284,6 @@ official API or a paid residential proxy.
 
 ## Parked
 
-- **Widgets** — dropped. Native Kotlin plus a config plugin, permanently harder
-  to maintain, and not worth it.
-- **Shipment tracking** — needs paid carrier APIs and is arguably a different
-  product. Highest cost-to-value on the list.
 - **Coupons** — partly unparked. This said no store offers them via API, and
   that turned out to be wrong: Amazon's payload carries `coupon` and
   `coupon_description`, and the lookup page already shows them when present.
@@ -273,11 +293,6 @@ official API or a paid residential proxy.
   _why_: lowering later is easy, raising is not. Existing subscribers keep their
   price and Play requires consent for increases, so starting low is closer to a
   one-way door than it feels.
-- **Defaulting to 2–3 stores per search** — probably obsolete. That note came
-  from searches feeling slow, and progressive results fixed the actual cause;
-  stores now appear as they answer. Defaulting to two would undercut the one
-  thing the app is for. Re-test before building, and note the store picker
-  already covers "I know where to look".
 
 ---
 
