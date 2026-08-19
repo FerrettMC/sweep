@@ -93,9 +93,19 @@ in the onboarding redo.
   Optional leftover: paste the branded confirm-signup template into Supabase,
   and set `SMTP_*` on Railway so scraper health alerts stop going only to the
   console.
-- **Estimated wait times per store.** Nearly free: `ScrapeCheck` already
-  stores `durationMs` for every call, so a median per retailer is a query
-  against data we have.
+- ~~**Estimated wait times per store.**~~ Done. Median successful *search*
+  duration per retailer over the past week, computed in SQL from `ScrapeCheck`
+  rows we already keep, shown on each store while a search runs.
+
+  Median rather than mean, because one 240-second Amazon crawl drags an
+  average somewhere no individual search has ever been. Failures excluded —
+  they sit at whatever timeout we set, so counting them reports our patience
+  rather than the store's speed. Fewer than five samples reports nothing:
+  "usually 3 seconds" followed by a 40-second wait is worse than silence.
+
+  Replaces a hardcoded "Amazon is slow" branch, which was true but would have
+  quietly stopped being true, and said nothing about any other store having a
+  bad day.
 
 - **Notification bell** top right, beside profile, for price drops and
   app-wide notices. Not actually a quick win: it needs somewhere to store a
@@ -347,7 +357,7 @@ absorbing "judge it", since price history is the evidence behind both.
 4. ~~**Signup quick wins**~~ — done.
 5. ~~**Custom SMTP**~~ — already in place before it reached the top of the list.
 6. ~~**The "why limited" page**~~ — done.
-7. **Remaining quick wins** — wait times, notification bell.
+7. **Remaining quick wins** — notification bell.
 8. **Tester feedback lands** — real usage. Ideas from studying competitors and
    ideas from watching your own users disagree, and when they do, users win.
    Re-order everything below this line at that point.

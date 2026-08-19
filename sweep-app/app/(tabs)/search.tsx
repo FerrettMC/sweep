@@ -144,6 +144,13 @@ export default function SearchScreen() {
   // Which stores exist and whether they're up, so the picker can show a down
   // store greyed out rather than silently dropping it from the list.
   const [storeOptions, setStoreOptions] = useState<StoreOption[]>([]);
+  // How long each store usually takes, measured server-side from its own
+  // history. Replaces a hardcoded "Amazon is slow" special case with the
+  // actual number, which also keeps being true if a store gets faster.
+  // Keyed by plain string, not Retailer: these names arrive from the server,
+  // and a build that predates a newly added store still has to render its
+  // section rather than fail to index a narrower type.
+  const [typicalSeconds, setTypicalSeconds] = useState<Record<string, number>>({});
   // Empty means every store. Kept as "empty" rather than a full list so it
   // stays correct when a store is added or goes down.
   const [pickedStores, setPickedStores] = useState<Retailer[]>([]);
@@ -192,6 +199,13 @@ export default function SearchScreen() {
               retailer: r.retailer as Retailer,
               available: r.available,
             })),
+          );
+          setTypicalSeconds(
+            Object.fromEntries(
+              status.retailers
+                .filter((r) => typeof r.typicalSeconds === "number")
+                .map((r) => [r.retailer, r.typicalSeconds as number]),
+            ),
           );
         })
         .catch(() => {
@@ -629,13 +643,18 @@ export default function SearchScreen() {
               {section.status === "pending" && (
                 <View style={styles.pendingRow}>
                   <ActivityIndicator size="small" color={colors.textSecondary} />
-                  {/* Amazon goes through a third party that can take minutes;
-                      the rest answer in seconds. One shared "up to 3 min"
-                      made every store look slow. */}
+                  {/* The measured median for this store, when we have one.
+                      This used to be a hardcoded "Amazon is slow" branch,
+                      which was true but would quietly stop being true — and
+                      said nothing about any other store having a bad day. */}
                   <Text style={styles.sectionStatus}>
-                    {section.retailer === "amazon"
-                      ? t("search.checkingSlow")
-                      : t("search.checking")}
+                    {typicalSeconds[section.retailer] !== undefined
+                      ? t("search.checkingTypical", {
+                          seconds: typicalSeconds[section.retailer],
+                        })
+                      : section.retailer === "amazon"
+                        ? t("search.checkingSlow")
+                        : t("search.checking")}
                   </Text>
                 </View>
               )}

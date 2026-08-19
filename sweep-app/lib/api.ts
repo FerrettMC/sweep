@@ -703,6 +703,14 @@ export function getRetailerStatus() {
       label: string;
       available: boolean;
       successRate: number | null;
+      /**
+       * Median successful search time in seconds, over the past week, or null
+       * when there haven't been enough searches to say.
+       *
+       * Optional: added after a release, so a server that predates it won't
+       * send it. See the rule at the top of this file.
+       */
+      typicalSeconds?: number | null;
       /** False when switched off by configuration, not merely failing. */
       enabled?: boolean;
     }[];

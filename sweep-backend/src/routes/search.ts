@@ -15,6 +15,7 @@ import { cooldownRemaining } from "../lib/scrapers/cooldown.js";
 import { recordCheck } from "../lib/health.js";
 import { pickHighlights } from "../lib/highlights.js";
 import { cacheSearchResults } from "../lib/priceChecker.js";
+import { typicalSearchSeconds } from "../lib/waitTimes.js";
 import { refundGuestSearch, refundUserSearch } from "../lib/quota.js";
 import { SCRAPE_LIMIT, SENSITIVE_LIMIT } from "../lib/rateLimit.js";
 import { prisma } from "../lib/prisma.js";
@@ -539,11 +540,17 @@ export async function searchRoutes(app: FastifyInstance) {
   app.get("/search/retailers", async () => {
     const since = new Date(Date.now() - 60 * 60 * 1000);
 
-    const grouped = await prisma.scrapeCheck.groupBy({
-      by: ["retailer", "status"],
-      where: { checkedAt: { gte: since } },
-      _count: { _all: true },
-    });
+    const [grouped, typical] = await Promise.all([
+      prisma.scrapeCheck.groupBy({
+        by: ["retailer", "status"],
+        where: { checkedAt: { gte: since } },
+        _count: { _all: true },
+      }),
+      // Never fails the endpoint: this decorates the answer, it isn't the
+      // answer. A store's availability matters; how long it usually takes is
+      // a nicety.
+      typicalSearchSeconds().catch(() => ({}) as Awaited<ReturnType<typeof typicalSearchSeconds>>),
+    ]);
 
     return {
       // A store switched off by configuration is reported as unavailable with
@@ -568,6 +575,12 @@ export async function searchRoutes(app: FastifyInstance) {
           /** Seconds until we'll try this retailer again, when paused. */
           cooldownSeconds: cooling > 0 ? Math.ceil(cooling / 1000) : null,
           successRate: !enabled ? null : total === 0 ? null : ok / total,
+          /**
+           * Median successful search time, in seconds, over the past week.
+           * Null when we haven't seen enough searches to say — better silence
+           * than a number built on two samples.
+           */
+          typicalSeconds: typical[retailer] ?? null,
           enabled,
         };
       }),

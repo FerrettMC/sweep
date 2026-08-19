@@ -220,6 +220,7 @@ export const en = {
     storesHelp:
       "Search fewer stores when you already know where to look. Fewer stores comes back faster.",
     checking: "checking…",
+    checkingTypical: "Checking… usually about {{seconds}}s",
     checkingSlow: "still checking — Amazon can take a few minutes",
   },
 
@@ -898,6 +899,7 @@ export const es: Translations = {
     storesHelp:
       "Busca en menos tiendas cuando ya sabes dónde mirar. Menos tiendas responde más rápido.",
     checking: "consultando…",
+    checkingTypical: "Consultando… suele tardar unos {{seconds}} s",
     checkingSlow: "sigue consultando — Amazon puede tardar unos minutos",
   },
 
