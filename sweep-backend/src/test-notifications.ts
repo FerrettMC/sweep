@@ -106,6 +106,21 @@ try {
   check("two-month-old rows are removed", pruned >= 3, pruned);
   check("that user's feed is empty", (await listNotifications(user)).length === 0);
   check("recent ones survive", (await listNotifications(a)).length === 1);
+  console.log("\n— the announcement endpoint is guarded —");
+  // It writes to every user's screen, so the failure mode of getting this
+  // wrong is worse than for anything else in the app.
+  const route = (await import("node:fs")).readFileSync(
+    new URL("./routes/notifications.ts", import.meta.url),
+    "utf8",
+  );
+  check("refuses when no secret is configured", /ADMIN_API_KEY is not set/.test(route));
+  check("compares the key in constant time", /timingSafeEqual/.test(route));
+  check("caps the length of what can be sent", /TOO_LONG/.test(route));
+  check(
+    "only accepts in-app paths as the tap target",
+    /startsWith\("\/"\)/.test(route),
+  );
+
 } finally {
   await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
