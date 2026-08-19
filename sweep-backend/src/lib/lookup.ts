@@ -25,7 +25,7 @@ import { COVERAGE } from "./productDetail.js";
 import { prisma } from "./prisma.js";
 import { upsertScrapedProduct } from "./priceChecker.js";
 import { adapters } from "./scrapers/index.js";
-import { judgeSale, type SweepResult } from "./sweep.js";
+import { judgeSale, type SaleAssessment } from "./saleVerdict.js";
 import type { Retailer, ScrapedProduct } from "./scrapers/types.js";
 
 export interface PricePoint {
@@ -43,7 +43,7 @@ export interface LookupResult {
    * history is already loaded for the graph — and it was always the strongest
    * part of what "Sweep this deal" did. Null when there is no price to judge.
    */
-  sale: SweepResult["sale"] | null;
+  sale: SaleAssessment | null;
   /** Which sections this store can fill at all — see productDetail.ts. */
   coverage: DetailCoverage;
   history: PricePoint[];

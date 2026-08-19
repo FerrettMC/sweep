@@ -23,10 +23,46 @@ import { prisma } from "../lib/prisma.js";
 import { consumeLookup, getLookupQuota, refundUserLookup } from "../lib/quota.js";
 import { lookupProduct } from "../lib/lookup.js";
 import { resolveProduct } from "../lib/resolveProduct.js";
-import { judgeSale, type SweepResult } from "../lib/sweep.js";
+import { judgeSale, type SaleAssessment } from "../lib/saleVerdict.js";
 import { TIER_LIMITS, effectiveTier } from "../lib/tiers.js";
 import { isRetailerEnabled } from "../lib/scrapers/index.js";
 import { RETAILERS, RETAILER_LABELS, type Retailer } from "../lib/scrapers/types.js";
+
+/**
+ * The response shape old builds parse.
+ *
+ * Declared here rather than in a shared lib because this route is the only
+ * thing left that speaks it. Keeping it next to the code that fabricates it
+ * makes it obvious that it describes a wire format we maintain for
+ * compatibility, not a thing the app still computes.
+ */
+interface LegacySweepResult {
+  product: {
+    id: string;
+    title: string;
+    retailer: string;
+    retailerLabel: string;
+    url: string;
+    imageUrl: string | null;
+    price: number;
+    listPrice: number | null;
+  };
+  sale: SaleAssessment;
+  history: {
+    points: number;
+    low: number | null;
+    high: number | null;
+    average: number | null;
+    firstSeen: Date | null;
+  };
+  /** Always empty now: a lookup asks one store, so nothing is compared. */
+  cheaperElsewhere: never[];
+  similar: never[];
+  /** Every store we did NOT ask, which is what keeps the old screen honest. */
+  unreachable: string[];
+  bestSaving: number;
+  headline: string;
+}
 
 export async function sweepRoutes(app: FastifyInstance) {
   app.get("/sweep/quota", { preHandler: requireAuth }, async (request, reply) => {
@@ -115,7 +151,7 @@ export async function sweepRoutes(app: FastifyInstance) {
 function toSweepShape(
   lookup: NonNullable<Awaited<ReturnType<typeof lookupProduct>>>,
   productId: string,
-): SweepResult {
+): LegacySweepResult {
   const detail = lookup.detail;
   const price = detail.price!;
   const prices = lookup.history.map((point) => point.price);

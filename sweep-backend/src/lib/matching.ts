@@ -13,6 +13,12 @@
 // The second is unrecoverable, so the bar for saying "same product" is high and
 // everything else is labelled "similar" and shown with its title and image so
 // the person can judge. We never say "same" on a guess.
+//
+// NOTE: nothing in production calls this right now. It was written for "Sweep
+// this deal", which product lookup replaced, and it is deliberately kept
+// rather than deleted — "similar products" on the lookup page is the same
+// problem (is this listing the same item as that one?) and this is the part
+// that was hard. Its tests still run, so it won't rot in the meantime.
 
 /** Words that carry no identifying information and only dilute the overlap. */
 const STOP_WORDS = new Set([

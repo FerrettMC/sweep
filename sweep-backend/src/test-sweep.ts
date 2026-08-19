@@ -1,5 +1,11 @@
-// src/test-sweep.ts — "Sweep this deal" end to end.
+// src/test-sweep.ts — the legacy /sweep endpoint, end to end.
 //   npm run dev && npm run test:sweep
+//
+// "Sweep this deal" is gone; product lookup replaced it. What this exercises
+// now is the compatibility shim that keeps /sweep answering for builds already
+// on people's phones, which is worth more than the original test was: those
+// clients can't be updated, so the only way to know they still work is to keep
+// asking. It shares the lookup counter, so quota behaviour is covered too.
 import { assertNotProduction, targetSummary } from "./testEnv.js";
 
 // Loads .env.test over .env, then refuses to touch the live project.
