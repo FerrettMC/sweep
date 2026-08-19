@@ -31,8 +31,27 @@ import { readSearchCache, writeSearchCache } from "./searchCache.js";
 import { throttled } from "./rateGate.js";
 import { cooldownRemaining, noteBlocked, noteSuccess } from "./cooldown.js";
 
+export interface SearchOptions {
+  /**
+   * Skip the keyword cache and ask the retailer.
+   *
+   * For callers whose entire job is noticing that a price moved. Deal radar
+   * reading a cached match set would compare today's prices against today's
+   * prices and conclude nothing had changed — the cache would silently defeat
+   * the feature rather than merely age it.
+   *
+   * A fresh call still WRITES to the cache, so a radar sweep leaves the
+   * catalogue warmer for whoever searches next.
+   */
+  fresh?: boolean;
+}
+
 interface RetailerAdapter {
-  search(keyword: string, limit: number): Promise<ScrapeResult<ScrapedProduct[]>>;
+  search(
+    keyword: string,
+    limit: number,
+    options?: SearchOptions,
+  ): Promise<ScrapeResult<ScrapedProduct[]>>;
   scrapeProduct(url: string): Promise<ScrapeResult<ScrapedProduct>>;
   /**
    * Everything worth showing about one product, for the lookup page.
@@ -207,8 +226,8 @@ export const adapters: Record<Retailer, RetailerAdapter> = Object.fromEntries(
         // Cache first, then the gate. Wrapped here for the same reason the
         // gate is: there are six call sites, and the one that forgets is the
         // one that spends money re-asking a question we already paid for.
-        search: (keyword: string, limit: number) =>
-          cached(retailer, keyword, limit, adapter.metered, () =>
+        search: (keyword: string, limit: number, options?: SearchOptions) =>
+          cached(retailer, keyword, limit, adapter.metered, options?.fresh === true, () =>
             guarded(retailer, () => adapter.search(keyword, limit)),
           ),
         scrapeProduct: (url: string) =>
@@ -241,10 +260,13 @@ async function cached(
   keyword: string,
   limit: number,
   metered: boolean,
+  fresh: boolean,
   work: () => Promise<ScrapeResult<ScrapedProduct[]>>,
 ): Promise<ScrapeResult<ScrapedProduct[]>> {
   try {
-    const hit = await readSearchCache(retailer, keyword, limit, metered);
+    const hit = fresh
+      ? null
+      : await readSearchCache(retailer, keyword, limit, metered);
     if (hit) return ok(hit, 0);
   } catch {
     // A cache that can't be read is a cache miss, never an error the user
@@ -311,6 +333,7 @@ export async function searchAllRetailers(
   keyword: string,
   limitPerRetailer = 4,
   only?: Retailer[],
+  options?: SearchOptions,
 ): Promise<RetailerSearchOutcome[]> {
   const targets = only?.length ? only : [...RETAILERS];
 
@@ -322,7 +345,7 @@ export async function searchAllRetailers(
         // keeps running and still populates the product cache, so the work
         // isn't wasted — it just stops being something the user waits for.
         const result = await Promise.race([
-          adapters[retailer].search(keyword, limitPerRetailer),
+          adapters[retailer].search(keyword, limitPerRetailer, options),
           new Promise<null>((resolve) =>
             setTimeout(() => resolve(null), SEARCH_DEADLINE_MS),
           ),

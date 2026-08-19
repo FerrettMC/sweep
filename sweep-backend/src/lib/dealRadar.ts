@@ -61,6 +61,14 @@ export async function runRadar(saved: {
     saved.keyword,
     RESULTS_PER_RETAILER,
     routing.retailers,
+    // Never from cache. A radar's whole job is noticing that a price moved;
+    // reading a cached match set would compare today's prices with today's
+    // prices and report that nothing had changed. The cache would defeat the
+    // feature rather than merely age it.
+    //
+    // Still writes to the cache, so a radar sweep leaves things warmer for
+    // whoever searches that keyword next.
+    { fresh: true },
   );
 
   const found: ScrapedProduct[] = [];

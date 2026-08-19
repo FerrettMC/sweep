@@ -140,6 +140,34 @@ try {
     "three missing of four is a miss, not a thin result",
     (await readSearchCache("ebay", KEYWORD, 4, false)) === null,
   );
+  console.log("\n— what must never be served stale —");
+  // Deal radar exists to notice a price moved. If it read a cached match set
+  // it would compare today's prices against today's prices and report no
+  // change, which defeats the feature rather than merely ageing it.
+  const radarSource = (await import("node:fs")).readFileSync(
+    new URL("./lib/dealRadar.ts", import.meta.url),
+    "utf8",
+  );
+  check("deal radar asks for fresh results", /fresh:\s*true/.test(radarSource));
+
+  // Product lookup calls enrich, which is deliberately never wrapped in the
+  // cache — a page about one product should be about that product right now.
+  const scrapersSource = (await import("node:fs")).readFileSync(
+    new URL("./lib/scrapers/index.ts", import.meta.url),
+    "utf8",
+  );
+  const enrichWrapper = scrapersSource.slice(
+    scrapersSource.indexOf("enrich: adapter.enrich"),
+    scrapersSource.indexOf("enrich: adapter.enrich") + 220,
+  );
+  check("product lookup is never served from cache", !enrichWrapper.includes("cached("), enrichWrapper.slice(0, 120));
+
+  // Scheduled price checks call scrapeProduct, also unwrapped.
+  const scrapeWrapper = scrapersSource.slice(
+    scrapersSource.indexOf("scrapeProduct: (url: string)"),
+    scrapersSource.indexOf("scrapeProduct: (url: string)") + 160,
+  );
+  check("price checks are never served from cache", !scrapeWrapper.includes("cached("), scrapeWrapper.slice(0, 120));
 } finally {
   await prisma.searchCache.deleteMany({ where: { keyword: { contains: TAG } } });
   await prisma.product.deleteMany({ where: { retailerId: { startsWith: TAG } } });
