@@ -51,8 +51,8 @@ bug in the app.
 | Pro      | 30          |
 | Ultimate | 100         |
 
-**Still to do here:** price history as a line graph (below), and a lookup slide
-in the onboarding redo.
+**Both follow-ups are done:** price history is a line now, and onboarding has a
+lookup slide that absorbed the old "judge it".
 
 ---
 
