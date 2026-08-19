@@ -300,6 +300,17 @@ function RootNavigator() {
           }}
         />
         <Stack.Screen
+          name="lookup"
+          options={{
+            headerShown: true,
+            title: t("nav.lookup"),
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.textPrimary,
+            headerShadowVisible: false,
+            headerTitleStyle: { fontWeight: "800" },
+          }}
+        />
+        <Stack.Screen
           name="radar"
           options={{
             headerShown: true,

@@ -256,6 +256,14 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <SectionTitle>{t("home.shortcuts")}</SectionTitle>
           <View style={styles.shortcutGrid}>
+            {/* First in the grid deliberately: this is the thing the app is
+                for now, not a utility alongside the budget. */}
+            <Shortcut
+              icon="reader-outline"
+              label={t("home.lookup")}
+              hint={t("home.lookupHint")}
+              onPress={() => router.push("/lookup")}
+            />
             <Shortcut
               icon="wallet-outline"
               label={t("home.budget")}

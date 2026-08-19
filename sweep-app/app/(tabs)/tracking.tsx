@@ -7,7 +7,6 @@ import AddByLink from "@/components/AddByLink";
 import AddToListSheet, { type ListTarget } from "@/components/AddToListSheet";
 import BudgetEntrySheet, { type EntryDraft } from "@/components/BudgetEntrySheet";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import SweepSheet from "@/components/SweepSheet";
 import ProductCard from "@/components/ProductCard";
 import TrackedItemSheet from "@/components/TrackedItemSheet";
 import {
@@ -33,7 +32,6 @@ import {
   getBudgetPrefill,
 } from "@/lib/api";
 import { formatPrice, percentOff } from "@/lib/format";
-import { useSweep } from "@/lib/useSweep";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
@@ -65,7 +63,6 @@ export default function TrackingScreen() {
   const [boughtItem, setBoughtItem] = useState<TrackedProduct | null>(null);
   // The tracked row the "stop tracking too?" dialog is asking about.
   const [confirmUntrack, setConfirmUntrack] = useState<TrackedProduct | null>(null);
-  const sweep = useSweep();
 
   const load = useCallback(async () => {
     try {
@@ -296,14 +293,15 @@ export default function TrackingScreen() {
                         url: item.product.url,
                       }),
                   },
-                  // Tracked items have real history, so the sale verdict here
-                  // is far stronger than it can be for a cold search result.
-                  sweep.available && {
-                    key: "sweep",
-                    icon: "sparkles",
-                    label: "Sweep",
+                  // Tracked items have real history, so the sale verdict on the
+                  // lookup page is far stronger here than for a cold search
+                  // result. Always shown: lookups are on every tier now.
+                  {
+                    key: "details",
+                    icon: "reader-outline",
+                    label: t("search.details"),
                     tone: "accent" as const,
-                    onPress: () => sweep.sweep({ productId: item.product.id }),
+                    onPress: () => router.push(`/lookup?productId=${item.product.id}`),
                   },
                   {
                     key: "bought",
@@ -348,15 +346,6 @@ export default function TrackingScreen() {
           setNotice(t("tracking.addedToBudget"));
           if (item) offerUntrack(item);
         }}
-      />
-
-      <SweepSheet
-        visible={sweep.open}
-        busy={sweep.busy}
-        result={sweep.result}
-        error={sweep.error}
-        remaining={sweep.quota?.remaining ?? null}
-        onClose={sweep.close}
       />
 
       <ConfirmDialog

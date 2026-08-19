@@ -769,61 +769,139 @@ export function getBudgetPrefill(productId: string) {
   }>(`/budget/prefill/${productId}`);
 }
 
-// ---- "Sweep this deal" -------------------------------------------------------
+// ---- the sale verdict --------------------------------------------------------
+//
+// Kept from "Sweep this deal", which product lookup replaced. This was always
+// the strongest thing that feature did — it's judged against the product's own
+// recorded price history, so unlike everything else on a product page it comes
+// from our data rather than the store's, and a retailer can't stage it.
 
 export type SaleVerdict =
-  | "genuine-low"
-  | "good-price"
-  | "typical-price"
-  | "above-usual"
-  | "no-history";
+  | "genuine-low"      // Cheapest we've ever recorded.
+  | "good-price"       // Meaningfully below its own usual.
+  | "typical-price"    // The "sale" is just the normal price.
+  | "above-usual"      // Currently pricier than normal.
+  | "no-history";      // We haven't watched it long enough to say.
 
-export interface SweepAlternative {
+export interface SaleAssessment {
+  verdict: SaleVerdict;
+  headline: string;
+  detail: string;
+  /** The retailer's claimed discount, which may well be theatre. */
+  claimedPercentOff: number | null;
+  /** What it's actually worth against its own history. */
+  realPercentBelowTypical: number | null;
+}
+
+// ---- product lookup ----------------------------------------------------------
+//
+// One enriched page about one product, replacing "Sweep this deal".
+//
+// Every field below is optional on purpose. Stores differ enormously in what
+// they publish — Amazon returns a review summary with per-topic sentiment,
+// eBay returns seller feedback and a delivery window and no product reviews at
+// all, Etsy returns little of either. The page renders what arrived and omits
+// the rest; it never fills a gap with something that looks similar.
+
+export interface ReviewTopic {
+  topic: string;
+  positiveMentions: number;
+  negativeMentions: number;
+  description: string | null;
+  quotes: string[];
+}
+
+export interface ReviewSummary {
+  text: string | null;
+  positive: string[];
+  negative: string[];
+  mixed: string[];
+  topics: ReviewTopic[];
+  images: string[];
+}
+
+export interface SellerInfo {
+  name: string | null;
+  ratingPercent: number | null;
+  ratingCount: number | null;
+  offerCount: number | null;
+  url: string | null;
+}
+
+export interface ShippingInfo {
+  /** Cents. 0 is free shipping; null means the store didn't quote one. */
+  costCents: number | null;
+  earliest: string | null;
+  latest: string | null;
+}
+
+export interface TrustSignals {
+  badge: string | null;
+  amazonChoice: boolean;
+  frequentlyReturned: boolean;
+  frequentlyReturnedNote: string | null;
+  boughtRecently: string | null;
+  bestSellerRank: number | null;
+  bestSellerCategory: string | null;
+}
+
+export interface ProductDetail {
   retailer: string;
-  retailerLabel: string;
+  retailerId: string;
   title: string;
   url: string;
-  imageUrl: string | null;
-  price: number;
-  /** "same" is a confident like-for-like; "similar" is explicitly not claimed. */
-  confidence: "same" | "similar";
-  savings: number;
-  caveats: string[];
+  price: number | null;
+  listPrice: number | null;
+  currency: string;
+  availability: string | null;
+  inStock: boolean | null;
+  images: string[];
+  brand: string | null;
+  description: string | null;
+  features: string[];
+  specs: { label: string; value: string }[];
+  rating: number | null;
+  ratingCount: number | null;
+  reviews: ReviewSummary | null;
+  seller: SellerInfo | null;
+  shipping: ShippingInfo | null;
+  trust: TrustSignals | null;
+  coupon: string | null;
+  condition: string | null;
+  fetchedAt: string;
 }
 
-export interface SweepResult {
-  product: {
-    id: string;
-    title: string;
-    retailer: string;
-    retailerLabel: string;
-    url: string;
-    imageUrl: string | null;
-    price: number;
-    listPrice: number | null;
-  };
-  sale: {
-    verdict: SaleVerdict;
-    headline: string;
-    detail: string;
-    claimedPercentOff: number | null;
-    realPercentBelowTypical: number | null;
-  };
-  history: {
-    points: number;
-    low: number | null;
-    high: number | null;
-    average: number | null;
-    firstSeen: string | null;
-  };
-  cheaperElsewhere: SweepAlternative[];
-  similar: SweepAlternative[];
-  unreachable: string[];
-  bestSaving: number;
-  headline: string;
+/**
+ * Which sections this store can fill at all.
+ *
+ * Sent by the server rather than inferred from nulls, because "eBay never
+ * returns product reviews" and "this listing happens to have none" deserve
+ * different wording.
+ */
+export interface DetailCoverage {
+  reviews: boolean;
+  seller: boolean;
+  shipping: boolean;
+  specs: boolean;
 }
 
-export interface SweepQuota {
+export interface LookupResult {
+  detail: ProductDetail;
+  /**
+   * Whether this "sale" is real, judged against the product's own history.
+   * The one claim on the page that comes from our data, not the store's.
+   */
+  sale: SaleAssessment | null;
+  coverage: DetailCoverage;
+  history: { price: number; checkedAt: string }[];
+  productId: string;
+  isTracked: boolean;
+  /** False when the store couldn't be reached and this came from cache. */
+  fresh: boolean;
+  staleReason: "blocked" | "failed" | "unsupported" | null;
+}
+
+export interface LookupQuota {
   used: number;
   limit: number;
   remaining: number;
@@ -831,14 +909,16 @@ export interface SweepQuota {
   available: boolean;
 }
 
-export function getSweepQuota() {
-  return request<{ quota: SweepQuota; tier: string }>("/sweep/quota");
+export function getLookupQuota() {
+  return request<{ quota: LookupQuota; tier: string; guest: boolean }>(
+    "/lookup/quota",
+  );
 }
 
-export function sweepDeal(
+export function lookUpProduct(
   target: { productId: string } | { url: string } | { retailer: string; retailerId: string },
 ) {
-  return request<{ result: SweepResult; quota: SweepQuota; tier: string }>("/sweep", {
+  return request<LookupResult & { quota: LookupQuota; tier: string }>("/lookup", {
     method: "POST",
     body: target,
   });

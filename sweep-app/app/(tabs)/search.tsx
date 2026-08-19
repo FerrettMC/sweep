@@ -23,10 +23,8 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useSweep } from "@/lib/useSweep";
 import { useFocusEffect, useRouter } from "expo-router";
 import AddToListSheet, { type ListTarget } from "@/components/AddToListSheet";
-import SweepSheet from "@/components/SweepSheet";
 import CompareTray from "@/components/CompareTray";
 import ResultsMenu from "@/components/ResultsMenu";
 import StorePicker, { type StoreOption } from "@/components/StorePicker";
@@ -133,7 +131,6 @@ export default function SearchScreen() {
   const [showAds, setShowAds] = useState(false);
   const [showWhy, setShowWhy] = useState(false);
   const [listTarget, setListTarget] = useState<ListTarget | null>(null);
-  const sweep = useSweep();
   // Null until a search tells us what this tier allows. Persisted so the choice
   // survives a restart — it's a preference, not a per-search decision.
   const [resultsRange, setResultsRange] = useState<{
@@ -684,14 +681,16 @@ export default function SearchScreen() {
                         url: item.url,
                       }),
                   },
-                  // Dropped entirely on tiers without the feature, rather than
-                  // shown-and-refused: a dead button is worse than no button.
-                  sweep.available && {
-                    key: "sweep",
-                    icon: "sparkles",
-                    label: "Sweep",
+                  // Always present now. This used to be dropped on tiers
+                  // without "Sweep this deal", but product lookup is on every
+                  // tier — it's the limit that differs, not the feature.
+                  {
+                    key: "details",
+                    icon: "reader-outline",
+                    label: t("search.details"),
                     tone: "accent" as const,
-                    onPress: () => sweep.sweep({ url: item.url }),
+                    onPress: () =>
+                      router.push(`/lookup?url=${encodeURIComponent(item.url)}`),
                   },
                   // Search is for comparing who's cheapest. Tracking happens by
                   // pasting a link on the Tracking tab, which costs no quota.
@@ -708,15 +707,6 @@ export default function SearchScreen() {
           ListFooterComponent={<View style={styles.footerSpace} />}
         />
       )}
-      <SweepSheet
-        visible={sweep.open}
-        busy={sweep.busy}
-        result={sweep.result}
-        error={sweep.error}
-        remaining={sweep.quota?.remaining ?? null}
-        onClose={sweep.close}
-      />
-
       <AddToListSheet
         product={listTarget}
         onClose={() => setListTarget(null)}

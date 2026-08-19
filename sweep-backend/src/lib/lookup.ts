@@ -25,6 +25,7 @@ import { COVERAGE } from "./productDetail.js";
 import { prisma } from "./prisma.js";
 import { upsertScrapedProduct } from "./priceChecker.js";
 import { adapters } from "./scrapers/index.js";
+import { judgeSale, type SweepResult } from "./sweep.js";
 import type { Retailer, ScrapedProduct } from "./scrapers/types.js";
 
 export interface PricePoint {
@@ -34,6 +35,15 @@ export interface PricePoint {
 
 export interface LookupResult {
   detail: ProductDetail;
+  /**
+   * Is this "sale" real, judged against the product's own price history?
+   *
+   * The one claim on the page that comes from our data rather than the
+   * store's, and the only one nobody else can make. Free to compute — the
+   * history is already loaded for the graph — and it was always the strongest
+   * part of what "Sweep this deal" did. Null when there is no price to judge.
+   */
+  sale: SweepResult["sale"] | null;
   /** Which sections this store can fill at all — see productDetail.ts. */
   coverage: DetailCoverage;
   history: PricePoint[];
@@ -106,8 +116,24 @@ export async function lookupProduct(
       : Promise.resolve(null),
   ]);
 
+  const shown = detail ?? fromCache(product);
+  const prices = history.map((point) => point.price);
+
   return {
-    detail: detail ?? fromCache(product),
+    detail: shown,
+    sale: shown.price === null ? null : judgeSale({
+      price: shown.price,
+      listPrice: shown.listPrice,
+      low: prices.length ? Math.min(...prices) : null,
+      average: prices.length
+        ? Math.round(prices.reduce((sum, p) => sum + p, 0) / prices.length)
+        : null,
+      points: prices.length,
+      claimedPercentOff:
+        shown.listPrice !== null && shown.listPrice > shown.price
+          ? Math.round(((shown.listPrice - shown.price) / shown.listPrice) * 100)
+          : null,
+    }),
     coverage: COVERAGE[retailer] ?? {
       reviews: false,
       seller: false,
