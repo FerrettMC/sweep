@@ -52,8 +52,8 @@ function confirmedBody() {
   return `
   <h1>Email confirmed</h1>
   <p>
-    Thanks — your ${APP_NAME} account is ready. Head back to the app and log in
-    with the email and password you signed up with.
+    Thanks — your ${APP_NAME} account is ready. Head back to the app and it
+    will sign you in on its own; there's nothing left to type.
   </p>
   <p>
     <!--
@@ -68,8 +68,8 @@ function confirmedBody() {
   </p>
   <p class="note">
     If that button does nothing, just switch to the ${APP_NAME} app yourself —
-    the confirmation has already gone through, and this page has nothing left
-    to do.
+    the confirmation has already gone through. If the app is still waiting,
+    tap "I've confirmed it" on that screen.
   </p>
   <p class="note">
     Didn't sign up for ${APP_NAME}? You can ignore this. An address can't be

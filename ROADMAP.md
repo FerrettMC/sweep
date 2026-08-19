@@ -18,11 +18,11 @@ searched or tracked, and get one page about that product.
 **What each store actually returns**, verified against live payloads rather
 than assumed — this was the open question and it's now closed:
 
-| Store  | What it gives                                                                 |
-| ------ | ----------------------------------------------------------------------------- |
+| Store  | What it gives                                                                                                                                                                                               |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Amazon | Its own review summary, keywords split positive/negative/mixed, per-topic sentiment with buyer quotes, review photos, spec table, features, trust badges, `frequently returned` flag, **and coupon fields** |
-| eBay   | Seller feedback % and score, shipping cost, delivery window, condition, specs |
-| Etsy   | Listing detail, tags, materials; per-listing reviews, often absent            |
+| eBay   | Seller feedback % and score, shipping cost, delivery window, condition, specs                                                                                                                               |
+| Etsy   | Listing detail, tags, materials; per-listing reviews, often absent                                                                                                                                          |
 
 Amazon is far richer than the old note assumed. eBay has no product reviews at
 all — it rates sellers, not products — and that is not a gap to fill: showing
