@@ -145,11 +145,17 @@ export interface TierLimits {
 export const TIER_LIMITS: Record<Tier, TierLimits> = {
   free: {
     maxTrackedProducts: 3,
-    // Raised from 1. One search a day is not a product anyone can form an
-    // opinion about, and free users are ~98% of traffic — they are the top of
-    // the funnel, not a cost centre to be minimised. Paired with keyword
-    // caching, which is what makes five affordable.
-    searchesPerDay: 5,
+    // Raised from 1, then from 5. One search a day is not a product anyone can
+    // form an opinion about, and free users are ~98% of traffic — they are the
+    // top of the funnel, not a cost centre to be minimised.
+    //
+    // Ten rather than five for two reasons. It reads as a real allowance
+    // rather than a sample, and it opens a wide gap over the 2 a guest gets,
+    // which is the only thing making an account worth creating.
+    //
+    // Affordable because of keyword caching: a repeat search for a popular
+    // term costs nothing, so this is nowhere near ten times the Amazon bill.
+    searchesPerDay: 10,
     historyDays: 30,
     // Free users choose 2 fixed times of day instead of a rolling interval,
     // which bounds scraping load predictably.

@@ -60,8 +60,10 @@ in the onboarding redo.
 
 ### Shipped
 
-- ~~**Free searches 1/day → 5/day.**~~ Along with the rest: guest 1→2, free
-  1→5, Pro 30→75, Ultimate 200→400. Free users are ~98% of traffic and one
+- ~~**Free searches 1/day → 10/day.**~~ Along with the rest: guest 1→2, free
+  1→10, Pro 30→75, Ultimate 200→400. Ten reads as a real allowance rather than
+  a sample, and the gap over a guest's 2 is the thing that makes an account
+  worth creating. Free users are ~98% of traffic and one
   search a day is not a product anyone can judge.
 - ~~**Signup errors.**~~ Two paths passed Supabase's message straight to the
   screen; those are written for whoever integrates the SDK, not whoever is

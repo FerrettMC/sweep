@@ -88,11 +88,17 @@ try {
   console.log("— searches (already guarded; the reference) —");
   await reset("free");
   const searchLimit = TIER_LIMITS.free.searchesPerDay;
-  const searches = await race(8, () => consumeUserSearch(user.id));
-  check(`${searches} of 8 allowed, limit ${searchLimit}`, searches === searchLimit, {
-    searches,
-    searchLimit,
-  });
+  // Always more requests than the limit allows, derived rather than hardcoded.
+  // This raced a fixed 8, which stopped proving anything the moment the free
+  // allowance was raised to 10: nothing was rejected, so the guard was never
+  // exercised and the test failed for the wrong reason.
+  const searchAttempts = searchLimit + 8;
+  const searches = await race(searchAttempts, () => consumeUserSearch(user.id));
+  check(
+    `${searches} of ${searchAttempts} allowed, limit ${searchLimit}`,
+    searches === searchLimit,
+    { searches, searchLimit },
+  );
 
   console.log("\n— product lookups —");
   await reset("pro");
