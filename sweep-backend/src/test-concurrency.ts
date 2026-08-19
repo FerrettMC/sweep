@@ -3,9 +3,9 @@
 //
 // This suite exists because five of seven quota consumers could be raced: they
 // read the count, checked it against the limit, then incremented — and two
-// requests arriving in the same millisecond both passed the check. Sweeps are
-// 1/day on Pro, so "one extra" was a doubling of the most expensive operation
-// in the app.
+// requests arriving in the same millisecond both passed the check. The counter
+// now behind product lookup was 1/day on Pro at the time, so "one extra" was a
+// doubling of the most expensive operation in the app.
 //
 // Nothing else could have caught it. Manual testing can't produce sub-
 // millisecond concurrency, and the security suite asks whether limits are
@@ -25,10 +25,11 @@ import {
   consumeManualCheck,
   consumeRadarChange,
   consumeRadarRefresh,
-  consumeSweep,
+  consumeGuestLookup,
+  consumeLookup,
   consumeUserSearch,
 } from "./lib/quota.js";
-import { TIER_LIMITS } from "./lib/tiers.js";
+import { GUEST_LIMITS, TIER_LIMITS } from "./lib/tiers.js";
 
 let pass = 0,
   fail = 0;
@@ -93,14 +94,41 @@ try {
     searchLimit,
   });
 
-  console.log("\n— sweeps —");
+  console.log("\n— product lookups —");
   await reset("pro");
-  const sweepLimit = TIER_LIMITS.pro.sweepsPerDay;
-  const sweeps = await race(8, () => consumeSweep(user.id));
-  check(`${sweeps} of 8 allowed, limit ${sweepLimit}`, sweeps === sweepLimit, {
-    sweeps,
-    sweepLimit,
-  });
+  const lookupLimit = TIER_LIMITS.pro.lookupsPerDay;
+  const lookups = await race(lookupLimit + 8, () => consumeLookup(user.id));
+  check(
+    `${lookups} of ${lookupLimit + 8} allowed, limit ${lookupLimit}`,
+    lookups === lookupLimit,
+    { lookups, lookupLimit },
+  );
+
+  // Guests are a separate table and a separate code path, including a
+  // create-on-first-use branch that two simultaneous first requests both
+  // reach. That branch is why this is tested rather than assumed.
+  console.log("\n— guest lookups —");
+  const deviceId = `test-device-${Date.now()}`;
+  try {
+    const guestLimit = GUEST_LIMITS.lookupsPerDay;
+    const guestLookups = await race(guestLimit + 6, () =>
+      consumeGuestLookup(deviceId),
+    );
+    check(
+      `${guestLookups} of ${guestLimit + 6} allowed, limit ${guestLimit}`,
+      guestLookups === guestLimit,
+      { guestLookups, guestLimit },
+    );
+
+    const row = await prisma.guestQuota.findUnique({ where: { deviceId } });
+    check(
+      "guest counter matches what was handed out",
+      row?.lookupsUsedToday === guestLimit,
+      { stored: row?.lookupsUsedToday, guestLimit },
+    );
+  } finally {
+    await prisma.guestQuota.deleteMany({ where: { deviceId } });
+  }
 
   console.log("\n— radar refreshes —");
   await reset("free");
@@ -138,11 +166,11 @@ try {
   // spent, which is the same bug seen from the other side.
   check(
     "no counter exceeds its limit",
-    (wallet?.sweepsUsedToday ?? 0) <= TIER_LIMITS.pro.sweepsPerDay &&
+    (wallet?.sweepsUsedToday ?? 0) <= TIER_LIMITS.pro.lookupsPerDay &&
       (wallet?.radarRefreshesToday ?? 0) <= TIER_LIMITS.free.radarRefreshesPerDay &&
       (wallet?.radarChangesToday ?? 0) <= TIER_LIMITS.free.radarChangesPerDay,
     {
-      sweeps: wallet?.sweepsUsedToday,
+      lookups: wallet?.sweepsUsedToday,
       refreshes: wallet?.radarRefreshesToday,
       changes: wallet?.radarChangesToday,
     },
