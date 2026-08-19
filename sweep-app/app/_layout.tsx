@@ -300,6 +300,17 @@ function RootNavigator() {
           }}
         />
         <Stack.Screen
+          name="why-limited"
+          options={{
+            headerShown: true,
+            title: t("nav.whyLimited"),
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.textPrimary,
+            headerShadowVisible: false,
+            headerTitleStyle: { fontWeight: "800" },
+          }}
+        />
+        <Stack.Screen
           name="lookup"
           options={{
             headerShown: true,

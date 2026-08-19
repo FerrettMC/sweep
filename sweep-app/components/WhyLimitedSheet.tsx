@@ -12,18 +12,21 @@ import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import { Ionicons } from "@expo/vector-icons";
-import { Modal, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 interface Props {
   visible: boolean;
   onClose: () => void;
   onSeePlans: () => void;
+  /** Opens the full explanation, which this sheet is the short version of. */
+  onReadMore: () => void;
 }
 
 export default function WhyLimitedSheet({
   visible,
   onClose,
   onSeePlans,
+  onReadMore,
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -97,10 +100,21 @@ export default function WhyLimitedSheet({
               <Text style={styles.bullet}>
                 • Paste a product link instead — tracking costs you no searches
               </Text>
+              {/* No tier numbers here. This said "Pro gives 10 a day,
+                  Ultimate gives 100" long after those became 75 and 400 —
+                  hardcoded figures in prose are invisible when the real ones
+                  change. The plans screen generates them from what's actually
+                  enforced. */}
               <Text style={styles.bullet}>
-                • Pro gives 10 a day, Ultimate gives 100
+                • {t("whyLimited.upgradeBullet")}
               </Text>
             </View>
+
+            {/* The short answer is above; this is where someone who wants
+                the actual numbers goes. */}
+            <Pressable onPress={onReadMore} hitSlop={8}>
+              <Text style={styles.readMore}>{t("whyLimited.readMore")}</Text>
+            </Pressable>
           </ScrollView>
 
           <View style={styles.actions}>
@@ -177,6 +191,12 @@ const makeStyles = (colors: Palette) =>
       color: colors.textSecondary,
       fontSize: type.label.fontSize,
       lineHeight: 19,
+    },
+    readMore: {
+      color: colors.accent,
+      fontSize: type.label.fontSize,
+      fontWeight: "700",
+      marginTop: spacing.sm,
     },
     actions: {
       flexDirection: "row",

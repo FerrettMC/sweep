@@ -739,6 +739,10 @@ export default function SearchScreen() {
           setShowWhy(false);
           router.push("/plans");
         }}
+        onReadMore={() => {
+          setShowWhy(false);
+          router.push("/why-limited");
+        }}
       />
     </Screen>
   );

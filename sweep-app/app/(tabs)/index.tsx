@@ -295,6 +295,27 @@ export default function HomeScreen() {
               onPress={() => router.push("/profile")}
             />
           </View>
+
+          {/* A row rather than the floating button this started as: a floating
+              control sits on top of content permanently to be tapped once,
+              and the answer it leads to is worth reading once, not hovering
+              over forever. */}
+          <Pressable
+            style={styles.whyLimited}
+            onPress={() => router.push("/why-limited")}
+          >
+            <Ionicons
+              name="help-circle-outline"
+              size={17}
+              color={colors.textSecondary}
+            />
+            <Text style={styles.whyLimitedText}>{t("home.whyLimited")}</Text>
+            <Ionicons
+              name="chevron-forward"
+              size={15}
+              color={colors.textTertiary}
+            />
+          </Pressable>
         </View>
 
         <StoreTroubleSheet
@@ -549,6 +570,22 @@ const makeStyles = (colors: Palette) =>
       fontWeight: "600",
     },
     storeHelpTextDown: { color: colors.textPrimary, fontWeight: "700" },
+    whyLimited: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      marginTop: spacing.sm,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+    },
+    whyLimitedText: {
+      flex: 1,
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      fontWeight: "600",
+    },
     shortcutGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
     shortcut: {
       // Two per row, accounting for the gap between them.

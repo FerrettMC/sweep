@@ -142,6 +142,7 @@ export const en = {
     notConfirmed: "Not confirmed",
     seeUpgrades: "See upgrades",
     shortcuts: "Shortcuts",
+    whyLimited: "Why are features limited?",
     lookup: "Product lookup",
     lookupHint: "Reviews & price history",
     budget: "Budget",
@@ -538,12 +539,55 @@ export const en = {
       "This is the name other people see on the leaderboard. Your email is never shown.",
     rule: "Letters, numbers and underscores only.",
   },
+  why: {
+    lede: "Most apps limit the free tier to sell you the paid one. Sweep's limits are a bill. Here's the whole thing, so you can judge it for yourself.",
+    whoTitle: "Who makes Sweep",
+    whoBody:
+      "One person, sixteen years old, no company and no investors behind it. Every cost below comes out of the same pocket, which is the only reason any of this is rationed at all.",
+    costsTitle: "What actually costs money",
+    amazonTitle: "Amazon is paid, per request.",
+    amazonBody:
+      "Their prices only come through a paid provider that bills for every single lookup. It's the largest running cost and it scales with how much people search.",
+    freeApiTitle: "The free stores cost patience.",
+    freeApiBody:
+      "eBay and Etsy give us proper APIs for nothing, but they cap how often we may ask. Spacing requests out is what keeps them working at all.",
+    serverTitle: "The server bills monthly.",
+    serverBody:
+      "Hosting and the database cost the same whether one person uses Sweep or a thousand, which is the one bill that gets easier as more people join.",
+    sharedTitle: "Tracking is shared. Searching isn't.",
+    sharedBody:
+      "If ten people watch the same TV, that's one price check, not ten. Searches can't be shared that way, because everyone searches for something different.",
+    whyTrackingGenerous:
+      "That's why tracking is generous and searching is rationed. It isn't a trick to sell an upgrade — it's the one part of Sweep with a bill attached.",
+    freeTitle: "WHAT FREE ACTUALLY GETS",
+    freeNote: "No card, no trial, no expiry. This is what it stays at.",
+    unlockTitle: "What subscriptions pay for",
+    unlockIntro:
+      "Sweep has no ads beyond an optional one for extra searches, and sells nothing but subscriptions. So this is the whole picture of what would change:",
+    milestone10: "Covers the monthly running costs. Sweep stops losing money.",
+    milestone15: "Pays for another store's API, so search covers more of the internet.",
+    milestone20: "Enough headroom to raise the free limits for everyone.",
+    intentions:
+      "These are intentions rather than promises — plans I'd act on, not numbers I'm bound to.",
+    promise:
+      "Every paid tier makes money, so paid users arriving means limits loosen for everybody rather than just for them.",
+    storesTitle: "Stores",
+    storesLive: "SEARCHING RIGHT NOW",
+    storesWanted:
+      "More are wanted, and each one is either an official API to apply for or a paid provider to afford. Walmart is next in line — it's the only major store left with a free official API.",
+    seePlans: "See what's in each plan",
+    getInTouch: "Ask me something",
+    footer:
+      "If a limit is getting in your way, say so. Knowing which one people actually hit is worth more than guessing.",
+  },
   whyLimited: {
     heading: "Why are searches limited?",
     amazonBold: "Amazon costs actual money.",
     restBold: "The rest cost patience.",
     trackingBold: "Tracking is different.",
     waysToGetMore: "Ways to get more",
+    upgradeBullet: "Paid plans raise the daily cap a long way",
+    readMore: "The full story — what Sweep actually costs →",
     gotIt: "Got it",
     seePlans: "See plans",
   },
@@ -558,6 +602,7 @@ export const en = {
     stopTrackingThis: "Stop tracking this",
   },
   nav: {
+    whyLimited: "Why are features limited?",
     lookup: "Product lookup",
     radar: "Deal Radar",
     budget: "Budget",
@@ -767,6 +812,7 @@ export const es: Translations = {
     notConfirmed: "Sin confirmar",
     seeUpgrades: "Ver planes",
     shortcuts: "Accesos",
+    whyLimited: "¿Por qué hay límites?",
     lookup: "Consulta de producto",
     lookupHint: "Opiniones e historial",
     budget: "Presupuesto",
@@ -1167,12 +1213,55 @@ export const es: Translations = {
       "Es el nombre que los demás ven en la clasificación. Tu correo nunca se muestra.",
     rule: "Solo letras, números y guiones bajos.",
   },
+  why: {
+    lede: "La mayoría de las apps limitan el plan gratis para venderte el de pago. En Sweep los límites son una factura. Aquí está todo, para que lo juzgues tú.",
+    whoTitle: "Quién hace Sweep",
+    whoBody:
+      "Una sola persona, de dieciséis años, sin empresa ni inversores detrás. Todos los costes de abajo salen del mismo bolsillo, y esa es la única razón por la que hay límites.",
+    costsTitle: "Qué cuesta dinero de verdad",
+    amazonTitle: "Amazon se paga, por cada consulta.",
+    amazonBody:
+      "Sus precios solo llegan a través de un proveedor de pago que cobra por cada búsqueda. Es el mayor coste y crece con lo que la gente busca.",
+    freeApiTitle: "Las tiendas gratuitas cuestan paciencia.",
+    freeApiBody:
+      "eBay y Etsy nos dan APIs de verdad sin cobrar, pero limitan con qué frecuencia podemos preguntar. Espaciar las peticiones es lo que las mantiene funcionando.",
+    serverTitle: "El servidor se paga cada mes.",
+    serverBody:
+      "El alojamiento y la base de datos cuestan lo mismo con una persona que con mil; es la única factura que mejora cuanta más gente entra.",
+    sharedTitle: "El seguimiento se comparte. Las búsquedas no.",
+    sharedBody:
+      "Si diez personas vigilan la misma tele, eso es una comprobación de precio, no diez. Las búsquedas no se pueden compartir así, porque cada uno busca algo distinto.",
+    whyTrackingGenerous:
+      "Por eso el seguimiento es generoso y las búsquedas están limitadas. No es un truco para venderte una mejora: es la única parte de Sweep con una factura detrás.",
+    freeTitle: "QUÉ INCLUYE GRATIS DE VERDAD",
+    freeNote: "Sin tarjeta, sin prueba, sin caducidad. Se queda así.",
+    unlockTitle: "Para qué sirven las suscripciones",
+    unlockIntro:
+      "Sweep no tiene anuncios salvo uno opcional para conseguir búsquedas extra, y no vende nada más que suscripciones. Así que esto es todo lo que cambiaría:",
+    milestone10: "Cubre los costes mensuales. Sweep deja de perder dinero.",
+    milestone15: "Paga la API de otra tienda, así la búsqueda cubre más internet.",
+    milestone20: "Margen suficiente para subir los límites gratuitos para todos.",
+    intentions:
+      "Son intenciones, no promesas: planes que llevaría a cabo, no cifras a las que esté atado.",
+    promise:
+      "Todos los planes de pago dan beneficio, así que cuando llega gente de pago los límites se aflojan para todos, no solo para ellos.",
+    storesTitle: "Tiendas",
+    storesLive: "BUSCANDO AHORA MISMO",
+    storesWanted:
+      "Quiero añadir más, y cada una es o una API oficial que solicitar o un proveedor de pago que costear. Walmart es la siguiente: es la única tienda grande que queda con API oficial gratuita.",
+    seePlans: "Ver qué incluye cada plan",
+    getInTouch: "Pregúntame algo",
+    footer:
+      "Si algún límite te está estorbando, dímelo. Saber cuál molesta de verdad vale más que adivinarlo.",
+  },
   whyLimited: {
     heading: "¿Por qué hay un límite de búsquedas?",
     amazonBold: "Amazon cuesta dinero de verdad.",
     restBold: "El resto cuesta paciencia.",
     trackingBold: "El seguimiento es distinto.",
     waysToGetMore: "Formas de conseguir más",
+    upgradeBullet: "Los planes de pago suben mucho el límite diario",
+    readMore: "La historia completa: lo que cuesta Sweep →",
     gotIt: "Entendido",
     seePlans: "Ver planes",
   },
@@ -1188,6 +1277,7 @@ export const es: Translations = {
     stopTrackingThis: "Dejar de seguir esto",
   },
   nav: {
+    whyLimited: "¿Por qué hay límites?",
     lookup: "Consulta de producto",
     radar: "Radar de ofertas",
     budget: "Gastos",

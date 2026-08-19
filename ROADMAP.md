@@ -152,28 +152,31 @@ known-provider list is checked before any edit distance, which is what stops
 
 ---
 
-## Being honest about why limits exist
+## Being honest about why limits exist — SHIPPED
 
-The strongest idea on the list, and almost nobody does it.
+A row under the Shortcuts on Home — **"Why are features limited?"** — opening a
+page that says plainly: Sweep is one person paying real costs, here is what
+each part actually costs, and here is what more subscribers would change.
 
-A floating button on Home — **"Why are features limited?"** — opening a page
-that explains the app is one person paying real costs, what each store
-actually costs to query, and what more paid users would unlock:
+Built as a row rather than the floating button this started as. A floating
+control sits on top of content permanently to be tapped once, and what it
+leads to is worth reading once, not hovering over forever.
 
-> 10 Pro users covers monthly running costs
-> 15 pays for more stores
-> 20 loosens the limits for everyone
+**The numbers that describe today are generated** — the free tier's allowance
+comes from `/plans` and the store list from `/search/retailers` — because a
+page about being honest can't be the one place with stale figures in it. The
+search sheet had exactly that problem: it still read "Pro gives 10 a day,
+Ultimate gives 100" long after those became 75 and 400. It now carries the
+short answer and links here for the real ones.
 
-Plus the list of stores we plan to add, so the roadmap is public rather than
-implied.
+**Both cautions held.** It explains what subscriptions pay for and never reads
+as crowdfunding — no appeal, nothing outside store billing, Sweep framed as a
+product rather than a cause. And the milestones are stated as intentions, in
+those words, because a number you're bound to is a number you'll regret.
 
-**Two cautions.** Keep it "here's what revenue unlocks" rather than anything
-that reads as crowdfunding, which Play treats differently. And frame targets as
-intentions, not promises — a number you're bound to is a number you'll regret.
-
-**The commitment behind it:** as paid users arrive, limits loosen for
-everybody, because every paid tier is profitable. That's worth saying out loud
-and then actually doing.
+**The commitment it makes**, and it's worth actually keeping: every paid tier
+is profitable, so subscribers arriving loosens limits for everybody rather
+than only for them.
 
 ---
 
@@ -327,7 +330,7 @@ absorbing "judge it", since price history is the evidence behind both.
 3. ~~**Product lookup page**~~ — done, well ahead of where it sat on this list.
 4. ~~**Signup quick wins**~~ — done.
 5. ~~**Custom SMTP**~~ — already in place before it reached the top of the list.
-6. **The "why limited" page** — pairs naturally with subscriptions being live.
+6. ~~**The "why limited" page**~~ — done.
 7. **Remaining quick wins** — wait times, notification bell.
 8. **Tester feedback lands** — real usage. Ideas from studying competitors and
    ideas from watching your own users disagree, and when they do, users win.
