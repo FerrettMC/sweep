@@ -93,7 +93,7 @@ export const en = {
     title: "Sweep",
     subtitle: "Your online shopping buddy",
     accountExists:
-      "You already have an account with that email, but that password doesn't match. Try 'Forgot your password?' below.",
+      "There's already an account with that email, and that password doesn't match it. Use 'Forgot your password?' below — that works even if you never made this account, as long as you can read that inbox.",
     offline: "Couldn't reach Sweep. Check your connection and try again.",
     didYouMean: "Did you mean",
     tooManyAttempts: "Too many attempts just now. Wait a minute and try again.",
@@ -705,7 +705,7 @@ export const es: Translations = {
     title: "Sweep",
     subtitle: "Tu compañero de compras online",
     accountExists:
-      "Ya tienes una cuenta con ese correo, pero esa contraseña no coincide. Prueba «¿Olvidaste tu contraseña?» abajo.",
+      "Ya existe una cuenta con ese correo y esa contraseña no coincide. Usa «¿Olvidaste tu contraseña?» abajo: funciona aunque tú no hayas creado esa cuenta, siempre que puedas leer ese buzón.",
     offline:
       "No se pudo conectar con Sweep. Revisa tu conexión e inténtalo de nuevo.",
     didYouMean: "¿Quisiste decir",
