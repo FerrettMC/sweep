@@ -203,29 +203,26 @@ searched for, so it shows nothing when it knows nothing and gets better every
 time anyone uses the app. `lib/matching.ts` did the hard part, which is why
 this was small.
 
-**Share from Amazon into the app** — Android intent filter plus the existing
-`resolveProduct`, landing on tracking or the new product page. Good win,
-moderate cost — and it now has an obvious destination, which it didn't when
-this was written: a shared link lands on the lookup page. Amazon first; other
-stores are the same mechanism with more URL
-patterns.
+**Share from Amazon into the app** — **parked, and here's what it actually
+costs**, so this doesn't get re-scoped from scratch later.
 
-_Discoverability is the hard half._ The feature lives in **another app's**
-share sheet, so nobody finds it by exploring Sweep. Three places it needs to
-be, in order of how much they'll actually work:
+The destination is free: `expo-router` already routes `sweep://` URLs, so
+`sweep://lookup?url=…` lands on the product page today with no work.
 
-1. **At the moment of the slower alternative.** Whenever someone is pasting a
-   link — the tracking empty state, the add-by-link field, the list item field
-   — say "or share straight from the store app". That's the one that lands,
-   because they're doing the manual version right then and the shortcut is
-   immediately usable.
-2. **A dismissible tip after the first successful track**, when they've proved
-   they want the feature and know what it's for.
-3. **An onboarding slide.** Weakest of the three on its own: onboarding runs
-   once, before anyone has a product to share, so it's abstract exactly when it
-   can't be acted on. Worth including in the redo, but not instead of 1 and 2.
+The problem is receiving the share. Android's share sheet sends `ACTION_SEND`
+with the link in `Intent.EXTRA_TEXT`, and React Native's `Linking` API only
+surfaces `ACTION_VIEW` data URIs — there is no JS API that can read it. That
+means `expo-share-intent` or a custom native module, and since `android/` is
+prebuilt and committed, a config-plugin library can't just install itself
+without a prebuild that would overwrite the manual manifest.
 
-Same reasoning applies to anything else triggered from outside the app.
+So: a native dependency, hand-wiring into the existing Android project, and a
+rebuild that can break — against a feature that lives in someone else's share
+sheet, which is the discoverability problem noted below and the reason it's
+niche.
+
+_The free half is still worth doing:_ prompting at the moment someone is
+pasting a link by hand costs nothing and is the idea most likely to land.
 
 **Feedback banner** — somewhere for testers and users to say what they want
 built. Worth having while the tester group is small and talkative.
