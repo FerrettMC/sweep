@@ -21,6 +21,7 @@ import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import { type AppNotification, getNotifications, markNotificationsRead } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/format";
+import { setUnreadCount } from "@/lib/unreadCount";
 
 /** Icon per kind, with a fallback so a kind added later still renders. */
 const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -46,6 +47,9 @@ export default function Notifications() {
       // as two calls: the badge should go when you look, and a background
       // refresh shouldn't silently mark things seen.
       await markNotificationsRead().catch(() => {});
+      // Clears the header badge immediately rather than waiting for whatever
+      // screen happens to refetch next.
+      setUnreadCount(0);
     } catch {
       setItems([]);
     }

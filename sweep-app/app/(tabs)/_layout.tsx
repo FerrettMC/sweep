@@ -13,9 +13,18 @@
 import { type Palette, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
+import { refreshUnreadCount, useUnreadCount } from "@/lib/unreadCount";
 import { Ionicons } from "@expo/vector-icons";
 import { Link, Tabs } from "expo-router";
-import { type ColorValue, Pressable, StyleSheet, View } from "react-native";
+import { useEffect } from "react";
+import {
+  AppState,
+  type ColorValue,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -26,6 +35,55 @@ function tabIcon(active: IoniconName, inactive: IoniconName) {
       size={24}
       color={color as string}
     />
+  );
+}
+
+/**
+ * The bell, beside the profile button on every tab.
+ *
+ * Hidden at zero rather than shown empty: a bell with nothing behind it
+ * invites a tap that leads nowhere, and a permanent icon that is usually inert
+ * stops being looked at.
+ */
+function BellButton() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const unread = useUnreadCount();
+
+  // Checked on mount and whenever the app is brought back, which is when a
+  // notification is most likely to have arrived while it was closed.
+  useEffect(() => {
+    void refreshUnreadCount();
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void refreshUnreadCount();
+    });
+    return () => subscription.remove();
+  }, []);
+
+  if (unread === 0) return null;
+
+  return (
+    <Link href="/notifications" asChild>
+      <Pressable hitSlop={12} style={({ pressed }) => pressed && styles.pressed}>
+        <View style={styles.profileButton}>
+          <Ionicons name="notifications" size={17} color={colors.textSecondary} />
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{unread > 9 ? "9+" : unread}</Text>
+          </View>
+        </View>
+      </Pressable>
+    </Link>
+  );
+}
+
+/** Both header buttons, in one row so they can't drift apart. */
+function HeaderButtons() {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={styles.headerButtons}>
+      <BellButton />
+      <ProfileButton />
+    </View>
   );
 }
 
@@ -70,7 +128,7 @@ export default function TabLayout() {
         headerTintColor: colors.textPrimary,
         headerTitleStyle: { fontWeight: "800" },
         headerShadowVisible: false,
-        headerRight: () => <ProfileButton />,
+        headerRight: () => <HeaderButtons />,
       }}
     >
       <Tabs.Screen
@@ -107,6 +165,20 @@ export default function TabLayout() {
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
+    headerButtons: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+    badge: {
+      position: "absolute",
+      top: -3,
+      right: -3,
+      minWidth: 16,
+      height: 16,
+      borderRadius: 8,
+      paddingHorizontal: 4,
+      backgroundColor: colors.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    badgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
     profileButton: {
       width: 32,
       height: 32,

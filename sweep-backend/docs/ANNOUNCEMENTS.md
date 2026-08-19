@@ -47,12 +47,12 @@ curl -X POST https://api.sweepshopping.com/notifications/announce \
 
 ## Rules
 
-| Field   | Required | Notes                                                        |
-| ------- | -------- | ------------------------------------------------------------ |
-| `title` | yes      | 80 characters max                                            |
-| `body`  | yes      | 300 characters max                                           |
+| Field   | Required | Notes                                                           |
+| ------- | -------- | --------------------------------------------------------------- |
+| `title` | yes      | 80 characters max                                               |
+| `body`  | yes      | 300 characters max                                              |
 | `href`  | no       | Must start with `/` — an in-app path like `/lookup` or `/plans` |
-| `email` | no       | One person when present, everyone when absent                |
+| `email` | no       | One person when present, everyone when absent                   |
 
 `href` is restricted to in-app paths on purpose: an announcement that could
 carry an arbitrary URL would be a way to put a link to anywhere in front of
