@@ -95,6 +95,7 @@ export const en = {
     accountExists:
       "You already have an account with that email, but that password doesn't match. Try 'Forgot your password?' below.",
     offline: "Couldn't reach Sweep. Check your connection and try again.",
+    didYouMean: "Did you mean",
     tooManyAttempts: "Too many attempts just now. Wait a minute and try again.",
     badEmail: "That email address doesn't look right.",
     signupFailed: "Something went wrong. Please try again in a moment.",
@@ -545,14 +546,6 @@ export const en = {
     alertBelow: "Alert me below",
     stopTrackingThis: "Stop tracking this",
   },
-  verify: {
-    title: "Confirm your email",
-    body: "We sent a link to {{email}}. Confirming keeps your account recoverable if you lose your password.",
-    resend: "Send it again",
-    sending: "Sending…",
-    resent: "Sent again to {{email}}. Check your inbox and spam folder.",
-    resendFailed: "Couldn't resend just yet. Wait a minute and try again.",
-  },
   nav: {
     lookup: "Product lookup",
     radar: "Deal Radar",
@@ -715,6 +708,7 @@ export const es: Translations = {
       "Ya tienes una cuenta con ese correo, pero esa contraseña no coincide. Prueba «¿Olvidaste tu contraseña?» abajo.",
     offline:
       "No se pudo conectar con Sweep. Revisa tu conexión e inténtalo de nuevo.",
+    didYouMean: "¿Quisiste decir",
     tooManyAttempts: "Demasiados intentos. Espera un minuto e inténtalo otra vez.",
     badEmail: "Esa dirección de correo no parece correcta.",
     signupFailed: "Algo salió mal. Inténtalo de nuevo en un momento.",
@@ -1170,14 +1164,6 @@ export const es: Translations = {
       "Escribe un precio como 49.99, o bórralo para desactivar el aviso.",
     alertBelow: "Avísame por debajo de",
     stopTrackingThis: "Dejar de seguir esto",
-  },
-  verify: {
-    title: "Confirma tu correo",
-    body: "Enviamos un enlace a {{email}}. Confirmarlo te permite recuperar la cuenta si olvidas la contraseña.",
-    resend: "Enviar de nuevo",
-    sending: "Enviando…",
-    resent: "Enviado de nuevo a {{email}}. Revisa tu bandeja y el spam.",
-    resendFailed: "No se pudo reenviar ahora. Espera un minuto e inténtalo otra vez.",
   },
   nav: {
     lookup: "Consulta de producto",

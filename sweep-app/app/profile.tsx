@@ -7,7 +7,6 @@
 import { useCallback, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import VerifyEmailBanner from "@/components/VerifyEmailBanner";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Button, ErrorBanner, Loading, Screen, SectionTitle } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
@@ -170,10 +169,6 @@ export default function ProfileScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Above the identity card deliberately: this is a fact about the
-            account being described directly below it. */}
-        <VerifyEmailBanner />
-
         {/* One identity card. Username and account were two separate cards,
             which made the same person read as two unrelated settings — and put
             the public name nowhere near the private email it contrasts with. */}

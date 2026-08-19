@@ -16,8 +16,9 @@ import { supabase } from "@/lib/supabase";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import { friendlyAuthErrorKey } from "@/lib/authErrors";
+import { suggestEmail } from "@/lib/emailTypos";
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AppState,
   Keyboard,
@@ -36,6 +37,9 @@ export default function Auth() {
   const t = useTranslate();
 
   const [email, setEmail] = useState("");
+  // Recomputed only when the address changes, not on every keystroke elsewhere
+  // on the form.
+  const suggestion = useMemo(() => suggestEmail(email), [email]);
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(true);
@@ -261,6 +265,26 @@ export default function Auth() {
         keyboardType="email-address"
         textContentType="emailAddress"
       />
+
+      {/*
+        Shown, never applied automatically. Sweep signs people in without
+        confirming their address, so a mistyped domain is never caught and the
+        address is the only way back into a forgotten account — but plenty of
+        real addresses live on domains this has never heard of, so being wrong
+        has to cost one glance rather than a blocked signup.
+      */}
+      {suggestion && (
+        <Pressable
+          onPress={() => setEmail(suggestion)}
+          style={styles.suggestion}
+          hitSlop={6}
+        >
+          <Text style={styles.suggestionText}>
+            {t("auth.didYouMean")}{" "}
+            <Text style={styles.suggestionEmail}>{suggestion}</Text>
+          </Text>
+        </Pressable>
+      )}
       <PasswordInput
         fieldStyle={styles.input}
         placeholder={t("auth.password")}
@@ -359,6 +383,9 @@ const makeStyles = (colors: Palette) =>
       textAlign: "center",
       marginBottom: spacing.lg,
     },
+    suggestion: { paddingHorizontal: spacing.xs, marginTop: -spacing.xs },
+    suggestionText: { color: colors.textSecondary, fontSize: type.caption.fontSize },
+    suggestionEmail: { color: colors.accent, fontWeight: "700" },
     input: {
       backgroundColor: colors.surface,
       borderWidth: 1,

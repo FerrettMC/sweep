@@ -18,7 +18,6 @@ import { setPushRegistered, usePushRegistered } from "@/lib/pushStatus";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import StoreTroubleSheet from "@/components/StoreTroubleSheet";
-import VerifyEmailBanner from "@/components/VerifyEmailBanner";
 import {
   getNotificationStatus,
   getQuota,
@@ -191,11 +190,6 @@ export default function HomeScreen() {
             <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
           </Pressable>
         )}
-
-        {/* Sits above the rest of "needs fixing" because it's the only one
-            with a deadline attached — an unconfirmed address can't recover a
-            password. Renders nothing when the address is already confirmed. */}
-        <VerifyEmailBanner />
 
         {/* ---- things that need fixing ---- */}
         {(pushOn === false || isGuest) && (
