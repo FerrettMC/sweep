@@ -54,7 +54,34 @@ inbound routing already being there.
 
 5. Supabase → Authentication → Emails → Confirm signup → paste
    `confirm-signup.html` from this folder. Subject: `Confirm your email`.
-6. Sign up with a real address and confirm the mail arrives and looks right.
+6. Same page → **Reset Password** → paste `reset-password.html`. Subject:
+   `Your Sweep password reset code`. **Do this one even if you skip the
+   others** — see below.
+7. Sign up with a real address, then run a password reset, and confirm both
+   arrive and look right.
+
+## The reset template is not cosmetic
+
+Supabase's stock reset email contains only `{{ .ConfirmationURL }}` — a link.
+The app never uses that link: `ForgotPasswordSheet` asks for a **code** and
+calls `verifyOtp` with type `recovery`. With the stock template the email does
+not contain the code the app is asking for, so password reset cannot be
+completed at all.
+
+`reset-password.html` uses `{{ .Token }}`, which is the code.
+
+It deliberately offers no link as an alternative. Following one signs you in on
+whichever device opened the email — for a reset read on a laptop, that's the
+wrong device, and the phone is still sitting there asking for a code. One route
+through, and it's the one the app implements.
+
+## Why the plaintext looks the way it does
+
+Supabase derives the plaintext copy of each email from the HTML, line by line.
+The stock template puts every element on one line, which is why its plaintext
+reads `CONFIRM YOUR EMAIL ADDRESSFollow the link below…` with the words run
+together. Both templates here keep one block per line and one line per
+paragraph so the derived text is readable. Worth preserving when editing.
 
 ## Reusing it for scraper alerts
 
