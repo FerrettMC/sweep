@@ -4,9 +4,13 @@
 // Written after a button shipped reading "plans.createAccount". translate()
 // falls back to the key itself when it can't find one, which is the right
 // runtime behaviour — a raw key on screen is better than a crash — but it
-// means a typo or a forgotten key looks completely fine until someone opens
-// that screen. Nothing else catches it: TypeScript can't, because keys are
-// strings, and the parity check only compares the two locales to each other.
+// means a typo looks completely fine until someone opens that screen.
+//
+// TypeScript now catches that case too: translate() takes a TranslationKey
+// derived from the English bundle, so a bad key fails to compile whether it's
+// written at the call site or returned from a function. This script is still
+// worth running for the two things types don't cover — locale parity, and
+// which keys are defined but no longer used by anything.
 import fs from "fs";
 import path from "path";
 

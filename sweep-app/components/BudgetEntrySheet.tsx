@@ -118,11 +118,9 @@ export default function BudgetEntrySheet({
   }
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
-          <View style={styles.grabber} />
-
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text style={styles.heading}>
               {isEdit
@@ -238,22 +236,23 @@ export default function BudgetEntrySheet({
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
-    backdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: "flex-end" },
+    // Top-anchored, like every other sheet in the app with a text input in
+    // it. This one has three — amount, category, note — and bottom-anchoring
+    // put all of them under the keyboard, so logging what you spent meant
+    // typing into boxes you couldn't see.
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.scrim,
+      justifyContent: "flex-start",
+      padding: spacing.lg,
+    },
     sheet: {
       backgroundColor: colors.background,
-      borderTopLeftRadius: radius.lg,
-      borderTopRightRadius: radius.lg,
-      maxHeight: "88%",
-      borderTopWidth: 1,
+      borderRadius: radius.lg,
+      // Leaves room for the keyboard rather than assuming it isn't there.
+      maxHeight: "70%",
+      borderWidth: 1,
       borderColor: colors.surfaceBorder,
-    },
-    grabber: {
-      alignSelf: "center",
-      width: 38,
-      height: 4,
-      borderRadius: radius.pill,
-      backgroundColor: colors.surfaceBorder,
-      marginTop: spacing.sm,
     },
     content: { padding: spacing.md, gap: spacing.xs },
     heading: {

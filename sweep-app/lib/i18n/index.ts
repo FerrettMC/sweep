@@ -13,7 +13,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSyncExternalStore } from "react";
 import { getLocales } from "expo-localization";
-import { type Language, translations } from "./translations";
+import { type Language, type Translations, translations } from "./translations";
 
 const KEY = "sweep.language";
 
@@ -78,6 +78,25 @@ export function useLanguage(): Language {
 type Dict = Record<string, Record<string, string>>;
 
 /**
+ * Every key that actually exists, as "section.name".
+ *
+ * Derived from the English bundle rather than maintained by hand, so it can't
+ * drift from it. This is what makes a renamed or misspelled key a compile
+ * error instead of a screen showing `plans.createAccount` to a user — which
+ * has happened, and which checkKeys.mjs only catches for keys written as
+ * literals at the call site. A key computed at runtime was invisible to both
+ * until this existed.
+ */
+export type TranslationKey = {
+  [Section in keyof Translations & string]: Translations[Section] extends Record<
+    string,
+    unknown
+  >
+    ? `${Section}.${keyof Translations[Section] & string}`
+    : never;
+}[keyof Translations & string];
+
+/**
  * Look up a dotted key, e.g. t("profile.signOut").
  *
  * A missing key returns the English string rather than the key itself. A user
@@ -85,7 +104,7 @@ type Dict = Record<string, Record<string, string>>;
  * `profile.signOut` is a bug report.
  */
 export function translate(
-  key: string,
+  key: TranslationKey,
   vars?: Record<string, string | number>,
 ): string {
   const [section, name] = key.split(".");

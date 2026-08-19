@@ -106,10 +106,9 @@ export default function TrackedItemSheet({
   }
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
-          <View style={styles.grabber} />
 
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text style={styles.title} numberOfLines={2}>
@@ -228,26 +227,20 @@ function nextCheckLabel(nextCheckAt: string | null | undefined) {
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
+    // Top-anchored: this sheet takes a custom price threshold, and a
+    // bottom-anchored sheet opens the keypad straight over the field.
     backdrop: {
       flex: 1,
       backgroundColor: colors.scrim,
-      justifyContent: "flex-end",
+      justifyContent: "flex-start",
+      padding: spacing.lg,
     },
     sheet: {
       backgroundColor: colors.background,
-      borderTopLeftRadius: radius.lg,
-      borderTopRightRadius: radius.lg,
-      maxHeight: "90%",
-      borderTopWidth: 1,
+      borderRadius: radius.lg,
+      maxHeight: "70%",
+      borderWidth: 1,
       borderColor: colors.surfaceBorder,
-    },
-    grabber: {
-      alignSelf: "center",
-      width: 38,
-      height: 4,
-      borderRadius: radius.pill,
-      backgroundColor: colors.surfaceBorder,
-      marginTop: spacing.sm,
     },
     content: { padding: spacing.md, gap: spacing.md },
     title: {
