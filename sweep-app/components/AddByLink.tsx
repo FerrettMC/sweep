@@ -8,7 +8,7 @@
 // confirm sheet first, so the user can check it's the right item and choose
 // when it gets checked before spending a tracking slot.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import TrackProductModal from "@/components/TrackProductModal";
@@ -16,7 +16,6 @@ import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
-import { storeListPhrase } from "@/lib/format";
 import {
   ApiError,
   type ProductPreview,
@@ -30,9 +29,23 @@ interface Props {
   /** Hides the paste box once the user is at their plan's limit. */
   disabled?: boolean;
   disabledReason?: string;
+  /**
+   * A link to look up as soon as this mounts, for arrivals from elsewhere —
+   * "Track price" on the product lookup page sends one.
+   *
+   * Without this, that button navigated here and stopped: the field was empty
+   * and the person had to find and paste the link they had just been looking
+   * at, which is worse than not offering the button.
+   */
+  initialUrl?: string;
 }
 
-export default function AddByLink({ onTracked, disabled, disabledReason }: Props) {
+export default function AddByLink({
+  onTracked,
+  disabled,
+  disabledReason,
+  initialUrl,
+}: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const t = useTranslate();
@@ -52,9 +65,29 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
     }
   }
 
+  /**
+   * Run the lookup for a link handed to us, once.
+   *
+   * Guarded on the url itself rather than a boolean so that arriving with a
+   * different product later still works, while a re-render with the same one
+   * doesn't scrape twice.
+   */
+  const handled = useRef<string | null>(null);
+  useEffect(() => {
+    const value = initialUrl?.trim();
+    if (!value || disabled || handled.current === value) return;
+    handled.current = value;
+    setLink(value);
+    void lookUp(value);
+  }, [initialUrl, disabled]);
+
   /** Step 1 — scrape the link and show what we found. Nothing is tracked yet. */
   async function onLookUp() {
-    const value = link.trim();
+    await lookUp(link);
+  }
+
+  async function lookUp(raw: string) {
+    const value = raw.trim();
     if (!value || busy) return;
 
     setBusy(true);
@@ -142,7 +175,14 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
         <Pressable onPress={onPasteFromClipboard} hitSlop={8}>
           <Text style={styles.pasteLink}>{t("addLink.pasteFromClipboard")}</Text>
         </Pressable>
-        <Text style={styles.hint}>{storeListPhrase(6)}</Text>
+        {/* Was the full store list, which ran to six names and collided with
+            the paste link on a narrow screen. It was also drifting: the app's
+            copy of storeListPhrase doesn't know which stores are switched off
+            server-side, so it named ones that aren't live. A phrase says the
+            true thing and can't go stale. */}
+        <Text style={styles.hint} numberOfLines={1}>
+          {t("addLink.anyStore")}
+        </Text>
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}
@@ -154,6 +194,12 @@ export default function AddByLink({ onTracked, disabled, disabledReason }: Props
         onCancel={() => {
           setPreview(null);
           setModalError(null);
+          // Forget that we handled the incoming link, so coming back from the
+          // product page and tapping "Track price" on the SAME item works a
+          // second time. Otherwise dismissing once would make the button
+          // permanently do nothing for that product — the bug this whole
+          // change exists to fix, in a subtler form.
+          handled.current = null;
         }}
         onConfirm={onConfirm}
       />
@@ -185,13 +231,21 @@ const makeStyles = (colors: Palette) =>
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
+      // Gap plus a shrinkable hint, so the two can never sit on top of each
+      // other however long the translated string turns out to be.
+      gap: spacing.sm,
     },
     pasteLink: {
       color: colors.accent,
       fontSize: type.caption.fontSize,
       fontWeight: "700",
     },
-    hint: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    hint: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      // The paste link keeps its width; this yields.
+      flexShrink: 1,
+    },
     limitText: {
       color: colors.warning,
       fontSize: type.label.fontSize,

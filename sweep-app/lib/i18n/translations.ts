@@ -505,6 +505,7 @@ export const en = {
     limitReached: "You've reached your tracking limit.",
     placeholder: "Paste a product link…",
     lookUp: "Look up",
+    anyStore: "Any store we support",
     pasteFromClipboard: "Paste from clipboard",
   },
   addToList: {
@@ -1185,6 +1186,7 @@ export const es: Translations = {
     limitReached: "Has alcanzado tu límite de seguimiento.",
     placeholder: "Pega el enlace de un producto…",
     lookUp: "Buscar",
+    anyStore: "Cualquier tienda compatible",
     pasteFromClipboard: "Pegar del portapapeles",
   },
   addToList: {

@@ -32,11 +32,12 @@ import {
   getBudgetPrefill,
 } from "@/lib/api";
 import { formatPrice, percentOff } from "@/lib/format";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 
 export default function TrackingScreen() {
+  const params = useLocalSearchParams<{ addUrl?: string }>();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const t = useTranslate();
@@ -196,6 +197,10 @@ export default function TrackingScreen() {
       )}
 
       <AddByLink
+        // Arrives from "Track price" on the product lookup page, which used
+        // to navigate here and leave the field empty — asking someone to
+        // re-find a link they were already looking at.
+        initialUrl={typeof params.addUrl === "string" ? params.addUrl : undefined}
         disabled={atLimit}
         disabledReason={
           limits
