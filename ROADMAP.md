@@ -76,6 +76,12 @@ in the onboarding redo.
   threshold) had it too. All top-anchored now. No bottom-anchored sheet with a
   text input remains.
 - ~~**Email verification off the signup page.**~~ Tried, reverted, see below.
+- ~~**Price history as a line graph.**~~ Continuous line, drawn as rotated
+  Views so no charting library and no `android/` rebuild. Points are spaced by
+  **time**, not by position in the list — checks run on an adaptive schedule,
+  so even spacing would stretch quiet periods and compress busy ones. The
+  geometry is a tested pure module, because a chart that's subtly wrong still
+  looks exactly like a chart.
 
 ### Still to do
 
@@ -90,12 +96,7 @@ in the onboarding redo.
 - **Estimated wait times per store.** Nearly free: `ScrapeCheck` already
   stores `durationMs` for every call, so a median per retailer is a query
   against data we have.
-- **Price history as a line graph.** Continuous line, dollar axis, like a FRED
-  chart. Bars read as discrete events; the data is a time series and the line
-  is the honest shape. Now visible on every lookup, so it matters more than it
-  did. Constraint: no charting library — they all pull in react-native-svg and
-  this project ships a prebuilt `android/`. A line can be drawn with rotated
-  Views without adding a native module.
+
 - **Notification bell** top right, beside profile, for price drops and
   app-wide notices. Not actually a quick win: it needs somewhere to store a
   feed and a read/unread state, so it's a feature.
@@ -329,7 +330,7 @@ absorbing "judge it", since price history is the evidence behind both.
    the signup funnel, and it is the one item here that silently breaks real
    users rather than merely annoying them.
 6. **The "why limited" page** — pairs naturally with subscriptions being live.
-7. **Remaining quick wins** — line graph, wait times, notification bell.
+7. **Remaining quick wins** — wait times, notification bell.
 8. **Tester feedback lands** — real usage. Ideas from studying competitors and
    ideas from watching your own users disagree, and when they do, users win.
    Re-order everything below this line at that point.

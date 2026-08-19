@@ -1,47 +1,65 @@
 // components/PriceChart.tsx
 //
-// Price history as a column chart, drawn with plain Views.
+// Price history as a continuous line, drawn with plain Views.
 //
-// Deliberately no charting library: every RN chart lib pulls in react-native-svg,
-// which is a native module, and this project ships a prebuilt android/ folder —
-// adding one would force a full rebuild. A price series is a step function with
-// a handful of points, which columns render honestly.
+// Deliberately no charting library: every RN chart lib pulls in
+// react-native-svg, which is a native module, and this project ships a
+// prebuilt android/ folder — adding one would force a full rebuild. Each
+// segment of the line is a thin rectangle rotated to point at the next
+// reading, which needs nothing but View and a transform.
+//
+// This replaced a column chart. Columns read as discrete events — "it cost
+// this much on Tuesday" — when a price is really a value that holds between
+// observations. A line is the closer description of what actually happened,
+// and it's what price history looks like everywhere people already read it.
+//
+// The geometry lives in lib/chartGeometry.ts, tested, because a chart that is
+// subtly wrong still looks exactly like a chart.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import { formatChartDate, formatPrice, formatPriceShort } from "@/lib/format";
+import { type ChartPoint, buildLine, downsample } from "@/lib/chartGeometry";
 
-export interface PricePoint {
-  price: number;
-  checkedAt: string;
-}
+export type PricePoint = ChartPoint;
 
 interface Props {
   history: PricePoint[];
   currentPrice: number | null;
   height?: number;
-  /** How many columns to render. Older points are downsampled to fit. */
-  maxColumns?: number;
+  /** Ceiling on rendered points. Older readings are thinned to fit. */
+  maxPoints?: number;
 }
+
+/** Thin enough to read as a line, thick enough to see on a phone. */
+const STROKE = 2;
+const DOT = 7;
 
 export default function PriceChart({
   history,
   currentPrice,
   height = 160,
-  maxColumns = 32,
+  maxPoints = 60,
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const t = useTranslate();
-  const chart = useMemo(
-    () => buildChart(history, maxColumns),
-    [history, maxColumns],
+
+  // Measured rather than assumed: the card this sits in is a different width
+  // on every screen, and the line has to be positioned in real pixels.
+  const [width, setWidth] = useState(0);
+
+  const points = useMemo(() => downsample(history, maxPoints), [history, maxPoints]);
+  const plotHeight = height - spacing.sm * 2;
+  const layout = useMemo(
+    () => buildLine(points, width, plotHeight, STROKE),
+    [points, width, plotHeight],
   );
 
-  if (!chart) {
+  if (history.length === 0) {
     return (
       <View style={[styles.empty, { height }]}>
         <Text style={styles.emptyTitle}>{t("priceChart.empty")}</Text>
@@ -50,58 +68,80 @@ export default function PriceChart({
     );
   }
 
-  const { columns, low, high, range } = chart;
-
   return (
     <View>
-      <View style={[styles.plot, { height }]}>
-        {/* Axis labels sit behind the columns so they never shift the layout. */}
+      <View
+        style={[styles.plot, { height }]}
+        onLayout={(event) =>
+          // Minus the padding, so the line spans the drawable area rather than
+          // running under the border.
+          setWidth(event.nativeEvent.layout.width - spacing.sm * 2)
+        }
+      >
+        {/* Behind the line, so labels never shift the layout. */}
         <View style={styles.axis} pointerEvents="none">
-          <Text style={styles.axisLabel}>{formatPriceShort(high)}</Text>
-          <Text style={styles.axisLabel}>{formatPriceShort(low)}</Text>
+          <Text style={styles.axisLabel}>
+            {formatPriceShort(layout?.high ?? null)}
+          </Text>
+          <Text style={styles.axisLabel}>
+            {formatPriceShort(layout?.low ?? null)}
+          </Text>
         </View>
 
-        <View style={styles.columns}>
-          {columns.map((column, index) => {
-            // A flat series has zero range; render every column at a readable
-            // mid height rather than collapsing them all to nothing.
-            const ratio = range === 0 ? 0.5 : (column.price - low) / range;
-            const isLow = column.price === low;
-            const isLast = index === columns.length - 1;
+        {/* Rendered only once the width is known. Drawing at zero width first
+            would flash a collapsed line on every mount. */}
+        {layout && (
+          <View style={styles.canvas}>
+            {layout.segments.map((segment, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.segment,
+                  {
+                    left: segment.left,
+                    top: segment.top,
+                    width: segment.width,
+                    transform: [{ rotate: `${segment.angle}deg` }],
+                  },
+                ]}
+              />
+            ))}
 
-            return (
-              <View key={`${column.checkedAt}-${index}`} style={styles.columnSlot}>
-                <View
-                  style={[
-                    styles.column,
-                    {
-                      // Floor at 6% so the cheapest point stays visible instead
-                      // of rendering as a zero-height sliver.
-                      height: `${6 + ratio * 94}%`,
-                      backgroundColor: isLast
-                        ? colors.accent
-                        : isLow
-                          ? colors.success
-                          : colors.surfaceRaised,
-                    },
-                  ]}
-                />
-              </View>
-            );
-          })}
-        </View>
+            {layout.dots.map((dot) => (
+              <View
+                key={dot.kind}
+                style={[
+                  styles.dot,
+                  {
+                    left: dot.x - DOT / 2,
+                    top: dot.y - DOT / 2,
+                    backgroundColor:
+                      dot.kind === "low" ? colors.success : colors.accent,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+        )}
       </View>
 
       <View style={styles.footer}>
         <Text style={styles.footerDate}>
-          {formatChartDate(columns[0].checkedAt)}
+          {layout ? formatChartDate(layout.first) : ""}
         </Text>
         <View style={styles.legend}>
-          <Legend color={colors.success} label={`Low ${formatPrice(low)}`} />
-          <Legend color={colors.accent} label={`Now ${formatPrice(currentPrice ?? high)}`} />
+          {/* Only shown when there IS a low distinct from everything else —
+              labelling a flat line's "low" implies a fall that never happened. */}
+          {layout && layout.high > layout.low && (
+            <Legend color={colors.success} label={`Low ${formatPrice(layout.low)}`} />
+          )}
+          <Legend
+            color={colors.accent}
+            label={`Now ${formatPrice(currentPrice ?? layout?.high ?? null)}`}
+          />
         </View>
         <Text style={styles.footerDate}>
-          {formatChartDate(columns[columns.length - 1].checkedAt)}
+          {layout ? formatChartDate(layout.last) : ""}
         </Text>
       </View>
     </View>
@@ -116,40 +156,6 @@ function Legend({ color, label }: { color: string; label: string }) {
       <Text style={styles.legendText}>{label}</Text>
     </View>
   );
-}
-
-function buildChart(history: PricePoint[], maxColumns: number) {
-  if (history.length === 0) return null;
-
-  const columns = downsample(history, maxColumns);
-  const prices = columns.map((c) => c.price);
-  const low = Math.min(...prices);
-  const high = Math.max(...prices);
-
-  return { columns, low, high, range: high - low };
-}
-
-/**
- * Keep the most recent points at full resolution and thin out older ones.
- * A price series matters most at its right-hand edge — that's the price you'd
- * pay today — so uniform sampling would throw away the interesting part.
- */
-function downsample(history: PricePoint[], maxColumns: number): PricePoint[] {
-  if (history.length <= maxColumns) return history;
-
-  const recentCount = Math.floor(maxColumns / 2);
-  const recent = history.slice(-recentCount);
-  const older = history.slice(0, -recentCount);
-
-  const olderSlots = maxColumns - recentCount;
-  const step = older.length / olderSlots;
-
-  const thinned: PricePoint[] = [];
-  for (let i = 0; i < olderSlots; i++) {
-    thinned.push(older[Math.floor(i * step)]);
-  }
-
-  return [...thinned, ...recent];
 }
 
 const makeStyles = (colors: Palette) =>
@@ -171,29 +177,33 @@ const makeStyles = (colors: Palette) =>
       justifyContent: "space-between",
     },
     axisLabel: { color: colors.textTertiary, fontSize: type.caption.fontSize },
-    columns: {
-      flex: 1,
-      flexDirection: "row",
-      alignItems: "flex-end",
-      gap: 2,
+    canvas: { flex: 1 },
+    segment: {
+      position: "absolute",
+      height: STROKE,
+      backgroundColor: colors.accent,
+      borderRadius: STROKE / 2,
     },
-    columnSlot: { flex: 1, height: "100%", justifyContent: "flex-end" },
-    column: { width: "100%", borderRadius: 2, minHeight: 3 },
+    dot: {
+      position: "absolute",
+      width: DOT,
+      height: DOT,
+      borderRadius: DOT / 2,
+      borderWidth: 1.5,
+      borderColor: colors.surface,
+    },
     footer: {
       flexDirection: "row",
-      justifyContent: "space-between",
       alignItems: "center",
-      marginTop: spacing.sm,
+      justifyContent: "space-between",
+      marginTop: spacing.xs,
+      gap: spacing.xs,
     },
     footerDate: { color: colors.textTertiary, fontSize: type.caption.fontSize },
-    legend: { flexDirection: "row", gap: spacing.md },
-    legendItem: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-    legendDot: { width: 8, height: 8, borderRadius: radius.pill },
-    legendText: {
-      color: colors.textSecondary,
-      fontSize: type.caption.fontSize,
-      fontWeight: "600",
-    },
+    legend: { flexDirection: "row", gap: spacing.sm },
+    legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+    legendDot: { width: 7, height: 7, borderRadius: 3.5 },
+    legendText: { color: colors.textSecondary, fontSize: type.caption.fontSize },
     empty: {
       backgroundColor: colors.surface,
       borderRadius: radius.md,
@@ -201,18 +211,17 @@ const makeStyles = (colors: Palette) =>
       borderColor: colors.surfaceBorder,
       alignItems: "center",
       justifyContent: "center",
-      padding: spacing.lg,
-      gap: spacing.xs,
+      gap: 4,
+      padding: spacing.md,
     },
     emptyTitle: {
       color: colors.textSecondary,
-      fontSize: type.body.fontSize,
+      fontSize: type.label.fontSize,
       fontWeight: "700",
     },
     emptyBody: {
       color: colors.textTertiary,
-      fontSize: type.label.fontSize,
+      fontSize: type.caption.fontSize,
       textAlign: "center",
-      lineHeight: 17,
     },
   });

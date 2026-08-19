@@ -45,7 +45,8 @@
     "test:review": "npx tsx lib/reviewGate.test.ts",
     "test:i18n": "node lib/i18n/checkKeys.mjs",
     "test:auth-errors": "npx tsx lib/authErrors.test.ts",
-    "test:email-typos": "npx tsx lib/emailTypos.test.ts"
+    "test:email-typos": "npx tsx lib/emailTypos.test.ts",
+    "test:chart": "npx tsx lib/chartGeometry.test.ts"
   },
   "private": true
 }
