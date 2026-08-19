@@ -30,7 +30,8 @@
     "test:i18n": "tsx src/test-i18n.ts",
     "test:cooldown": "tsx src/test-cooldown.ts",
     "test:concurrency": "tsx src/test-concurrency.ts",
-    "test:billing": "tsx src/test-billing.ts"
+    "test:billing": "tsx src/test-billing.ts",
+    "test:contract": "tsx src/test-contract.ts"
   },
   "keywords": [],
   "author": "",
