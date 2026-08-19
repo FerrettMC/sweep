@@ -300,6 +300,17 @@ function RootNavigator() {
           }}
         />
         <Stack.Screen
+          name="notifications"
+          options={{
+            headerShown: true,
+            title: t("nav.notifications"),
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.textPrimary,
+            headerShadowVisible: false,
+            headerTitleStyle: { fontWeight: "800" },
+          }}
+        />
+        <Stack.Screen
           name="why-limited"
           options={{
             headerShown: true,

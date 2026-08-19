@@ -1,13 +1,24 @@
 // routes/notifications.ts
 //
-// Push token registration. The app calls this once permission is granted, and
-// again whenever the token changes — Expo can rotate a token after a reinstall
-// or an OS update, so registration is idempotent by design.
+// Push token registration, and the feed behind the bell.
+//
+// Registration: the app calls this once permission is granted, and again
+// whenever the token changes — Expo can rotate a token after a reinstall or an
+// OS update, so registration is idempotent by design.
+//
+// The feed is the other half of the same idea. A push is an interruption that
+// vanishes when it's swiped; the feed is the record, and it exists for
+// everyone, including people who never granted permission at all.
 
 import type { FastifyInstance } from "fastify";
 import { Expo } from "expo-server-sdk";
 import { requireAuth } from "../lib/auth.js";
 import { prisma } from "../lib/prisma.js";
+import {
+  countUnread,
+  listNotifications,
+  markAllRead,
+} from "../lib/notificationFeed.js";
 
 export async function notificationRoutes(app: FastifyInstance) {
   // ---- register this device ----
@@ -80,4 +91,34 @@ export async function notificationRoutes(app: FastifyInstance) {
       return { registered: devices > 0, devices };
     },
   );
+  // ---- the bell ----
+
+  app.get("/notifications", { preHandler: requireAuth }, async (request) => {
+    const userId = request.userId!;
+    const [items, unread] = await Promise.all([
+      listNotifications(userId),
+      countUnread(userId),
+    ]);
+
+    return {
+      unread,
+      notifications: items.map((n) => ({
+        id: n.id,
+        kind: n.kind,
+        title: n.title,
+        body: n.body,
+        href: n.href,
+        read: n.readAt !== null,
+        createdAt: n.createdAt.toISOString(),
+      })),
+    };
+  });
+
+  // Separate from the GET rather than clearing on read, so fetching the list
+  // and clearing the badge stay two decisions. A list that marks itself read
+  // the moment it's fetched can never be refreshed in the background.
+  app.post("/notifications/read", { preHandler: requireAuth }, async (request) => {
+    return { cleared: await markAllRead(request.userId!) };
+  });
+
 }

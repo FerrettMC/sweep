@@ -25,6 +25,7 @@ model User {
   savedSearches     SavedSearch[]
   promoRedemptions  PromoCodeRedemption[]
   pushTokens        PushToken[]
+  notifications     Notification[]
   dealsFound        Deal[]   @relation("DealFinder")
   lists             List[]
 }
@@ -99,6 +100,40 @@ model Wallet {
 
   user   User   @relation(fields: [userId], references: [id])
   userId String @unique
+}
+
+// What the bell shows.
+//
+// Push notifications are fire-and-forget: they land on a lock screen, get
+// swiped away, and are gone. Anyone who misses one — phone off, permission
+// never granted, notification dismissed by accident — has no way to find out
+// what they missed, which makes the whole feature feel unreliable even when
+// it worked.
+//
+// So every alert is also written here. The push is the interruption; this is
+// the record.
+model Notification {
+  id        String    @id @default(uuid())
+  // "price-drop" | "radar-match" | "announcement". A string rather than an
+  // enum so a new kind doesn't need a migration, and old clients that don't
+  // recognise one can fall back on title and body, which every kind has.
+  kind      String
+  title     String
+  body      String
+  /**
+   * Where tapping it should go, as an in-app path like "/lookup?productId=x".
+   * Null for anything with nowhere to go, which the client renders as an
+   * unclickable row rather than a dead tap.
+   */
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  // Drives both the list (newest first) and the unread count.
+  @@index([userId, createdAt])
 }
 
 // One row per unique product being tracked ANYWHERE in the app — shared

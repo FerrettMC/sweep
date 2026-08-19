@@ -21,6 +21,7 @@ import StoreTroubleSheet from "@/components/StoreTroubleSheet";
 import {
   getNotificationStatus,
   getQuota,
+  getNotifications,
   getRetailerStatus,
   getTrackedProducts,
   type TrackedProduct,
@@ -62,16 +63,23 @@ export default function HomeScreen() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // Drives the bell's badge. Zero hides the bell entirely.
+  const [unread, setUnread] = useState(0);
 
   const load = useCallback(async () => {
     // Every one of these is allowed to fail independently — Home should still
     // render something useful if one endpoint is down.
-    const [products, quota, push, stores] = await Promise.all([
+    const [products, quota, push, stores, notifications] = await Promise.all([
       getTrackedProducts().catch(() => null),
       getQuota().catch(() => null),
       getNotificationStatus().catch(() => null),
       getRetailerStatus().catch(() => null),
+      // Guests have no feed, and a server that predates it has no endpoint —
+      // both land here as "nothing unread", which hides the bell.
+      getNotifications().catch(() => null),
     ]);
+
+    setUnread(notifications?.unread ?? 0);
 
     if (products) {
       setTracked(products.tracked);
@@ -116,9 +124,27 @@ export default function HomeScreen() {
         }
       >
         {/* ---- who we are ---- */}
-        <View style={styles.brand}>
-          <Text style={styles.brandName}>Sweep</Text>
-          <Text style={styles.brandTagline}>{t("home.tagline")}</Text>
+        <View style={styles.brandRow}>
+          <View style={styles.brand}>
+            <Text style={styles.brandName}>Sweep</Text>
+            <Text style={styles.brandTagline}>{t("home.tagline")}</Text>
+          </View>
+
+          {/* The bell is only useful once there's something behind it, and an
+              empty bell invites a tap that leads nowhere. Hidden until it has
+              something to say. */}
+          {unread > 0 && (
+            <Pressable
+              onPress={() => router.push("/notifications")}
+              hitSlop={10}
+              style={styles.bell}
+            >
+              <Ionicons name="notifications" size={22} color={colors.textPrimary} />
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unread > 9 ? "9+" : unread}</Text>
+              </View>
+            </Pressable>
+          )}
         </View>
 
         {/* ---- the pitch: one search, every store ---- */}
@@ -428,6 +454,30 @@ const makeStyles = (colors: Palette) =>
     content: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xxl },
     pressed: { opacity: 0.75 },
 
+    brandRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: spacing.sm,
+    },
+    bell: { padding: 4 },
+    badge: {
+      position: "absolute",
+      top: 0,
+      right: 0,
+      minWidth: 16,
+      height: 16,
+      borderRadius: 8,
+      paddingHorizontal: 4,
+      backgroundColor: colors.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    badgeText: {
+      color: "#fff",
+      fontSize: 10,
+      fontWeight: "800",
+    },
     brand: { gap: 1 },
     brandName: {
       color: colors.textPrimary,

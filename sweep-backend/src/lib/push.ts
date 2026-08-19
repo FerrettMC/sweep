@@ -14,6 +14,11 @@
 
 import { Expo, type ExpoPushMessage, type ExpoPushTicket } from "expo-server-sdk";
 import { prisma } from "./prisma.js";
+import {
+  type NotificationInput,
+  recordNotification,
+  recordNotifications,
+} from "./notificationFeed.js";
 import { TIER_LIMITS, type Tier, effectiveTier } from "./tiers.js";
 
 // No access token needed for sending to Expo push tokens; EXPO_ACCESS_TOKEN
@@ -66,9 +71,13 @@ export async function notifyPriceDrop({
 
   const messages: ExpoPushMessage[] = [];
   const notifiedTrackedIds: string[] = [];
+  const feed: NotificationInput[] = [];
 
   for (const tracked of trackers) {
-    if (tracked.user.pushTokens.length === 0) continue;
+    // NOT skipped for users without a push token any more. They are precisely
+    // the people the bell exists for: someone who never granted permission,
+    // or whose phone was off, still needs to be able to find out the price
+    // dropped. The token check now gates only the push itself.
 
     // Already told this user about this product recently.
     if (tracked.lastNotifiedAt && tracked.lastNotifiedAt > cooldownCutoff) continue;
@@ -92,6 +101,15 @@ export async function notifyPriceDrop({
       ? `Now ${formatCents(newPrice)} — below your ${formatCents(tracked.customThreshold!)} alert.`
       : `Down ${dropPercent}% to ${formatCents(newPrice)} (was ${formatCents(previousPrice)}).`;
 
+    // Filed for everyone who qualifies, with or without a push token.
+    feed.push({
+      userId: tracked.userId,
+      kind: "price-drop",
+      title: truncate(product.title, 60),
+      body,
+      href: `/lookup?productId=${product.id}`,
+    });
+
     for (const { token } of tracked.user.pushTokens) {
       if (!Expo.isExpoPushToken(token)) continue;
 
@@ -110,12 +128,24 @@ export async function notifyPriceDrop({
     notifiedTrackedIds.push(tracked.id);
   }
 
-  if (messages.length === 0) return 0;
+  await recordNotifications(feed);
+
+  if (messages.length === 0) {
+    // No push to send, but people were still notified in the app, so the
+    // cooldown has to be stamped or the bell fills with duplicates.
+    if (notifiedTrackedIds.length > 0) {
+      await prisma.trackedProduct.updateMany({
+        where: { id: { in: notifiedTrackedIds } },
+        data: { lastNotifiedAt: new Date() },
+      });
+    }
+    return 0;
+  }
 
   const tickets = await send(messages);
   await pruneDeadTokens(messages, tickets);
 
-  // Stamp the cooldown only for users we actually messaged.
+  // Stamp the cooldown for everyone told, by push or in the app.
   if (notifiedTrackedIds.length > 0) {
     await prisma.trackedProduct.updateMany({
       where: { id: { in: notifiedTrackedIds } },
@@ -204,11 +234,23 @@ export async function notifyRadarMatch(input: {
   targetPrice: number | null;
 }): Promise<number> {
   const tokens = await prisma.pushToken.findMany({ where: { userId: input.userId } });
-  if (tokens.length === 0) return 0;
 
   const body = input.targetPrice !== null
     ? `${formatCents(input.price)} at ${input.retailerLabel} — under your ${formatCents(input.targetPrice)} target.`
     : `${formatCents(input.price)} at ${input.retailerLabel} — the cheapest we've seen.`;
+
+  // Filed before the token check, for the same reason as price drops: someone
+  // without push notifications still set up this radar and still wants to know
+  // it found something.
+  await recordNotification({
+    userId: input.userId,
+    kind: "radar-match",
+    title: truncate(input.title, 60),
+    body,
+    href: "/radar",
+  });
+
+  if (tokens.length === 0) return 0;
 
   const messages: ExpoPushMessage[] = [];
   for (const { token } of tokens) {

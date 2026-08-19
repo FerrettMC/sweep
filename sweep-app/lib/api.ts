@@ -980,6 +980,31 @@ export function lookUpProduct(
   });
 }
 
+// ---- notifications feed -------------------------------------------------------
+
+export interface AppNotification {
+  id: string;
+  /** "price-drop" | "radar-match" | "announcement", open-ended by design. */
+  kind: string;
+  title: string;
+  body: string;
+  /** In-app path to open, or null when there's nowhere to go. */
+  href: string | null;
+  read: boolean;
+  createdAt: string;
+}
+
+export function getNotifications() {
+  return request<{ unread: number; notifications: AppNotification[] }>(
+    "/notifications",
+  );
+}
+
+/** Clears the badge. Separate from reading the list, deliberately. */
+export function markNotificationsRead() {
+  return request<{ cleared: number }>("/notifications/read", { method: "POST" });
+}
+
 // ---- deal radar --------------------------------------------------------------
 
 export interface SavedSearch {

@@ -608,7 +608,14 @@ export const en = {
     alertBelow: "Alert me below",
     stopTrackingThis: "Stop tracking this",
   },
+  notifications: {
+    emptyTitle: "Nothing yet",
+    emptyBody:
+      "Price drops and Deal Radar finds show up here, so you can catch up on anything you missed — even with notifications switched off.",
+    unread: "{{count}} unread",
+  },
   nav: {
+    notifications: "Notifications",
     whyLimited: "Why are features limited?",
     lookup: "Product lookup",
     radar: "Deal Radar",
@@ -1290,7 +1297,14 @@ export const es: Translations = {
     alertBelow: "Avísame por debajo de",
     stopTrackingThis: "Dejar de seguir esto",
   },
+  notifications: {
+    emptyTitle: "Nada por ahora",
+    emptyBody:
+      "Las bajadas de precio y lo que encuentre el Radar aparecen aquí, para que veas lo que te perdiste, aunque tengas las notificaciones desactivadas.",
+    unread: "{{count}} sin leer",
+  },
   nav: {
+    notifications: "Notificaciones",
     whyLimited: "¿Por qué hay límites?",
     lookup: "Consulta de producto",
     radar: "Radar de ofertas",

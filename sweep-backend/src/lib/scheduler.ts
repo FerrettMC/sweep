@@ -9,6 +9,7 @@
 
 import cron from "node-cron";
 import { pruneSearchCache } from "./scrapers/searchCache.js";
+import { pruneNotifications } from "./notificationFeed.js";
 import { recordCheck, runHealthCheck } from "./health.js";
 import { adapters, disabledRetailers } from "./scrapers/index.js";
 import { cooldownRemaining } from "./scrapers/cooldown.js";
@@ -69,6 +70,10 @@ export function startScheduler() {
     try {
       const removed = await pruneSearchCache();
       if (removed > 0) console.log(`[scheduler] pruned ${removed} search-cache entries`);
+      const oldNotifications = await pruneNotifications();
+      if (oldNotifications > 0) {
+        console.log(`[scheduler] pruned ${oldNotifications} old notifications`);
+      }
     } catch (err) {
       console.error("[scheduler] search-cache prune threw:", err);
     }

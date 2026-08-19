@@ -107,9 +107,18 @@ in the onboarding redo.
   quietly stopped being true, and said nothing about any other store having a
   bad day.
 
-- **Notification bell** top right, beside profile, for price drops and
-  app-wide notices. Not actually a quick win: it needs somewhere to store a
-  feed and a read/unread state, so it's a feature.
+- ~~**Notification bell.**~~ Done. Top right on Home, hidden until there's
+  something behind it.
+
+  The reason it earns its place: a push notification is an interruption, not a
+  record — it lands on a lock screen and is gone when it's swiped. Anyone whose
+  phone was off, who dismissed one by accident, **or who never granted
+  permission at all** had no way to find out a price dropped, which makes the
+  whole feature feel unreliable even when it worked.
+
+  So price drops and radar matches are now filed for everyone who qualifies,
+  including people with no push token — previously the send loop skipped them
+  entirely. Announcements share the same table when you want to send one.
 - **Title → "Sweep: Shopping Assistant".** Weaker for search than "Price
   Tracker & Deals" — nobody searches "shopping assistant" — but it fits where
   the product is heading. Changeable any time without a build. (Keeping PT&D
