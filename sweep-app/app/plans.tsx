@@ -10,11 +10,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Button, Loading, Screen } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
+import { supabase } from "@/lib/supabase";
 import { type Plan, type PlanFeature, getPlans } from "@/lib/api";
 import {
   BILLING_ENABLED,
@@ -37,10 +38,16 @@ export default function PlansScreen() {
   const [plans, setPlans] = useState<Plan[] | null>(null);
   const [groupLabels, setGroupLabels] = useState<Record<string, string>>({});
   const [currentTier, setCurrentTier] = useState<string | null>(null);
+  const router = useRouter();
   const [billing, setBilling] = useState<Billing>("monthly");
   const [offering, setOffering] = useState<PurchasesOffering | null>(null);
   const [buying, setBuying] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Purchases attach to whoever RevenueCat thinks you are. Signed out, that is
+  // an anonymous id with no wallet behind it — so a guest who bought would be
+  // charged by Play and granted nothing, and the webhook would log them as an
+  // unknown user. Nothing may be sold until there is an account to sell to.
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
 
   useEffect(() => {
     // Null until a store is connected and products exist. The cards handle
@@ -61,6 +68,7 @@ export default function PlansScreen() {
     try {
       const result = await buy(pkg);
       if (result.status === "cancelled") return;
+      if (result.status === "needs-account") return setNotice(t("plans.signUpFirst"));
       if (result.status === "unavailable") return setNotice(t("plans.notReady"));
       if (result.status === "failed") return setNotice(t("plans.purchaseFailed"));
 
@@ -92,6 +100,8 @@ export default function PlansScreen() {
 
   const load = useCallback(async () => {
     try {
+      const { data } = await supabase.auth.getSession();
+      setSignedIn(Boolean(data.session));
       const result = await getPlans();
       setPlans(result.plans);
       setGroupLabels(result.groupLabels);
@@ -152,7 +162,9 @@ export default function PlansScreen() {
             groupLabels={groupLabels}
             isCurrent={plan.tier === currentTier}
             previousName={index > 0 ? plans[index - 1].name : null}
-            packages={offering?.availablePackages ?? []}
+            packages={signedIn === false ? [] : offering?.availablePackages ?? []}
+            signedIn={signedIn !== false}
+            onSignIn={() => router.push("/auth")}
             buyingId={buying}
             onBuy={onBuy}
             rank={index}
@@ -165,7 +177,7 @@ export default function PlansScreen() {
 
         {/* Play requires a way back for someone who reinstalled or switched
             device — they must not have to pay twice. */}
-        {BILLING_ENABLED && (
+        {BILLING_ENABLED && signedIn !== false && (
           <Pressable onPress={onRestore} hitSlop={8} style={styles.restore}>
             <Text style={styles.restoreText}>{t("plans.restore")}</Text>
           </Pressable>
@@ -191,6 +203,8 @@ function PlanCard({
   packages,
   buyingId,
   onBuy,
+  signedIn,
+  onSignIn,
   rank,
   currentRank,
   onCancel,
@@ -205,6 +219,9 @@ function PlanCard({
   packages: PurchasesPackage[];
   buyingId: string | null;
   onBuy: (pkg: PurchasesPackage, planName: string) => void;
+  /** False while browsing as a guest — nothing can be bought without an account. */
+  signedIn: boolean;
+  onSignIn: () => void;
   /** Position of this plan in the ladder, and of the one they're on. */
   rank: number;
   currentRank: number;
@@ -350,6 +367,17 @@ function PlanCard({
         // up as a purchase.
         if (rank < currentRank) {
           return <Text style={styles.includedNote}>{t("plans.includedInYours")}</Text>;
+        }
+
+        // Guests get an account first. A purchase made now would be charged by
+        // Play and attached to an anonymous id we can't map to a wallet.
+        if (!signedIn) {
+          return (
+            <View style={styles.buyRow}>
+              <Button label={t("plans.createAccount")} onPress={onSignIn} />
+              <Text style={styles.trialNote}>{t("plans.signUpFirst")}</Text>
+            </View>
+          );
         }
 
         const pkg = packages.find((p) =>

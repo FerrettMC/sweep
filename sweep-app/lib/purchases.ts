@@ -30,6 +30,15 @@ export const ENTITLEMENTS = { pro: "pro", ultimate: "ultimate" } as const;
 export const BILLING_ENABLED = Boolean(KEY);
 
 let configured = false;
+/**
+ * Who purchases will be attributed to, or null when nobody is signed in.
+ *
+ * Tracked here so buying can refuse outright rather than relying on every
+ * screen to check first. A purchase made while anonymous is charged by Play
+ * and attached to an id with no wallet behind it — the person pays and gets
+ * nothing, and the webhook can only log them as unknown.
+ */
+let identifiedUserId: string | null = null;
 
 /** Safe to call repeatedly; only the first call configures. */
 export function startPurchases() {
@@ -50,6 +59,7 @@ export async function identifyForPurchases(userId: string | null) {
   try {
     if (userId) await Purchases.logIn(userId);
     else await Purchases.logOut();
+    identifiedUserId = userId;
   } catch {
     // Identity failing shouldn't block using the app; it only means a purchase
     // made right now would need restoring later.
@@ -72,6 +82,8 @@ export type PurchaseOutcome =
   | { status: "bought"; entitlements: string[] }
   | { status: "cancelled" }
   | { status: "unavailable" }
+  /** Signed out — there is no account to attach a subscription to. */
+  | { status: "needs-account" }
   | { status: "failed"; message: string };
 
 /**
@@ -82,6 +94,10 @@ export type PurchaseOutcome =
  */
 export async function buy(pkg: PurchasesPackage): Promise<PurchaseOutcome> {
   if (!KEY) return { status: "unavailable" };
+  // Refused here as well as in the UI. Taking someone's money for something we
+  // then can't grant them is the worst failure this app has available, and it
+  // shouldn't depend on a screen remembering to check.
+  if (!identifiedUserId) return { status: "needs-account" };
   startPurchases();
 
   try {
