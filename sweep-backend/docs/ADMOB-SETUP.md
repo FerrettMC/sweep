@@ -97,6 +97,44 @@ an over-the-air update.
 
 ---
 
+## "Reward is taking a moment to land" — expected with test ads
+
+The reward will **never** be credited while the app is serving Google's demo ad
+unit, and that is not a bug.
+
+The server-side verification URL is configured on *your* ad unit inside *your*
+AdMob account. Google's public test unit (`ca-app-pub-3940256099942544/…`, the
+one with the stock video) belongs to Google — it has no knowledge of your
+callback URL, so nothing ever calls the backend, so nothing is credited. The
+app polls for six seconds, gives up, and says so.
+
+Seeing that message actually confirms most of the chain: the SDK initialised,
+an ad loaded and played, `EARNED_REWARD` fired (otherwise it would say the ad
+was closed early), and **the app correctly refused to grant the reward
+itself** — which is the whole security property.
+
+### Testing the full loop before public launch
+
+You don't have to wait. Register the device as a test device against your own
+ad unit:
+
+1. AdMob → **Settings → Test devices → Add test device**
+2. Add your phone (AdMob lists recently seen devices, or take the device id
+   from logcat: `Use RequestConfiguration.Builder.setTestDeviceIds(...)`)
+3. Temporarily set `EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID` to the real unit and
+   build
+
+A registered test device is served **test ads on your real unit**. That means
+Google fires the SSV callback to your URL, so the search actually gets
+credited — while the impression stays a test impression, earns nothing, and
+counts as neither real traffic nor invalid traffic.
+
+That is the sanctioned way to test rewards end to end, and the only way to
+prove the backend half works before there are real ads.
+
+**Remember to unset the unit id again afterwards** if launch hasn't happened,
+for the reason in the section above.
+
 ## Rules worth not breaking
 
 **Never tap your own live ads.** Not once, not "just to check". AdMob calls it
