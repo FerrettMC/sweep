@@ -33,8 +33,18 @@ const WEEKS_PER_MONTH = 4.3;
 /** US rewarded-video eCPM lands around $15–30, i.e. $0.015–0.03 per view. */
 const REWARDED_REVENUE_PER_VIEW = 0.02;
 
-/** Interstitials shown per free user per month, once a second slot exists. */
-const INTERSTITIALS_PER_FREE_USER = 6;
+/**
+ * Interstitials shown per free user per month.
+ *
+ * ZERO, deliberately. Sweep ships no interstitials: the promise is "nothing
+ * interrupts you, the only ad is one you choose to watch", and a full-screen
+ * ad after a search is exactly the interruption that promise is about.
+ *
+ * Left in the model rather than deleted so the cost of that decision stays
+ * visible — at 50k users it was worth roughly as much as the rewarded ads.
+ * That was the trade.
+ */
+const INTERSTITIALS_PER_FREE_USER = 0;
 /** Interstitials earn appreciably less per impression than rewarded video. */
 const INTERSTITIAL_REVENUE_PER_VIEW = 0.008;
 

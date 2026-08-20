@@ -261,8 +261,10 @@ export default function SearchScreen() {
       // partway down the previous results and think nothing happened.
       listRef.current?.getScrollResponder()?.scrollTo({ y: 0, animated: false });
 
-      // A finished search is the natural interstitial moment. Paid tiers pass
-      // showAds=false and never see one.
+      // Counts the action; shows nothing. Sweep deliberately ships no
+      // interstitials — see lib/ads.ts. Left as a call rather than deleted so
+      // the decision lives in one file instead of being spread across the
+      // screens that would have triggered them.
       countActionAndMaybeShowInterstitial(showAds);
 
       setJobId(response.jobId);

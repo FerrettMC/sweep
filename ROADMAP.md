@@ -404,26 +404,54 @@ honest slide last, and skippable from frame one.
 
 ## Sequencing
 
-**Next up: AdMob rewarded ads.** The backend half is done and tested
-(`admobSsv.ts`); the app half is stubbed in `lib/ads.ts` because
-`react-native-google-mobile-ads` pulls in `play-services-ads` compiled with
-Kotlin 2.3.0 while Expo SDK 57 uses 2.1.0.
+**AdMob — code done, waiting on a public launch.**
 
-Two documented routes out, in `sweep-app/docs/INTEGRATIONS.md` §5:
+The Kotlin conflict that blocked this is solved and the SDK is verified present
+in a real build. Both IDs are wired: the app id in `app.json`, the rewarded
+unit id in `eas.json` under the **production profile only**, so development and
+preview builds keep falling back to Google's test units and can never serve a
+real impression to whoever is building the app.
 
-1. Raise the project's Kotlin version via `expo-build-properties` — cleaner
-2. Pin an older `play-services-ads` built against Kotlin ≤ 2.1
+**No interstitials.** They were wired up and would have shown free users a
+full-screen ad after every eight searches. Removed — the promise is "nothing
+interrupts you, the only ad is one you choose to watch", and that promise is
+worth more than the money. It cost roughly half the projected ad revenue;
+`scale-model.ts` now says $0 for interstitials so the size of that trade stays
+visible rather than being quietly forgotten.
 
-Do it on a branch. It's a native dependency plus a toolchain bump, which is the
-riskiest change type in this repo, and a broken build shouldn't touch a
-shippable `master`. `lib/ads.ts` already mirrors the real module's API, so once
-the build compiles the rest is: reinstall the package, restore the real file,
-add the config plugin back to `app.json`.
+### What's left, in order
 
-Worth knowing before spending a morning on it: at ~$0.05 per free user per
-month (from `scale-model.ts`), rewarded ads earn about $5/month at 100 users.
-The reason to do it now is that toolchain fixes are easier before anyone
-depends on your build cadence, not the revenue.
+1. **Enter payment details in AdMob** — required for account verification, and
+   it takes time to process, so start it now. Independent of everything else.
+2. **Launch publicly on Play.** This is the gate. AdMob limits ad serving until
+   an app is listed on a supported store and reviewed, and a closed test is not
+   a public listing — there is no store URL to give them.
+3. **Add the store link in AdMob**, which triggers the app review that lifts
+   the serving limits.
+4. **Build with the production profile.** That's the switch: it's the only
+   profile carrying the real unit id, so this is when real ads first appear.
+5. **Verify one real reward end to end** — watch an ad on a real device, confirm
+   the search is credited. The credit comes from Google calling
+   `/ads/admob/ssv`, not from the app, so this tests the half that can't be
+   tested locally.
+
+### Rules that don't change
+
+**Never tap your own live ads.** Invalid traffic suspends AdMob accounts and
+appeals rarely succeed. Test units are the default precisely so this never has
+to be a judgement call.
+
+**Expect low fill for the first few days** after review. A new app serves few
+ads while Google works out what the inventory is worth. Normal, not a bug.
+
+### What it's worth
+
+About **$0.05 per free user per month** — ~$5/mo at 100 users, ~$2,580/mo at
+49,000. The reason to have done this now was never the money at current scale;
+it was that toolchain fixes are easier before anyone depends on your build
+cadence.
+
+Full account steps: `sweep-backend/docs/ADMOB-SETUP.md`.
 
 ---
 
