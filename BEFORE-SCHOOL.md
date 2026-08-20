@@ -8,7 +8,7 @@ The app is done. Nothing on this list is a feature.
 
 ---
 
-## 1. Turn on failure alerts — 5 minutes, highest value here
+## 1. ~~Turn on failure alerts~~ — done, the Railway vars are set
 
 The backend already runs a health sweep every hour and knows when a retailer
 starts failing. Right now, if SMTP isn't set on Railway, that alert goes to
