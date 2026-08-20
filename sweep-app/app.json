@@ -51,7 +51,12 @@
       ],
       "expo-localization",
       "@sentry/react-native",
-      "react-native-google-mobile-ads"
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-5462924462242718~3822342819"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

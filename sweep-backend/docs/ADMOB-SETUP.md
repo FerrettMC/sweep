@@ -147,6 +147,30 @@ prove the backend half works before there are real ads.
 **Remember to unset the unit id again afterwards** if launch hasn't happened,
 for the reason in the section above.
 
+## Two config keys, not one
+
+The app id has to appear in **two** places, because two different things read
+it and they use different key names:
+
+| Read by | Where | Key |
+| ------- | ----- | --- |
+| The Gradle build, at build time | top-level `react-native-google-mobile-ads` in `app.json` | `android_app_id` |
+| The Expo config plugin, at prebuild | the plugin's props in `expo.plugins` | `androidAppId` |
+
+Only the first actually matters here, since `android/` is committed and
+prebuild isn't run. But leaving the second unset logs
+
+```
+No 'androidAppId' was provided. The native Google Mobile Ads SDK will crash on Android without it.
+```
+
+on every bundle — an alarming warning about a problem that doesn't exist,
+which is worse than useless. Both are set.
+
+**The `iosAppId` warning stays**, and that's fine. Sweep is Android-only, so
+there is no iOS app id to give; silencing it would mean putting a fabricated
+identifier in the config, which is a worse trade than one log line.
+
 ## Rules worth not breaking
 
 **Never tap your own live ads.** Not once, not "just to check". AdMob calls it
