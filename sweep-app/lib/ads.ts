@@ -19,7 +19,6 @@
 import { Platform } from "react-native";
 import mobileAds, {
   AdEventType,
-  InterstitialAd,
   MaxAdContentRating,
   RewardedAd,
   RewardedAdEventType,
@@ -27,8 +26,6 @@ import mobileAds, {
 } from "react-native-google-mobile-ads";
 
 const REWARDED_UNIT = process.env.EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID?.trim();
-const INTERSTITIAL_UNIT =
-  process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID?.trim();
 
 /**
  * Test units unless a real one is configured.
@@ -39,7 +36,6 @@ const INTERSTITIAL_UNIT =
  * account, not just the build.
  */
 const rewardedUnitId = REWARDED_UNIT || TestIds.REWARDED;
-const interstitialUnitId = INTERSTITIAL_UNIT || TestIds.INTERSTITIAL;
 
 export function usingTestAds() {
   return !REWARDED_UNIT;
@@ -149,80 +145,35 @@ export async function showRewardedAd(userId: string): Promise<RewardedOutcome> {
   });
 }
 
-// ---- interstitials ---------------------------------------------------------
+// ---- interstitials — deliberately not shipped -----------------------------
 //
-// Shown between actions on the free tier, never over one. Loaded ahead of time
-// because an interstitial that has to fetch before it appears is a freeze in
-// the middle of whatever the person was doing.
+// The code is gone rather than disabled behind a flag, because a flag would
+// imply this is a tuning decision. It isn't: Sweep's pitch is "nothing
+// interrupts you, the only ad is one you choose to watch", and a full-screen
+// ad after a search is precisely the interruption that promise is about.
+//
+// It would have been worth roughly as much as the rewarded ads. That was the
+// trade, and it was made on purpose.
+//
+// The two exports below stay so the search screen doesn't need to know any of
+// this, and so re-adding interstitials would be a deliberate change here
+// rather than a line quietly uncommented somewhere.
 
-let interstitial: InterstitialAd | null = null;
-let interstitialReady = false;
-let actionsSinceLastAd = 0;
-
-/** Actions between interstitials. Frequent enough to matter, rare enough to bear. */
-const ACTIONS_PER_INTERSTITIAL = 8;
-
-export function preloadInterstitial() {
-  if (!ADS_ENABLED || interstitial) return;
-
-  void ensureInitialised()
-    .then(() => {
-      interstitial = InterstitialAd.createForAdRequest(interstitialUnitId, {
-        requestNonPersonalizedAdsOnly: true,
-      });
-      interstitial.addAdEventListener(AdEventType.LOADED, () => {
-        interstitialReady = true;
-      });
-      interstitial.addAdEventListener(AdEventType.CLOSED, () => {
-        // One instance can only be shown once, so the next one is loaded now
-        // rather than when it's next needed.
-        interstitialReady = false;
-        interstitial = null;
-        preloadInterstitial();
-      });
-      interstitial.addAdEventListener(AdEventType.ERROR, () => {
-        interstitialReady = false;
-        interstitial = null;
-      });
-      interstitial.load();
-    })
-    .catch(() => {
-      // No ad is a fine outcome. It is not worth surfacing.
-    });
-}
+/** No-op. Sweep does not show interstitials. */
+export function preloadInterstitial() {}
 
 /**
- * Count an action, and show an interstitial if enough have passed.
+ * No-op, always false.
  *
- * Returns whether one was shown, so the caller can avoid stacking its own UI
- * on top of a full-screen ad.
+ * Kept so callers can stay written as "count this action" without caring
+ * whether anything is shown. Nothing is.
  */
-export function countActionAndMaybeShowInterstitial(showAds: boolean): boolean {
-  if (!ADS_ENABLED || !showAds) return false;
-
-  actionsSinceLastAd += 1;
-  if (actionsSinceLastAd < ACTIONS_PER_INTERSTITIAL) return false;
-
-  if (!interstitialReady || !interstitial) {
-    // Not loaded in time. The counter is left alone so the next action tries
-    // again rather than waiting another full cycle.
-    preloadInterstitial();
-    return false;
-  }
-
-  try {
-    interstitial.show();
-    actionsSinceLastAd = 0;
-    return true;
-  } catch {
-    return false;
-  }
+export function countActionAndMaybeShowInterstitial(_showAds: boolean): boolean {
+  return false;
 }
 
-/** Called on sign-out, so a new account doesn't inherit a part-full counter. */
-export function resetAdSession() {
-  actionsSinceLastAd = 0;
-}
+/** Called on sign-out. Nothing to reset while interstitials are off. */
+export function resetAdSession() {}
 
 function describe(err: unknown): string {
   if (err && typeof err === "object" && "message" in err) {

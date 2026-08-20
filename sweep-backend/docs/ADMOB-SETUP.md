@@ -44,6 +44,8 @@ callback URL to:
 https://api.sweepshopping.com/ads/admob/ssv
 ```
 
+Done!
+
 That endpoint is already live, verifies Google's signature, and rejects
 tampered `user_id`s, forged signatures and unknown key ids. Leave "custom
 data" empty — the app sends the user id, not custom data.
