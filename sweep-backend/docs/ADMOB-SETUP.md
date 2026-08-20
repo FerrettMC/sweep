@@ -22,6 +22,8 @@ for testing anyway — they always fill, and they can't get you suspended.
 Copy the **App ID**. It looks like `ca-app-pub-1234567890123456~1234567890`
 (note the **`~`**).
 
+ca-app-pub-5462924462242718~3822342819
+
 ## 2. Create the rewarded ad unit
 
 **Ad units → Add ad unit → Rewarded**
@@ -30,6 +32,8 @@ Copy the **App ID**. It looks like `ca-app-pub-1234567890123456~1234567890`
 - Reward amount **1**, item name `search` — cosmetic only. The backend decides
   what a reward is actually worth, not AdMob
 - Copy the **unit ID**: `ca-app-pub-…/…` (note the **`/`**, not `~`)
+
+ca-app-pub-5462924462242718/3650952420
 
 ## 3. Point it at the backend — don't skip this
 
