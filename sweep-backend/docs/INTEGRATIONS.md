@@ -18,7 +18,7 @@ app. So you can add these one at a time, in any order.
 | eBay Buy API     | eBay prices                 | ⬜ Needs keys            |
 | SMTP (Resend)    | Scraper-failure alerts      | ✅ Configured            |
 | Sentry           | Error tracking              | ✅ Configured            |
-| AdMob            | Rewarded + interstitial ads | ⛔ Parked — Kotlin clash |
+| AdMob            | Rewarded + interstitial ads | ⚙️ Building — needs account setup |
 | Expo Push        | Price-drop notifications    | ⬜ Code done, needs EAS  |
 
 ---
@@ -282,62 +282,61 @@ on platform.
 
 ---
 
-## 5. AdMob — ⛔ BLOCKED on a toolchain conflict, parked
+## 5. AdMob — Kotlin conflict solved
 
-**Don't reinstall the package until you've dealt with the Kotlin mismatch
-below.** It fails the Android build immediately.
+### What the conflict was
 
-### What happened
+`react-native-google-mobile-ads@16.4.0+` pulls in `play-services-ads:25.x`,
+whose ad-quality telemetry classes carry **Kotlin metadata 2.3**. React Native
+0.86 compiles with **Kotlin 2.1.20** and cannot read them, so the build died at
+`:react-native-google-mobile-ads:compileReleaseKotlin` with a wall of
+"the binary version of its metadata is 2.3.0, expected version is 2.1.0".
 
-`react-native-google-mobile-ads@16.4.0` pulls in `play-services-ads:25.4.0`,
-which Google compiled with **Kotlin 2.3.0** metadata. Expo SDK 57 / RN 0.86
-compiles with **Kotlin 2.1.0**, so the build dies at
-`:react-native-google-mobile-ads:compileDebugKotlin` with dozens of:
+### How it was solved, and how it was worked out
+
+Rather than guess and rebuild, the metadata version was read straight out of
+each published AAR — `classes.jar` → `META-INF/*.kotlin_module`, whose header
+encodes the version:
+
+| play-services-ads | Kotlin metadata | Compiles under RN 0.86 |
+| ----------------- | --------------- | ---------------------- |
+| 24.5.0            | 2.1 (no ad-quality classes at all) | ✅ |
+| 24.6.0 – 24.8.0   | 2.1             | ✅ |
+| 24.9.0            | 2.2             | ❌ |
+| 25.0.0 – 25.4.0   | 2.3             | ❌ |
+
+**The package version and the SDK version have to move together.** Pinning the
+SDK alone isn't enough: newer packages call APIs (`AgeRestrictedTreatment`)
+that only exist in 25.x, so the build then fails on unresolved references
+instead. The working pair is:
+
+- `react-native-google-mobile-ads@16.0.0` — the last release targeting 24.6.0
+- `play-services-ads:24.6.0`, forced in `android/build.gradle`
+
+The force is a `resolutionStrategy` in `allprojects`, so a transitive bump
+can't quietly reintroduce the problem.
+
+### Why pin rather than raise Kotlin
+
+Raising `kotlinVersion` via `expo-build-properties` would change the toolchain
+for **every** native module in the app to accommodate one of them, and each is
+a fresh chance to break a build that currently works. The pin touches one
+dependency.
+
+**Revisit when Expo raises its Kotlin baseline** — at that point the pin can be
+deleted and the package upgraded in one go. Until then, note that AdMob
+occasionally requires a minimum SDK version; if Google ever refuses 24.6.0,
+raising Kotlin becomes the only route and the pin's comment says so.
+
+### Verifying a change here
+
+The whole module compiles in about 40 seconds, so this does not need a full
+build to test:
 
 ```
-e: play-services-ads-25.4.0-api.jar!/META-INF/....kotlin_module
-   Module was compiled with an incompatible version of Kotlin.
-   The binary version of its metadata is 2.3.0, expected version is 2.1.0.
+cd sweep-app/android
+./gradlew :react-native-google-mobile-ads:compileReleaseKotlin
 ```
-
-Nothing to do with our integration — the ads SDK is simply newer than the
-toolchain can read.
-
-### Two ways out, when you come back to it
-
-1. **Pin an older ads SDK** (least disruptive). `react-native-google-mobile-ads`
-   lets you override the native dependency version; a `play-services-ads` 24.x
-   release built against Kotlin ≤ 2.1 should compile as-is.
-2. **Raise the project's Kotlin version** with `expo-build-properties`
-   (`android.kotlinVersion`). Cleaner long-term, but it changes the toolchain
-   for every native module in the app, so expect to retest the whole build.
-
-Also worth simply waiting — Expo bumping its Kotlin baseline would resolve this
-with no work on your side.
-
-### What survived
-
-**The backend half is done, tested, and has no native dependency:**
-
-| Piece | Where | Status |
-| --- | --- | --- |
-| SSV signature verification | `src/lib/admobSsv.ts` | ✅ 7/7 crypto tests |
-| `GET /ads/admob/ssv` callback | `src/routes/search.ts` | ✅ |
-| Replay protection | `AdReward.transactionId` unique | ✅ pushed |
-| Production lockout of the client path | `POST /search/rewarded` | ✅ 403 verified |
-
-Verified: a correctly signed callback is accepted, while a tampered `user_id`,
-a forged signature, a missing signature and an unknown `key_id` are all
-rejected. With `NODE_ENV=production` the client reward endpoint returns 403
-`SSV_REQUIRED` even for a fully authenticated user — so **the "anyone can mint
-free searches" hole is already closed**, ads or no ads.
-
-`sweep-app/lib/ads.ts` is a stub with the real module's exact API. Re-enabling
-is: reinstall the package, restore the real implementation, add the config
-plugin back to `app.json`. Nothing else in the app changes.
-
-Until then the "+1 search" flow still works in development via the dev-only
-endpoint, so the mechanic is testable.
 
 ### Remaining account setup, for whenever ads resume
 

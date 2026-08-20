@@ -50,7 +50,8 @@
         }
       ],
       "expo-localization",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      "react-native-google-mobile-ads"
     ],
     "experiments": {
       "typedRoutes": true
@@ -63,5 +64,9 @@
     },
     "owner": "benju-studioss-team",
     "backgroundColor": "#0D0D0D"
+  },
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-3940256099942544~3347511713",
+    "delay_app_measurement_init": true
   }
 }
