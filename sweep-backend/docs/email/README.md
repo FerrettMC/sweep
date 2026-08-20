@@ -99,6 +99,41 @@ reads `CONFIRM YOUR EMAIL ADDRESSFollow the link below…` with the words run
 together. Both templates here keep one block per line and one line per
 paragraph so the derived text is readable. Worth preserving when editing.
 
+## Sending *as* support@sweepshopping.com
+
+Cloudflare Email Routing is **inbound only**. It forwards mail addressed to
+`support@sweepshopping.com` into a personal inbox and gives no way to send from
+that address — replies would go out as the personal one, which looks wrong on
+anything official like an API application.
+
+Gmail can send through Resend's SMTP, which the domain is already verified for.
+
+1. Gmail → **Settings** → **See all settings** → **Accounts and Import**
+2. **Send mail as** → **Add another email address**
+3. Name `Sweep`, address `support@sweepshopping.com`, leave "Treat as an alias"
+   ticked
+4. SMTP details:
+
+   | Field    | Value                            |
+   | -------- | -------------------------------- |
+   | Server   | `smtp.resend.com`                |
+   | Port     | `465`                            |
+   | Username | `resend`                         |
+   | Password | a Resend API key                 |
+   | Security | SSL                              |
+
+5. Gmail sends a confirmation code to `support@sweepshopping.com`. Cloudflare
+   forwards it to the personal inbox — paste it back in.
+
+After that the From dropdown in Gmail offers the address, and replies to
+forwarded support mail go out as `support@`.
+
+Authentication works because DKIM is published on the root domain
+(`resend._domainkey`), so a From of `@sweepshopping.com` aligns regardless of
+which subdomain the envelope uses. There is no DMARC record, so nothing to
+violate — worth adding one eventually, but not before there's traffic to
+observe.
+
 ## Reusing it for scraper alerts
 
 The backend already sends health alerts through nodemailer using generic
