@@ -275,10 +275,40 @@ official API or a paid residential proxy.
 
 | Store                                    | Path                                                                                                                                     |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **Walmart**                              | **Only one with a free official API.** Affiliate approval was painful, but the scraper already exists to swap behind it. Best candidate. |
+| **Walmart**                              | **Verify API access is still open before applying** — see below. The scraper already exists to swap behind it. |
 | Target, Chewy, Overstock, Apple, Samsung | No public API. Proxy only.                                                                                                               |
 | Temu                                     | No API, and fights scrapers hardest.                                                                                                     |
 | ~~Booking.com~~                          | Travel, not goods — different comparison logic entirely. Dropped.                                                                        |
+
+---
+
+### Walmart — check before applying
+
+The right programme is the **Content Provider API**, reached through the
+affiliate programme at `affiliates.walmart.com` (run through Impact, free,
+usually approved in a day or two). It gives titles, images, descriptions and
+pricing, read-only, plus tracked links that pay commission — the only store so
+far whose economics run in our favour rather than costing us per request.
+
+**Three wrong doors, all of which look plausible:**
+
+- **Channel Partner / Solution Provider** — software that helps people *sell on*
+  Walmart Marketplace. Inventory, repricing, order management.
+- **Walmart Connect Partner Network** — the advertising business. Every option
+  is about running ad campaigns for brands.
+- **Drop Ship / Marketplace Seller / Warehouse Supplier APIs** — all for selling
+  products to or through Walmart.
+
+**The open question, worth one email before any application:** at least one
+source says Walmart no longer issues new API keys. Their own affiliate FAQ
+mentions "data feeds" and says nothing about APIs either way, so this is
+unconfirmed rather than settled. Ask `affiliates@walmart.com` directly whether
+Content Provider API access is still open to new affiliates.
+
+If it isn't, a periodic **data feed** may still be usable — it would seed the
+product cache rather than answer live per-search lookups, which is a different
+integration from eBay and Etsy and worth designing for deliberately rather
+than discovering halfway through.
 
 ---
 
