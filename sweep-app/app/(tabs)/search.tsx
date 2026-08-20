@@ -387,13 +387,28 @@ export default function SearchScreen() {
       }
 
       if (outcome.status === "failed") {
-        // In development there's no real ad inventory, so fall back to the
-        // dev-only endpoint rather than blocking the flow entirely.
+        // Say why, always. This used to be swallowed in development by the
+        // fallback below, so a real failure — no fill, a bad unit id, a unit
+        // whose serving is still limited — surfaced as whatever the fallback
+        // happened to fail with, which pointed at the wrong thing entirely.
+        if (__DEV__) console.log(`[ads] failed: ${outcome.reason}`);
+
+        // In development there's usually no ad inventory, so fall back to the
+        // dev-only endpoint rather than blocking the flow.
         if (__DEV__) {
-          const { quota: updated } = await claimRewardedSearch();
-          setQuota(updated);
-          setNotice(t("search.adDev"));
-          return;
+          try {
+            const { quota: updated } = await claimRewardedSearch();
+            setQuota(updated);
+            setNotice(t("search.adDev"));
+            return;
+          } catch {
+            // The fallback is refused when a dev build talks to production,
+            // which is deliberate — the client must never be able to grant
+            // itself searches. Report the AD's failure rather than the
+            // fallback's, since that's the thing that actually went wrong.
+            setError(`Couldn't load an ad: ${outcome.reason}`);
+            return;
+          }
         }
         setError(`Couldn't load an ad: ${outcome.reason}`);
         return;
