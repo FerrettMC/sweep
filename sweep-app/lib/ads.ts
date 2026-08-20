@@ -89,6 +89,20 @@ export async function showRewardedAd(userId: string): Promise<RewardedOutcome> {
     return { status: "failed", reason: describe(err) };
   }
 
+  if (__DEV__) {
+    // Which unit is being asked for decides whether a reward can arrive at
+    // all: Google's demo unit has no knowledge of our server-side
+    // verification URL, so the ad plays, the reward is earned, and nothing is
+    // ever credited. That looks identical to a broken backend from the app.
+    console.log(
+      usingTestAds()
+        ? "[ads] Google's TEST unit — the reward will NOT be credited. " +
+            "Set EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID to the real unit and use " +
+            "a registered test device to exercise the full loop."
+        : `[ads] real unit ${rewardedUnitId} — SSV should credit the reward`,
+    );
+  }
+
   return new Promise<RewardedOutcome>((resolve) => {
     const ad = RewardedAd.createForAdRequest(rewardedUnitId, {
       // The link between this device and the SSV callback. Without it the

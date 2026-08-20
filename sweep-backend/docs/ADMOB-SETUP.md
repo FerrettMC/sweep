@@ -121,8 +121,20 @@ ad unit:
 1. AdMob → **Settings → Test devices → Add test device**
 2. Add your phone (AdMob lists recently seen devices, or take the device id
    from logcat: `Use RequestConfiguration.Builder.setTestDeviceIds(...)`)
-3. Temporarily set `EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID` to the real unit and
-   build
+3. **Set `EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID` to the real unit.** Registering a
+   test device does nothing on its own — it decides *what kind of ad* your unit
+   serves you, not *which unit* the app asks for. While this is unset the app
+   requests Google's demo unit and no reward can ever arrive.
+
+   - **Testing locally:** add it to `sweep-app/.env` and restart Metro with
+     `npx expo start --clear`. `EXPO_PUBLIC_*` values are inlined into the JS
+     bundle, so no native rebuild is needed.
+   - **Testing a build from Play:** the value was baked in when that build was
+     made, so it needs a fresh EAS build with the variable set in `eas.json`.
+
+   In development the app logs which unit it asked for every time an ad is
+   shown, so `[ads] Google's TEST unit — the reward will NOT be credited` in
+   the console is the fastest way to confirm this is what's happening.
 
 A registered test device is served **test ads on your real unit**. That means
 Google fires the SSV callback to your URL, so the search actually gets
