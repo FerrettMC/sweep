@@ -419,6 +419,18 @@ worth more than the money. It cost roughly half the projected ad revenue;
 `scale-model.ts` now says $0 for interstitials so the size of that trade stays
 visible rather than being quietly forgotten.
 
+**Confirmed blocked, not broken.** Tested end to end on a real device against
+the real ad unit with the device registered as an AdMob test device. The SDK
+initialises, requests the right unit, and Google declines:
+
+```
+[ads] real unit ca-app-pub-…/3650952420 — SSV should credit the reward
+[ads] failed: [googleMobileAds/no-fill] Account not approved yet.
+```
+
+So every part we control works. What's missing is Google's approval, which
+needs the app publicly listed. Nothing further to debug.
+
 ### What's left, in order
 
 1. **Enter payment details in AdMob** — required for account verification, and
