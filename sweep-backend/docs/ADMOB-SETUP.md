@@ -55,13 +55,40 @@ nothing is credited, because the app deliberately cannot grant searches itself.
 It looks like a broken feature rather than a missing setting, which is why it's
 worth doing at the same time as creating the unit.
 
-## 4. Send the two IDs
+## The one-line switch at public launch
 
-- App ID — `ca-app-pub-…~…`
-- Rewarded unit ID — `ca-app-pub-…/…`
+Both IDs are recorded. The app id is already live in `app.json` — it identifies
+the app and requests nothing on its own.
 
-They go in `app.json` and `EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID`. Both are safe
-to commit; neither is a secret.
+The **rewarded unit id is deliberately NOT set anywhere yet**:
+
+```
+ca-app-pub-5462924462242718/3650952420
+```
+
+`eas.json`'s `production` profile is what builds Play uploads, and that
+includes **closed-test** uploads. Setting the unit id there before launch would
+ship real ad requests to testers while AdMob review is still pending — and any
+tap by you or a tester is invalid traffic, which suspends accounts.
+
+While it's unset, every profile falls back to Google's test units. That is the
+safe default and it needs no discipline to maintain.
+
+**At public launch**, add it to `eas.json` → `build.production.env`:
+
+```json
+"EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID": "ca-app-pub-5462924462242718/3650952420"
+```
+
+then build with the production profile. That build is the first one that serves
+real ads.
+
+## 4. The two IDs, for reference
+
+- App ID — `ca-app-pub-5462924462242718~3822342819` — **live in `app.json`**
+- Rewarded unit ID — `ca-app-pub-5462924462242718/3650952420` — **held back until launch, see above**
+
+Neither is a secret; both are safe to commit.
 
 ## 5. Then a build
 
