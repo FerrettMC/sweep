@@ -293,12 +293,17 @@ official API or a paid residential proxy.
 | Who | Sent | Status | Chase when |
 | --- | ---- | ------ | ---------- |
 | **Best Buy** | Sat 15 Aug, from `support@` | On the phone 21 Aug they said review completes by **Wed 26 Aug** | Call back Thu 27 Aug if nothing |
-| **Walmart** | 20 Aug, to `affiliates@walmart.com` | No reply yet | Reply on the same thread ~**3 Sept** |
+| **Walmart** | 20 Aug to `affiliates@walmart.com`, 21 Aug to `affiliates-help-ext@wal-mart.com` | No reply to either | ~**3 Sept**, then treat silence as the answer |
 | **AdMob** | Payment details entered 20 Aug | Account under review; ads return `no-fill: account not approved` | Recheck at public launch |
 
-Walmart is email only — the affiliate programme runs through Impact and the
-corporate phone lines are retail support, who don't know the Content Provider
-API exists. Don't spend a call on it.
+**Walmart has no phone support for affiliates** — checked their own contact
+page. The corporate lines are retail customer service. There are two email
+addresses and both have now been tried: `affiliates@walmart.com` from the FAQ,
+and `affiliates-help-ext@wal-mart.com` from the contact page, which is arguably
+the more official of the two.
+
+If neither answers by September, that is the answer: the programme isn't
+staffed for this, and the effort belongs somewhere else.
 
 ### Walmart — check before applying
 
