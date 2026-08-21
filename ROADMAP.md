@@ -251,7 +251,13 @@ So a code from a video is a choice between two mechanisms, not one feature:
 - A Play offer code → an actual discount on a paid plan, created and tracked in
   Play Console, redeemed in the Play billing sheet rather than in Sweep.
 
-**What's left to build for the first one:** a redeem endpoint (validate the
+**Decided:** codes grant **14 days of Pro**, redeemed in the app. A creator
+hands out `SWEEP14`, someone types it in, they get a fortnight of Pro with no
+card and nothing to cancel. That costs nothing to honour and puts people in the
+paid tier, which is what actually converts — a percentage off still asks a
+stranger from a video to enter payment details.
+
+**What's left to build:** a redeem endpoint (validate the
 code, check expiry and `maxRedemptions`, create the redemption, set
 `Wallet.tier` and `tierExpiresAt`), and a field to type it into — Profile or
 the plans screen. The atomic-increment pattern from `quota.ts` applies to
