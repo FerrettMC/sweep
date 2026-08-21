@@ -134,6 +134,40 @@ which subdomain the envelope uses. There is no DMARC record, so nothing to
 violate — worth adding one eventually, but not before there's traffic to
 observe.
 
+## Adding another address
+
+Two steps, because inbound and outbound are separate systems.
+
+**Receiving** — Cloudflare → your domain → **Email Routing** → **Routing rules**
+→ **Create address**. Add the new address, forward it to the personal inbox.
+Nothing else to configure; the MX records already exist.
+
+**Sending as it** — repeat the Gmail "Send mail as" steps above with the new
+address. Same Resend SMTP settings; only the address changes. Gmail sends a
+confirmation code, Cloudflare forwards it, paste it back.
+
+### Which addresses exist, and what they're for
+
+| Address                    | Used for                                        |
+| -------------------------- | ----------------------------------------------- |
+| `support@sweepshopping.com`| Users. Listed in the app and on the site.        |
+| `noreply@sweepshopping.com`| Outbound only — Supabase auth mail sends as this |
+| `dev@sweepshopping.com`    | Developer/API applications                       |
+
+Worth keeping this table current. Applications get answered weeks later, and
+"which address did I apply with" is the kind of thing that is obvious now and
+gone by then.
+
+### On reapplying with a different address
+
+Fine to do, and common with programmes that go quiet — this is a signup form on
+your own domain, not a second identity. Two things worth keeping straight:
+
+- **Use the same details otherwise.** Same app, same description, same use
+  case. The address is the only thing changing.
+- **Note the date you applied**, per address, in the table above. If both
+  eventually answer, you want to know which thread is which.
+
 ## Reusing it for scraper alerts
 
 The backend already sends health alerts through nodemailer using generic

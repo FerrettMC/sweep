@@ -17,14 +17,14 @@ Tuesday is discovered by a user complaining, or never.
 
 **Set these on Railway** (the Resend credentials already exist):
 
-| Variable    | Value                              |
-| ----------- | ---------------------------------- |
-| `SMTP_HOST` | `smtp.resend.com`                  |
-| `SMTP_PORT` | `465`                              |
-| `SMTP_USER` | `resend`                           |
-| `SMTP_PASS` | a Resend API key                   |
-| `SMTP_FROM` | `noreply@sweepshopping.com`        |
-| `ALERT_EMAIL` | `support@sweepshopping.com`      |
+| Variable      | Value                       |
+| ------------- | --------------------------- |
+| `SMTP_HOST`   | `smtp.resend.com`           |
+| `SMTP_PORT`   | `465`                       |
+| `SMTP_USER`   | `resend`                    |
+| `SMTP_PASS`   | a Resend API key            |
+| `SMTP_FROM`   | `noreply@sweepshopping.com` |
+| `ALERT_EMAIL` | `support@sweepshopping.com` |
 
 That single change is the difference between finding out a store broke from an
 email and finding out from a one-star review.
@@ -83,3 +83,5 @@ shipping.
 
 If a genuinely good idea turns up, write it in `ROADMAP.md` and leave it there.
 That file has been right about what mattered every time so far.
+
+We should be all done with features till after launch

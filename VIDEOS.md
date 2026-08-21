@@ -31,8 +31,8 @@ The only claim no competitor can copy, and it's inherently visual.
 > **[0:12]** Cut to black.
 > **On screen:** "Sweep. Free on Android."
 
-No voiceover needed. If you do talk: *"Shops do this constantly and there's
-usually no way to check. So I built one."*
+No voiceover needed. If you do talk: _"Shops do this constantly and there's
+usually no way to check. So I built one."_
 
 ## 2. Why the free tier has limits
 
@@ -51,12 +51,12 @@ Honest, specific, slightly odd — which is why it works.
 
 The story, told straight. Works where a feature list gets scrolled past.
 
-> **[0:00]** Face to camera. *"I'm sixteen. I built a shopping app because I
-> got annoyed at fake discounts."*
+> **[0:00]** Face to camera. _"I'm sixteen. I built a shopping app because I
+> got annoyed at fake discounts."_
 > **[0:05]** Screen recording of a search fanning out across stores.
-> *"It checks a few shops at once and keeps its own price history."*
-> **[0:15]** *"No investors, no company. Costs me about £X a month to run."*
-> **[0:22]** *"It's free. Link's below."*
+> _"It checks a few shops at once and keeps its own price history."_
+> **[0:15]** _"No investors, no company. Costs me about £X a month to run."_
+> **[0:22]** _"It's free. Link's below."_
 
 Don't oversell. The restraint is the appeal.
 
@@ -80,8 +80,8 @@ Timely, and a real differentiator while every other shopping app ships a chatbot
 > **Voiceover:** "AI shopping assistants make up products that don't exist and
 > prices nobody charged. Sweep reads the actual listing."
 > **[0:14]** Scroll to a section that's empty because a store publishes nothing.
-> *"And when a shop doesn't tell us something, it says nothing instead of
-> guessing."*
+> _"And when a shop doesn't tell us something, it says nothing instead of
+> guessing."_
 
 That last beat is the strongest half — an empty section is proof.
 
