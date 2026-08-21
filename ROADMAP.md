@@ -282,6 +282,18 @@ official API or a paid residential proxy.
 
 ---
 
+### Waiting on other people — dates to chase
+
+| Who | Sent | Status | Chase when |
+| --- | ---- | ------ | ---------- |
+| **Best Buy** | Sat 15 Aug, from `support@` | On the phone 21 Aug they said review completes by **Wed 26 Aug** | Call back Thu 27 Aug if nothing |
+| **Walmart** | 20 Aug, to `affiliates@walmart.com` | No reply yet | Reply on the same thread ~**3 Sept** |
+| **AdMob** | Payment details entered 20 Aug | Account under review; ads return `no-fill: account not approved` | Recheck at public launch |
+
+Walmart is email only — the affiliate programme runs through Impact and the
+corporate phone lines are retail support, who don't know the Content Provider
+API exists. Don't spend a call on it.
+
 ### Walmart — check before applying
 
 The right programme is the **Content Provider API**, reached through the
