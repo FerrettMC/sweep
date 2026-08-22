@@ -121,10 +121,16 @@ const PAGE = `<!doctype html>
   <tbody id="heaviest"></tbody></table>
 
   <h2>Send an announcement</h2>
-  <p class="sub">Appears in everyone's bell. No push notification is sent.</p>
+  <p class="sub">Appears in everyone's bell. Tick the box below to buzz their phone too —
+  worth saving for things that genuinely can't wait, since an app that
+  interrupts about nothing gets muted for everything.</p>
   <input id="aTitle" placeholder="Title (max 80)" maxlength="80">
   <textarea id="aBody" rows="3" placeholder="Body (max 300)" maxlength="300"></textarea>
   <input id="aEmail" placeholder="Just one person? Their email. Blank = everyone">
+  <label style="display:flex;gap:8px;align-items:center;margin:4px 0 12px;font-size:14px;">
+    <input type="checkbox" id="aPush" style="width:auto;margin:0;">
+    Also send a push notification
+  </label>
   <button onclick="announce()">Send</button>
   <button class="secondary" onclick="signOut()">Sign out</button>
 </div>
@@ -193,20 +199,26 @@ async function announce() {
   const title = document.getElementById("aTitle").value.trim();
   const body = document.getElementById("aBody").value.trim();
   const email = document.getElementById("aEmail").value.trim();
+  const push = document.getElementById("aPush").checked;
   if (!title || !body) return say("Title and body are both required.", true);
-  if (!confirm(email ? "Send to " + email + "?" : "Send to EVERY user?")) return;
+  const who = email ? email : "EVERY user";
+  const how = push ? " AND buzz their phone" : "";
+  if (!confirm("Send to " + who + how + "?")) return;
 
   const res = await fetch("/notifications/announce", {
     method: "POST",
     headers: { "x-admin-key": key(), "content-type": "application/json" },
-    body: JSON.stringify(email ? { title, body, email } : { title, body }),
+    body: JSON.stringify(Object.assign({ title, body }, email ? { email } : {}, push ? { push: true } : {})),
   });
   const out = await res.json();
   if (!res.ok) return say(out.error || "Failed.", true);
-  say("Sent to " + out.sent + " " + (out.sent === 1 ? "person" : "people") + ".");
+  say("Filed for " + out.sent + " " + (out.sent === 1 ? "person" : "people")
+      + (out.pushed ? ", pushed to " + out.pushed + " device" + (out.pushed === 1 ? "" : "s") : "")
+      + ".");
   document.getElementById("aTitle").value = "";
   document.getElementById("aBody").value = "";
   document.getElementById("aEmail").value = "";
+  document.getElementById("aPush").checked = false;
   load();
 }
 

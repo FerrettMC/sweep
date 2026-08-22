@@ -314,3 +314,47 @@ export async function notifyRadarMatch(input: {
   await pruneDeadTokens(messages, tickets);
   return messages.length;
 }
+
+/**
+ * Push an announcement to everyone, or to one person.
+ *
+ * Deliberately separate from the feed write, and opt-in per message. Most
+ * announcements are worth reading and not worth interrupting for — "Etsy is
+ * live now" does not justify buzzing every phone at once, and an app that
+ * buzzes for things that don't matter gets its notifications turned off for
+ * the things that do.
+ *
+ * Returns how many messages Expo accepted, so the sender learns whether it
+ * actually went anywhere.
+ */
+export async function pushAnnouncement(input: {
+  title: string;
+  body: string;
+  userId?: string;
+}): Promise<number> {
+  const tokens = await prisma.pushToken.findMany({
+    where: input.userId ? { userId: input.userId } : {},
+    select: { token: true },
+  });
+
+  const messages: ExpoPushMessage[] = [];
+  for (const { token } of tokens) {
+    if (!Expo.isExpoPushToken(token)) continue;
+    messages.push({
+      to: token,
+      sound: "default",
+      title: truncate(input.title, 60),
+      body: truncate(input.body, 160),
+      // Opens the bell rather than a product, since that's where the full
+      // text is and an announcement has nowhere else to go.
+      data: { type: "announcement" },
+      channelId: "price-drops",
+    });
+  }
+
+  if (messages.length === 0) return 0;
+
+  const tickets = await send(messages);
+  await pruneDeadTokens(messages, tickets);
+  return tickets.filter((t) => t.status === "ok").length;
+}

@@ -14,7 +14,7 @@ import type { FastifyInstance } from "fastify";
 import { Expo } from "expo-server-sdk";
 import { requireAuth } from "../lib/auth.js";
 import { prisma } from "../lib/prisma.js";
-import { lastPushOutcomes, notifyPriceDrop } from "../lib/push.js";
+import { lastPushOutcomes, notifyPriceDrop, pushAnnouncement } from "../lib/push.js";
 import { timingSafeEqual } from "node:crypto";
 import {
   countUnread,
@@ -151,6 +151,7 @@ export async function notificationRoutes(app: FastifyInstance) {
       body?: unknown;
       href?: unknown;
       email?: unknown;
+      push?: unknown;
     };
 
     const title = typeof body.title === "string" ? body.title.trim() : "";
@@ -172,6 +173,11 @@ export async function notificationRoutes(app: FastifyInstance) {
       ? body.href
       : null;
 
+    // Opt-in per message, never the default. Most announcements are worth
+    // reading and not worth interrupting for, and an app that buzzes about
+    // things that don't matter gets muted for the things that do.
+    const alsoPush = body.push === true;
+
     // With an email, one person — which is how you send yourself a test.
     // Without, everyone.
     if (typeof body.email === "string") {
@@ -188,7 +194,10 @@ export async function notificationRoutes(app: FastifyInstance) {
         body: text,
         href,
       });
-      return { sent: 1 };
+      const pushed = alsoPush
+        ? await pushAnnouncement({ title, body: text, userId: user.id })
+        : 0;
+      return { sent: 1, pushed };
     }
 
     const users = await prisma.user.findMany({ select: { id: true } });
@@ -201,7 +210,8 @@ export async function notificationRoutes(app: FastifyInstance) {
         href,
       })),
     );
-    return { sent: users.length };
+    const pushed = alsoPush ? await pushAnnouncement({ title, body: text }) : 0;
+    return { sent: users.length, pushed };
   });
 
   // ---- fire a test price drop ----

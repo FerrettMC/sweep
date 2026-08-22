@@ -140,9 +140,21 @@ is out of date.
 Nothing needs rebuilding afterwards — this is server-side credentials, not app
 config, so the next send just works.
 
-## Note
+## Push is opt-in, per message
 
-This writes to the in-app feed only — it does **not** send a push. That's
-deliberate for now: an announcement that buzzes every phone is a different
-decision from one that appears in the app next time someone opens it, and the
-quieter one is the right default while the userbase is small.
+By default an announcement lands in the bell and nothing buzzes. Add
+`"push": true` (or tick the box in `/admin`) to also send a push notification.
+
+```bash
+-d '{"title": "Etsy is live", "body": "Search now covers Etsy.", "push": true}'
+```
+
+The response reports both: `sent` is how many people it was filed for,
+`pushed` is how many devices Expo accepted. Those differ, and should — plenty
+of accounts have no push token.
+
+**Worth saving for things that genuinely can't wait.** Most announcements are
+worth reading and not worth interrupting for. An app that buzzes about nothing
+gets its notifications turned off, and then the price drop nobody wanted to
+miss doesn't arrive either. The bell is there so an announcement doesn't have
+to be urgent to be seen.
