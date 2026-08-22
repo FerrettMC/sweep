@@ -26,7 +26,7 @@ Open on the screen, not on you.
 > Sweep tracks prices throughout multiple stores, and finds you the best deal
 > so that you never overpay when online shopping again.
 >
-> That's the whole app. It's free, "
+> That's the whole app. It's free, no AI, and no unwarrented ads"
 
 About 15 seconds at a normal pace. Don't rush to fit — cut a line instead.
 
