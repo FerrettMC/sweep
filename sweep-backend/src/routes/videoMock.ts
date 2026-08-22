@@ -97,6 +97,13 @@ const PAGE = `<!doctype html>
              border-radius: 12px; padding: 13px 14px; }
   .listName { font-size: 14px; font-weight: 700; flex: 1; }
   .count { font-size: 12px; color: var(--faint); }
+
+  .end { text-align: center; display: flex; flex-direction: column; gap: 10px;
+         animation: rise .6s ease both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } }
+  .mark { font-size: 54px; font-weight: 900; color: var(--accent); letter-spacing: -.03em; }
+  .tagline { font-size: 17px; color: var(--text); }
+  .store-line { font-size: 14px; color: var(--faint); }
 </style>
 </head>
 <body>
@@ -152,12 +159,39 @@ const PAGE = `<!doctype html>
     <div class="listRow"><div class="listName">Mum's birthday</div><div class="count">3 items</div></div>
   </div>
 
+  <div class="scene" id="s3">
+    <div class="label">Shop smarter</div>
+    <h2>Know when a sale is real</h2>
+    <div class="card" style="align-items:flex-start">
+      <div style="font-size:17px;line-height:1.3">&#9989;</div>
+      <div>
+        <div style="font-size:14px;font-weight:800;color:var(--good);margin-bottom:3px">Lowest price we&rsquo;ve seen</div>
+        <div class="muted" style="line-height:1.4">Across 31 checks this has never been cheaper. It sat at $399 for weeks.</div>
+      </div>
+    </div>
+    <div class="card" style="align-items:flex-start">
+      <div style="font-size:17px;line-height:1.3">&#9888;&#65039;</div>
+      <div>
+        <div style="font-size:14px;font-weight:800;color:#E0A030;margin-bottom:3px">This isn&rsquo;t really a sale</div>
+        <div class="muted" style="line-height:1.4">It has been this price for 31 days. The discount is against a price nobody paid.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scene" id="s4">
+    <div class="end">
+      <div class="mark">Sweep</div>
+      <div class="tagline">Your online shopping buddy</div>
+      <div class="store-line">Free on Google Play</div>
+    </div>
+  </div>
+
 <script>
   // Paced to a spoken line of roughly eight seconds: stores, tracking, lists.
   // Restarting each scene's animations means the rows re-stagger every loop
   // rather than sitting still after the first pass.
-  var SCENES = ["s0", "s1", "s2"];
-  var HOLD = [3400, 2600, 2400];
+  var SCENES = ["s0", "s1", "s2", "s3", "s4"];
+  var HOLD = [3400, 2600, 2400, 3600, 2600];
   var at = 0;
 
   function show(i) {
@@ -166,7 +200,7 @@ const PAGE = `<!doctype html>
       el.className = n === i ? "scene on" : "scene";
     });
     var live = document.getElementById(SCENES[i]);
-    Array.prototype.forEach.call(live.querySelectorAll(".row"), function (row) {
+    Array.prototype.forEach.call(live.querySelectorAll(".row, .end"), function (row) {
       var a = row.style.animation;
       row.style.animation = "none";
       row.offsetHeight;
