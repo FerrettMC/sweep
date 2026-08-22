@@ -11,6 +11,7 @@ import { startScheduler } from "./lib/scheduler.js";
 import { authRoutes } from "./routes/auth.js";
 import { dealRoutes } from "./routes/deals.js";
 import { leaderboardRoutes } from "./routes/leaderboard.js";
+import { adminRoutes } from "./routes/admin.js";
 import { billingRoutes } from "./routes/billing.js";
 import { landingRoutes } from "./routes/landing.js";
 import { legalRoutes } from "./routes/legal.js";
@@ -102,6 +103,7 @@ app.setErrorHandler((error: Error & { statusCode?: number; code?: string }, requ
   });
 });
 
+app.register(adminRoutes);
 app.register(authRoutes);
 app.register(budgetRoutes);
 app.register(dealRoutes);

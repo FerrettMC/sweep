@@ -36,7 +36,8 @@
     "test:similar": "tsx src/test-similar.ts",
     "test:searchcache": "tsx src/test-searchcache.ts",
     "test:waittimes": "tsx src/test-waittimes.ts",
-    "test:notifications": "tsx src/test-notifications.ts"
+    "test:notifications": "tsx src/test-notifications.ts",
+    "test:admin": "tsx src/test-admin.ts"
   },
   "keywords": [],
   "author": "",

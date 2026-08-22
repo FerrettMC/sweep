@@ -229,6 +229,30 @@ pasting a link by hand costs nothing and is the idea most likely to land.
 
 ---
 
+## Admin portal — SHIPPED
+
+`https://api.sweepshopping.com/admin`, signed in with the same `ADMIN_API_KEY`
+as the announce endpoint. Works on a phone, which was the point — the previous
+interface was curl with a header, fine at a desk and useless on a break.
+
+**What it shows:** users total and new today/this week, tier counts, searches
+and lookups used today, the ceiling on Amazon calls that implies, live retailer
+health with cooldown state, and who used the most today. Plus a form to send an
+announcement without opening a terminal.
+
+**The heaviest-use table is not an abuse list.** Every allowance is capped, so
+nobody on it took more than they were given — it answers "who is driving the
+Amazon bill", which is the more useful question.
+
+**Auth is the key in localStorage**, sent as a header. No cookies, no sessions,
+no new dependencies, nothing to expire — and rotating `ADMIN_API_KEY` on
+Railway ends every session at once. A proportionate trade for a single-admin
+tool behind HTTPS; it would not be for two people.
+
+**Later, if it earns it:** the abuse signals worth watching aren't heavy use.
+They're many accounts from one device (guest quota gaming) and refund churn.
+Both need defining before they're worth building, and neither is a problem yet.
+
 ## Promo codes
 
 Half built already: `PromoCode` and `PromoCodeRedemption` exist in the schema,
