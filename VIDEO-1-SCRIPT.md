@@ -1,4 +1,4 @@
-# Video 1 — the fake sale
+# Video 1 — a real drop, proved
 
 The strongest one, and the only claim a competitor can't copy.
 
@@ -24,7 +24,7 @@ Open on the screen, not on you.
 > "I just found this amazing deal on an app called Sweep
 >
 > Sweep tracks prices throughout multiple stores, and finds you the best deal
-> so that you never overpay when online shopping again.
+> so that you don't overpay when online shopping.
 >
 > That's the whole app. It's free, no AI, and no unwarrented ads"
 

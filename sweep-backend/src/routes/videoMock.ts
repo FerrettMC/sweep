@@ -2,10 +2,10 @@
 //
 // One phone screen of the product page, at /video, for filming.
 //
-// WHY IT EXISTS, honestly: the demo worth showing is a shop's "40% off" badge
-// beside Sweep's own price history proving the price hasn't moved in a month.
-// Sweep does exactly that — but not today, because the app is new and nothing
-// has a month of recorded history yet.
+// WHY IT EXISTS, honestly: the demo worth showing is Sweep confirming a drop
+// is real — a price that sat at one level for weeks and has genuinely fallen,
+// with our own recorded history as the evidence. Sweep does exactly that, but
+// not today: the app is new and nothing has a month of recorded history yet.
 //
 // So this reproduces the real product screen with plausible data, in the app's
 // actual palette and wording. It is B-ROLL for a video where the talking does
@@ -40,7 +40,7 @@ const PAGE = `<!doctype html>
   :root {
     --bg: #0D0D0D; --surface: #1A1A1A; --border: #2A2A2A;
     --accent: #D85A30; --text: #F5F5F5; --dim: #999999; --faint: #6B6B6B;
-    --bad: #E5484D; --warn: #E0A030;
+    --bad: #E5484D; --warn: #E0A030; --good: #3DA35D;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; }
@@ -76,7 +76,7 @@ const PAGE = `<!doctype html>
   .seg { position: absolute; height: 3px; background: var(--accent); border-radius: 2px; }
   .pt { position: absolute; width: 11px; height: 11px; border-radius: 6px;
         border: 3px solid var(--surface); background: var(--accent); }
-  .flat { position: absolute; left: 0; bottom: 30px; font-size: 12px; color: var(--dim);
+  .flat { position: absolute; left: 0; top: 8px; font-size: 12px; color: var(--dim);
           background: rgba(26,26,26,.94); padding: 5px 9px; border-radius: 6px;
           border: 1px solid var(--border); }
   .dates { display: flex; justify-content: space-between; margin-top: 8px;
@@ -84,7 +84,7 @@ const PAGE = `<!doctype html>
 
   .verdict { display: flex; gap: 10px; align-items: flex-start; }
   .vIcon { font-size: 17px; line-height: 1.3; }
-  .vTitle { font-size: 15px; font-weight: 800; color: var(--warn); margin-bottom: 3px; }
+  .vTitle { font-size: 15px; font-weight: 800; color: var(--good); margin-bottom: 3px; }
   .vBody { font-size: 13px; color: var(--dim); line-height: 1.4; }
 </style>
 </head>
@@ -107,18 +107,22 @@ const PAGE = `<!doctype html>
 
   <div class="card">
     <div class="verdict">
-      <div class="vIcon">&#9888;&#65039;</div>
+      <div class="vIcon">&#9989;</div>
       <div>
-        <div class="vTitle">This isn't really a sale</div>
-        <div class="vBody">It's been $239.99 for 31 days. The discount is against a price nobody has paid.</div>
+        <div class="vTitle">Lowest price we've seen</div>
+        <div class="vBody">Across 31 checks this has never been cheaper. It sat at $399.99 for weeks.</div>
       </div>
     </div>
   </div>
 
 <script>
-  // Flat on purpose — the point is that the "40% off" is measured against a
-  // price the item has not actually been sold at recently.
-  var DAYS = 31, PRICE = 239.99;
+  // A month at one price, then a genuine fall. This is the shape Sweep exists
+  // to prove: the discount is real BECAUSE the history shows what came before
+  // it. A flat line would be the opposite story.
+  var PRICES = [];
+  for (var i = 0; i < 24; i++) PRICES.push(399.99);
+  PRICES.push(389.99, 379.99, 359.99, 329.99, 289.99, 259.99, 239.99);
+  var DAYS = PRICES.length;
 
   function draw() {
     var el = document.getElementById("chart");
@@ -135,26 +139,30 @@ const PAGE = `<!doctype html>
     el.appendChild(top); el.appendChild(bot);
 
     for (var i = 1; i < DAYS; i++) {
-      var x1 = x(i - 1), x2 = x(i), yy = y(PRICE);
-      var len = x2 - x1;
+      var x1 = x(i - 1), y1 = y(PRICES[i - 1]);
+      var x2 = x(i), y2 = y(PRICES[i]);
+      var len = Math.hypot(x2 - x1, y2 - y1);
       var seg = document.createElement("div");
       seg.className = "seg";
-      seg.style.left = x1 + "px";
-      seg.style.top = (yy - 1.5) + "px";
+      seg.style.left = ((x1 + x2) / 2 - len / 2) + "px";
+      seg.style.top = ((y1 + y2) / 2 - 1.5) + "px";
       seg.style.width = len + "px";
+      seg.style.transform = "rotate(" + (Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI) + "deg)";
       el.appendChild(seg);
     }
 
     var pt = document.createElement("div");
     pt.className = "pt";
+    pt.style.background = "#3DA35D";
     pt.style.left = (x(DAYS - 1) - 5.5) + "px";
-    pt.style.top = (y(PRICE) - 5.5) + "px";
+    pt.style.top = (y(PRICES[DAYS - 1]) - 5.5) + "px";
     el.appendChild(pt);
 
-    var flat = document.createElement("div");
-    flat.className = "flat";
-    flat.textContent = "Unchanged for 31 days";
-    el.appendChild(flat);
+    var drop = document.createElement("div");
+    drop.className = "flat";
+    drop.style.color = "#3DA35D";
+    drop.textContent = "Dropped $160 this week";
+    el.appendChild(drop);
   }
 
   draw();
