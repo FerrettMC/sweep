@@ -20,12 +20,12 @@ Record with OBS, your phone, or any screen recorder set to a vertical region.
 
 ## The beats
 
-| Time | Press | What's on screen | Caption to overlay |
-| ---- | ----- | ---------------- | ------------------ |
-| 0:00 | Space | Amazon product, **40% OFF**, $239.99 struck from $399.99 | **"This says 40% off."** |
-| 0:04 | Space | Price history draws — a flat line for a month | **"It's been that price for a month."** |
-| 0:09 | Space | The verdict: *this isn't really a sale* | **"So it's not a sale."** |
-| 0:14 | Space | Sweep wordmark, "Know when a sale is real" | **"Sweep — free on Google Play"** |
+| Time | Press | What's on screen                                         | Caption to overlay                      |
+| ---- | ----- | -------------------------------------------------------- | --------------------------------------- |
+| 0:00 | Space | Amazon product, **40% OFF**, $239.99 struck from $399.99 | **"This says 40% off."**                |
+| 0:04 | Space | Price history draws — a flat line for a month            | **"It's been that price for a month."** |
+| 0:09 | Space | The verdict: _this isn't really a sale_                  | **"So it's not a sale."**               |
+| 0:14 | Space | Sweep wordmark, "Know when a sale is real"               | **"Sweep — free on Google Play"**       |
 
 Hold each beat about 4 seconds. Long enough to read, short enough not to drift.
 
