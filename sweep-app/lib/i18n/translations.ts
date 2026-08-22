@@ -101,6 +101,8 @@ export const en = {
       "There's already an account with that email, and that password doesn't match it. Use 'Forgot your password?' below — that works even if you never made this account, as long as you can read that inbox.",
     offline: "Couldn't reach Sweep. Check your connection and try again.",
     didYouMean: "Did you mean",
+    resumeConfirm:
+      "Nearly there. Open the link in your email if you haven’t yet, then sign in below.",
     stillWaiting:
       "Not confirmed yet. Open the link in the email, then try again.",
     confirmWaiting: "Waiting for you to confirm…",
@@ -796,6 +798,8 @@ export const es: Translations = {
     offline:
       "No se pudo conectar con Sweep. Revisa tu conexión e inténtalo de nuevo.",
     didYouMean: "¿Quisiste decir",
+    resumeConfirm:
+      "Ya casi. Abre el enlace de tu correo si aún no lo has hecho y luego inicia sesión aquí.",
     stillWaiting:
       "Aún sin confirmar. Abre el enlace del correo y vuelve a intentarlo.",
     confirmWaiting: "Esperando a que lo confirmes…",

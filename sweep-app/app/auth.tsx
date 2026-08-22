@@ -12,6 +12,7 @@ import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { storeListPhrase } from "@/lib/format";
 import { setGuestMode } from "@/lib/guestMode";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
@@ -34,6 +35,9 @@ import {
 /** Supabase refuses rapid resends; this keeps the button honest about it. */
 const RESEND_COOLDOWN_MS = 60_000;
 
+/** Which address is part-way through confirmation. Never the password. */
+const PENDING_EMAIL_KEY = "sweep.auth.pendingEmail";
+
 export default function Auth() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -55,6 +59,9 @@ export default function Auth() {
   // was pressed, which reads as the button doing nothing.
   const [awaitingConfirm, setAwaitingConfirm] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
+  // True when we've come back to a cold start mid-confirmation. Drives one
+  // line of explanation, so the form isn't just blank and unexplained.
+  const [resuming, setResuming] = useState(false);
   const [checking, setChecking] = useState(false);
   // Epoch ms until which resend is refused. Supabase rate-limits these, and a
   // provider error after an eager double-tap reads as "it's broken".
@@ -79,8 +86,34 @@ export default function Auth() {
   // the link is opened on a different device.
   //
   // The credentials are already in this screen's state; nothing is stored.
+  //
+  // That works while the app stays alive. It does not survive Android killing
+  // Sweep while the person is off in their email app — which is most likely on
+  // a fresh install, since a new app has no residency and is evicted first.
+  // Coming back then meant a cold start, an empty form and no explanation.
+  //
+  // So the ADDRESS is remembered, and only the address. Storing the password
+  // to enable an automatic retry would be trading someone's credentials for a
+  // saved keystroke, which is not a trade worth making.
   const credentials = useRef({ email: "", password: "" });
   credentials.current = { email, password };
+
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(PENDING_EMAIL_KEY)
+      .then((pending) => {
+        if (cancelled || !pending) return;
+        setEmail((current) => current || pending);
+        setResuming(true);
+      })
+      .catch(() => {
+        // A missed restore just means the form starts empty, which is what
+        // used to happen every time.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /**
    * Try to sign in with what's already in the form.
@@ -99,6 +132,7 @@ export default function Auth() {
     if (error || !data.session) return false;
 
     setAwaitingConfirm(null);
+    await AsyncStorage.removeItem(PENDING_EMAIL_KEY).catch(() => {});
     await setGuestMode(false);
     router.replace("/(tabs)");
     return true;
@@ -164,6 +198,7 @@ export default function Auth() {
       return fail(t(friendlyAuthErrorKey(error.message)));
     }
 
+    await AsyncStorage.removeItem(PENDING_EMAIL_KEY).catch(() => {});
     await setGuestMode(false);
     router.replace("/(tabs)");
   }
@@ -201,6 +236,7 @@ export default function Auth() {
       } else {
         // No session means the project requires email confirmation.
         setAwaitingConfirm(email.trim());
+        void AsyncStorage.setItem(PENDING_EMAIL_KEY, email.trim()).catch(() => {});
         setIsError(false);
         setMessage(null);
       }
@@ -277,6 +313,11 @@ export default function Auth() {
     setMessage(null);
     setPassword("");
     setResendReadyAt(0);
+    setResuming(false);
+    // Forget the abandoned address too, or a cold start would restore the one
+    // they just chose to leave behind — which is the exact wrong half of
+    // remembering it at all.
+    void AsyncStorage.removeItem(PENDING_EMAIL_KEY).catch(() => {});
   }
 
   async function continueAsGuest() {
@@ -414,6 +455,10 @@ export default function Auth() {
         textContentType="password"
       />
 
+      {resuming && !message && (
+        <Text style={styles.resuming}>{t("auth.resumeConfirm")}</Text>
+      )}
+
       {message && (
         <Text style={[styles.message, !isError && styles.messageOk]}>
           {message}
@@ -509,6 +554,13 @@ const makeStyles = (colors: Palette) =>
       fontSize: type.caption.fontSize,
       textAlign: "center",
       marginTop: spacing.xs,
+    },
+    resuming: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      lineHeight: 19,
+      textAlign: "center",
+      marginBottom: spacing.xs,
     },
     suggestion: { paddingHorizontal: spacing.xs, marginTop: -spacing.xs },
     suggestionText: { color: colors.textSecondary, fontSize: type.caption.fontSize },
