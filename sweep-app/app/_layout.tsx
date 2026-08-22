@@ -18,6 +18,7 @@ import {
 } from "react-native-safe-area-context";
 import AppErrorScreen from "@/components/AppErrorScreen";
 import OfflineBanner from "@/components/OfflineBanner";
+import ReviewPrompt from "@/components/ReviewPrompt";
 import { useIsOnline } from "@/lib/connection";
 import { setPushRegistered } from "@/lib/pushStatus";
 import { ThemeProvider, useTheme } from "@/lib/theme";
@@ -270,6 +271,8 @@ function RootNavigator() {
       <StatusBar style={scheme === "dark" ? "light" : "dark"} />
       {/* Above the navigator so no screen can forget it. */}
       <OfflineBanner />
+      {/* One dialog for an ask triggered from five screens. */}
+      <ReviewPrompt />
       <SafeAreaInsetsContext.Provider value={navigatorInsets}>
         <Stack
         screenOptions={{

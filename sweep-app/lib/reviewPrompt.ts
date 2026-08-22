@@ -4,24 +4,31 @@
 //
 // Two rules shape everything here.
 //
-// The first is Google's: the Play In-App Review API has an undocumented quota,
-// and when it's exhausted `requestReview()` resolves normally without showing
-// anything. There is no callback, no result, no way to know whether the sheet
-// appeared or whether the person rated. So this file can never branch on the
-// outcome — it records that we asked and moves on. Anything built on "did they
-// rate?" would be built on a value we cannot obtain.
+// The first is Google's, and it decides the whole shape. The Play In-App
+// Review API forbids asking anything before its sheet — no "do you like the
+// app?", no filtering. It also has an undocumented quota, and when that's
+// exhausted `requestReview()` resolves normally having shown nothing at all.
+//
+// So this asks in our own dialog and links to the Play listing instead. That
+// sidesteps the rule entirely, because the rule is about the native sheet:
+// a dialog of our own that opens the store page is an ordinary link. It's also
+// the only version that reliably appears, and the only one where there's room
+// to say who made this and why a rating matters.
 //
 // The second is manners: the prompt lands on a moment the app has just been
 // useful, not on launch, and never twice. An immediate ask reads as "rate me
 // before you know if I'm any good", which earns one-star reviews from people
 // who were only annoyed by the dialog.
 //
-// Hence: at least a day of ownership, asked on the act of tracking something,
-// and never again either way. The rules themselves live in reviewGate.ts as a
+// Hence: at least a day of ownership, asked after something real was finished,
+// and never again either way — whichever way it was answered. The cancel
+// button says "No thanks" rather than "Not now" for that reason: the softer
+// wording would promise a second ask that never comes. The rules themselves live in reviewGate.ts as a
 // pure function, so "only ever once" is tested rather than asserted.
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as StoreReview from "expo-store-review";
+import { openReviewAsk } from "./reviewAsk";
 import { shouldAskForReview } from "./reviewGate";
 
 const FIRST_SEEN_KEY = "sweep.review.firstSeen";
@@ -95,26 +102,24 @@ export async function maybeAskForReview(): Promise<boolean> {
     const firstSeenAt = stored[1] ? Number(stored[1]) : null;
     const actionsCompleted = Number(actions[1]) || 0;
 
-    // Availability is the platform; hasAction is whether a review flow can
-    // actually be reached from here. Only asked once the cheap checks pass.
-    const cheap = shouldAskForReview({
+    const decision = shouldAskForReview({
       actionsCompleted,
       firstSeenAt: Number.isFinite(firstSeenAt) ? firstSeenAt : null,
       alreadyAsked: false,
+      // Our own dialog, so there is no platform capability to check. The
+      // store link is checked when they say yes, which is the only moment it
+      // matters.
       reviewAvailable: true,
       now: Date.now(),
     });
-    if (!cheap.ask) return false;
+    if (!decision.ask) return false;
 
-    const reviewAvailable =
-      (await StoreReview.isAvailableAsync()) && (await StoreReview.hasAction());
-    if (!reviewAvailable) return false;
-
-    // Written before the call, not after, and only after every check has
-    // passed. If requestReview throws or the app is killed while the sheet is
-    // up, we have still spent our one ask and will not come back.
+    // Written before the dialog opens, not after, and only once every check
+    // has passed. If the app is killed while it's on screen we have still
+    // spent our one ask and will not come back — asking twice is worse than
+    // never asking.
     await AsyncStorage.setItem(ASKED_KEY, String(Date.now()));
-    await StoreReview.requestReview();
+    openReviewAsk();
     return true;
   } catch {
     // Never let a rating prompt break the thing the user was actually doing.

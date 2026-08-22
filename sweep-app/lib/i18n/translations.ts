@@ -613,6 +613,13 @@ export const en = {
     alertBelow: "Alert me below",
     stopTrackingThis: "Stop tracking this",
   },
+  review: {
+    title: "Enjoying Sweep?",
+    body:
+      "Sweep is made by one person — no company, no investors, no data sold. If it's saved you money, a rating on Google Play helps more people find it. Takes about ten seconds.",
+    rate: "Leave a rating",
+    no: "No thanks",
+  },
   notifications: {
     emptyTitle: "Nothing yet",
     emptyBody:
@@ -1306,6 +1313,13 @@ export const es: Translations = {
       "Escribe un precio como 49.99, o bórralo para desactivar el aviso.",
     alertBelow: "Avísame por debajo de",
     stopTrackingThis: "Dejar de seguir esto",
+  },
+  review: {
+    title: "¿Te gusta Sweep?",
+    body:
+      "Sweep lo hace una sola persona: sin empresa, sin inversores y sin vender datos. Si te ha ahorrado dinero, una valoración en Google Play ayuda a que la encuentre más gente. Son unos diez segundos.",
+    rate: "Dejar una valoración",
+    no: "No, gracias",
   },
   notifications: {
     emptyTitle: "Nada por ahora",
