@@ -5,6 +5,9 @@
 // number here is about the business, and the heaviest-use table has real email
 // addresses in it, so the auth checks matter more than the arithmetic.
 import "./testEnv.js";
+import { execFileSync } from "node:child_process";
+import { rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import Fastify from "fastify";
 import { prisma } from "./lib/prisma.js";
 import { adminRoutes } from "./routes/admin.js";
@@ -29,6 +32,39 @@ try {
   check("serves without a key", page.statusCode === 200, page.statusCode);
   check("contains no data, only the login form", !page.body.includes("heaviest\":"), "leaked data");
   check("asks search engines not to index it", page.body.includes("noindex"));
+
+  console.log("\n— the page's own JavaScript parses —");
+  // This page is built inside a TypeScript template literal, so every
+  // backslash has to be doubled. Getting one wrong drops a real line break
+  // into a JS string and kills the WHOLE script — the sign-in button stops
+  // working because of a typo in an announcement template hundreds of lines
+  // away, with nothing on screen to say so. It happened twice.
+  //
+  // node --check on the extracted script is the only thing that catches it
+  // without opening a browser.
+  const script = page.body.slice(
+    page.body.indexOf("<script>") + 8,
+    page.body.lastIndexOf("</script>"),
+  );
+  check("there is a script to check", script.length > 500, script.length);
+
+  const tmp = `${tmpdir()}/sweep-admin-page-${Date.now()}.js`;
+  writeFileSync(tmp, script);
+  let syntaxError: string | null = null;
+  try {
+    execFileSync(process.execPath, ["--check", tmp], { stdio: "pipe" });
+  } catch (err) {
+    syntaxError = String((err as { stderr?: Buffer }).stderr ?? err).slice(0, 400);
+  } finally {
+    rmSync(tmp, { force: true });
+  }
+  check("it parses as valid JavaScript", syntaxError === null, syntaxError);
+
+  // The handlers wired to onclick must actually exist, or the buttons are
+  // decoration. A parse error is one way to lose them; a rename is another.
+  for (const fn of ["signIn", "signOut", "announce", "useTemplate", "counts", "load"]) {
+    check(`${fn}() is defined`, new RegExp(`function ${fn}\\s*\\(`).test(script));
+  }
 
   console.log("\n— stats are guarded —");
   const noKey = await app.inject({ method: "GET", url: "/admin/stats" });

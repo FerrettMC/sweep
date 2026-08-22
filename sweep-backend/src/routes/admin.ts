@@ -176,11 +176,19 @@ function say(text, bad) {
   el.className = "msg " + (bad ? "bad" : "ok");
   setTimeout(() => { el.className = "hide"; }, 6000);
 }
-// The greeting and sign-off are ~55 characters of the 300 the server allows,
+// NOTE: this whole page is a TypeScript template literal, so every backslash
+// below has to be doubled — including in comments like this one. A lone
+// backslash-n is consumed at compile time and drops a real line break into the
+// served JavaScript, which is a syntax error that kills the ENTIRE script,
+// including the sign-in button hundreds of lines above and seemingly
+// unrelated. It happened twice while writing this: once in the strings, and
+// once in the comment explaining the strings.
+//
+// The greeting and sign-off are ~52 characters of the 300 the server allows,
 // which is worth knowing before writing rather than after being truncated —
 // hence the live count next to it.
-const TEMPLATE_TOP = "Hey Sweep users!\n\n";
-const TEMPLATE_BOTTOM = "\n\nThanks,\nJude \u2014 sweepshopping.com";
+const TEMPLATE_TOP = "Hey Sweep users!\\n\\n";
+const TEMPLATE_BOTTOM = "\\n\\nThanks,\\nJude \\u2014 sweepshopping.com";
 
 function useTemplate() {
   const el = document.getElementById("aBody");
