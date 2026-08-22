@@ -95,14 +95,16 @@ const PAGE = `<!doctype html>
 <h1>Sweep admin</h1>
 <p class="sub" id="stamp">Not signed in.</p>
 
+<div id="msg" class="hide"></div>
+
 <div id="login">
-  <input id="key" type="password" placeholder="Admin key" autocomplete="off">
+  <input id="key" type="password" placeholder="Admin key" autocomplete="off"
+         onkeydown="if (event.key === 'Enter') signIn()">
   <button onclick="signIn()">Sign in</button>
   <p class="sub">Signs you in until you sign out — the key is kept in this browser only. If it ever leaks, changing ADMIN_API_KEY on Railway logs every browser out at once.</p>
 </div>
 
 <div id="app" class="hide">
-  <div id="msg"></div>
 
   <h2>People</h2>
   <div class="grid" id="people"></div>
@@ -139,16 +141,33 @@ const PAGE = `<!doctype html>
 
 <script>
 const KEY = "sweep.admin.key";
-function key() { return localStorage.getItem(KEY) || ""; }
+
+// Kept in memory as well as in storage. localStorage throws in a private
+// window and wherever site data is blocked, and the first version let that
+// throw out of the click handler — so the button did nothing at all, with
+// nothing in the UI to say why. In memory it still works for the session.
+let memoryKey = "";
+
+function key() {
+  if (memoryKey) return memoryKey;
+  try { return localStorage.getItem(KEY) || ""; } catch (e) { return ""; }
+}
 
 function signIn() {
   const v = document.getElementById("key").value.trim();
-  if (!v) return;
-  localStorage.setItem(KEY, v);
+  if (!v) return say("Enter the key first.", true);
+  memoryKey = v;
+  try {
+    localStorage.setItem(KEY, v);
+  } catch (e) {
+    say("Signed in for this tab only — this browser is blocking storage.", false);
+  }
   load();
 }
+
 function signOut() {
-  localStorage.removeItem(KEY);
+  memoryKey = "";
+  try { localStorage.removeItem(KEY); } catch (e) {}
   location.reload();
 }
 function say(text, bad) {
@@ -187,8 +206,26 @@ function counts() {
 function card(k, n) { return '<div class="card"><div class="k">' + k + '</div><div class="n">' + n + '</div></div>'; }
 
 async function load() {
-  const res = await fetch("/admin/stats", { headers: { "x-admin-key": key() } });
-  if (res.status === 401) { localStorage.removeItem(KEY); say("Wrong key.", true); return; }
+  let res;
+  try {
+    res = await fetch("/admin/stats", { headers: { "x-admin-key": key() } });
+  } catch (e) {
+    // Offline, or the request never left. Previously this threw out of the
+    // handler and the button appeared dead.
+    say("Couldn't reach the server. Check your connection.", true);
+    return;
+  }
+
+  if (res.status === 401) {
+    memoryKey = "";
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    say("That key wasn't accepted.", true);
+    return;
+  }
+  if (res.status === 503) {
+    say("The server has no ADMIN_API_KEY set.", true);
+    return;
+  }
   if (!res.ok) { say("Couldn't load stats (" + res.status + ").", true); return; }
   const s = await res.json();
 
