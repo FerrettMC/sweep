@@ -244,9 +244,10 @@ announcement without opening a terminal.
 nobody on it took more than they were given — it answers "who is driving the
 Amazon bill", which is the more useful question.
 
-**Auth is the key in localStorage**, sent as a header. No cookies, no sessions,
-no new dependencies, nothing to expire — and rotating `ADMIN_API_KEY` on
-Railway ends every session at once. A proportionate trade for a single-admin
+**Auth is the key in localStorage**, sent as a header. Sign in once and stay
+signed in — no cookies, no sessions, nothing to renew. Rotation is the escape
+hatch rather than a routine: if the key leaks, changing `ADMIN_API_KEY` on
+Railway logs every browser out at once. A proportionate trade for a single-admin
 tool behind HTTPS; it would not be for two people.
 
 **Later, if it earns it:** the abuse signals worth watching aren't heavy use.

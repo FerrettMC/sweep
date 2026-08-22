@@ -12,10 +12,13 @@
 // localStorage and sent as a header on each request. No cookies, no sessions,
 // no new dependencies, and nothing to expire or invalidate.
 //
-// That is a deliberate trade rather than an oversight. A single-admin tool
-// behind HTTPS, where the key can be rotated by changing one Railway variable
-// and every session dies at once, is proportionate. It would not be if more
-// than one person ever used this.
+// A session lasts until sign-out; there is nothing to renew. Rotation is the
+// escape hatch rather than a routine: changing one Railway variable
+// invalidates every browser holding the old key.
+//
+// That is a deliberate trade rather than an oversight. It is proportionate for
+// a single-admin tool behind HTTPS, and would not be if more than one person
+// ever used this.
 //
 // The page itself is served unauthenticated — it contains no data, only the
 // form that asks for the key. Everything real is behind /admin/stats.
@@ -95,7 +98,7 @@ const PAGE = `<!doctype html>
 <div id="login">
   <input id="key" type="password" placeholder="Admin key" autocomplete="off">
   <button onclick="signIn()">Sign in</button>
-  <p class="sub">The key is stored in this browser only. Rotate ADMIN_API_KEY on Railway to end every session.</p>
+  <p class="sub">Signs you in until you sign out — the key is kept in this browser only. If it ever leaks, changing ADMIN_API_KEY on Railway logs every browser out at once.</p>
 </div>
 
 <div id="app" class="hide">
