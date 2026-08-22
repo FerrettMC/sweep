@@ -21,14 +21,12 @@ That's the whole setup.
 
 Open on the screen, not on you.
 
-> "Say you find a deal like this — forty percent off, looks great.
+> "I just found this amazing deal on an app called Sweep
 >
-> Sweep keeps its own price history, so it can show you the thing's actually
-> been that price for a month.
+> Sweep tracks prices throughout multiple stores, and finds you the best deal
+> so that you never overpay when online shopping again.
 >
-> So it's not a sale. It's just the price.
->
-> That's the whole app. It's free."
+> That's the whole app. It's free, "
 
 About 15 seconds at a normal pace. Don't rush to fit — cut a line instead.
 
@@ -64,6 +62,7 @@ The whole pitch is that the data is real. That's worth protecting in the
 fifteen seconds where it's easiest to spend.
 
 Also:
+
 - "the stores we check", never "everywhere" or "the cheapest price"
 - don't name a store Sweep doesn't actually search
 - don't say "we" — one person made this, and saying so is the appeal
