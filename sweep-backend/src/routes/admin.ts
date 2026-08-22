@@ -124,8 +124,10 @@ const PAGE = `<!doctype html>
   <p class="sub">Appears in everyone's bell. Tick the box below to buzz their phone too —
   worth saving for things that genuinely can't wait, since an app that
   interrupts about nothing gets muted for everything.</p>
-  <input id="aTitle" placeholder="Title (max 80)" maxlength="80">
-  <textarea id="aBody" rows="3" placeholder="Body (max 300)" maxlength="300"></textarea>
+  <button class="secondary" onclick="useTemplate()">Use the usual format</button>
+  <input id="aTitle" placeholder="Title" maxlength="80" oninput="counts()">
+  <textarea id="aBody" rows="5" placeholder="Body" maxlength="300" oninput="counts()"></textarea>
+  <p class="sub" id="counts">0/80 title · 0/300 body</p>
   <input id="aEmail" placeholder="Just one person? Their email. Blank = everyone">
   <label style="display:flex;gap:8px;align-items:center;margin:4px 0 12px;font-size:14px;">
     <input type="checkbox" id="aPush" style="width:auto;margin:0;">
@@ -155,6 +157,33 @@ function say(text, bad) {
   el.className = "msg " + (bad ? "bad" : "ok");
   setTimeout(() => { el.className = "hide"; }, 6000);
 }
+// The greeting and sign-off are ~55 characters of the 300 the server allows,
+// which is worth knowing before writing rather than after being truncated —
+// hence the live count next to it.
+const TEMPLATE_TOP = "Hey Sweep users!\n\n";
+const TEMPLATE_BOTTOM = "\n\nThanks,\nJude \u2014 sweepshopping.com";
+
+function useTemplate() {
+  const el = document.getElementById("aBody");
+  // Keeps anything already typed, so pressing this after starting to write
+  // wraps what's there instead of throwing it away.
+  const middle = el.value.trim() || "";
+  el.value = TEMPLATE_TOP + middle + TEMPLATE_BOTTOM;
+  el.focus();
+  // Drop the cursor where the message goes, not at the end after the sign-off.
+  const at = TEMPLATE_TOP.length + middle.length;
+  el.setSelectionRange(at, at);
+  counts();
+}
+
+function counts() {
+  const t = document.getElementById("aTitle").value.length;
+  const b = document.getElementById("aBody").value.length;
+  const el = document.getElementById("counts");
+  el.textContent = t + "/80 title \u00b7 " + b + "/300 body";
+  el.className = b > 280 || t > 70 ? "sub bad" : "sub";
+}
+
 function card(k, n) { return '<div class="card"><div class="k">' + k + '</div><div class="n">' + n + '</div></div>'; }
 
 async function load() {
@@ -219,6 +248,7 @@ async function announce() {
   document.getElementById("aBody").value = "";
   document.getElementById("aEmail").value = "";
   document.getElementById("aPush").checked = false;
+  counts();
   load();
 }
 
