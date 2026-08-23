@@ -274,14 +274,8 @@ export default function HomeScreen() {
               hint={t("home.lookupHint")}
               onPress={() => router.push("/lookup")}
             />
-            <Shortcut
-              icon="wallet-outline"
-              label={t("home.budget")}
-              hint={t("home.budgetHint")}
-              onPress={() => router.push("/budget")}
-            />
-            {/* Moved off the tab bar to make room for the cart. Still worth
-                a place — it's the social half of the app. */}
+            {/* Moved off the tab bar to make room for the cart. Still worth a
+                place — it's the social half of the app. */}
             <Shortcut
               icon="flame-outline"
               label={t("home.deals")}
@@ -301,16 +295,22 @@ export default function HomeScreen() {
               onPress={() => router.push("/lists")}
             />
             <Shortcut
-              icon="trophy-outline"
-              label={t("home.leaderboard")}
-              hint={t("home.leaderboardHint")}
-              onPress={() => router.push("/leaderboard")}
+              icon="wallet-outline"
+              label={t("home.budget")}
+              hint={t("home.budgetHint")}
+              onPress={() => router.push("/budget")}
             />
             <Shortcut
               icon="person-circle-outline"
               label={t("home.profile")}
               hint={t("home.profileHint")}
               onPress={() => router.push("/profile")}
+            />
+            <Shortcut
+              icon="trophy-outline"
+              label={t("home.leaderboard")}
+              hint={t("home.leaderboardHint")}
+              onPress={() => router.push("/leaderboard")}
             />
           </View>
 
