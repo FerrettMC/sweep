@@ -272,9 +272,6 @@ function RootNavigator() {
       <StatusBar style={scheme === "dark" ? "light" : "dark"} />
       {/* Above the navigator so no screen can forget it. */}
       <OfflineBanner />
-      {/* One dialog for an ask triggered from five screens. */}
-      <Toast />
-      <ReviewPrompt />
       <SafeAreaInsetsContext.Provider value={navigatorInsets}>
         <Stack
         screenOptions={{
@@ -406,6 +403,20 @@ function RootNavigator() {
         />
         </Stack>
       </SafeAreaInsetsContext.Provider>
+
+      {/*
+        AFTER the navigator, deliberately. These paint over whatever screen is
+        showing, and in React Native later siblings render on top — a toast
+        placed above the navigator sits behind every screen and is invisible,
+        which is exactly what happened.
+
+        The dialog renders in its own window so its position in the tree
+        doesn't matter, but it lives here for the same reason: both are things
+        drawn over the app rather than part of it.
+      */}
+      <Toast />
+      {/* One dialog for an ask triggered from five screens. */}
+      <ReviewPrompt />
     </View>
   );
 }
