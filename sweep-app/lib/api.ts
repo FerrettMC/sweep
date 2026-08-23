@@ -1005,6 +1005,60 @@ export function markNotificationsRead() {
   return request<{ cleared: number }>("/notifications/read", { method: "POST" });
 }
 
+// ---- cart ----------------------------------------------------------------
+//
+// Not a checkout — Sweep sells nothing. A staging area for what you've decided
+// to buy, gathered from wherever you found it, with a total no single shop can
+// give you.
+
+export interface CartItem {
+  productId: string;
+  quantity: number;
+  title: string;
+  imageUrl: string | null;
+  url: string;
+  retailer: string;
+  retailerLabel: string;
+  /** Cents. Null when the store isn't quoting a price right now. */
+  price: number | null;
+  priceAtAdd: number | null;
+  /** Cents moved since it was added. Negative is cheaper. Null if unknown. */
+  since: number | null;
+  addedAt: string;
+}
+
+export interface Cart {
+  items: CartItem[];
+  /** Cents, across every store. */
+  total: number;
+  /** How the total has moved since things went in. Negative is good. */
+  since: number;
+  pricedCount: number;
+  stores: { retailer: string; label: string; count: number; total: number }[];
+}
+
+export function getCart() {
+  return request<Cart>("/cart");
+}
+
+export function addToCart(
+  target: { productId: string } | { url: string } | { retailer: string; retailerId: string },
+) {
+  return request<Cart>("/cart", { method: "POST", body: target });
+}
+
+export function setCartQuantity(productId: string, quantity: number) {
+  return request<Cart>(`/cart/${productId}`, { method: "PATCH", body: { quantity } });
+}
+
+export function removeFromCart(productId: string) {
+  return request<Cart>(`/cart/${productId}`, { method: "DELETE" });
+}
+
+export function clearCart() {
+  return request<Cart>("/cart", { method: "DELETE" });
+}
+
 // ---- deal radar --------------------------------------------------------------
 
 export interface SavedSearch {

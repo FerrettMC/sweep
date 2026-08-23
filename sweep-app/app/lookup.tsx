@@ -39,6 +39,7 @@ import {
   type LookupQuota,
   type LookupResult,
   type SimilarProduct,
+  addToCart,
   getLookupQuota,
   lookUpProduct,
 } from "@/lib/api";
@@ -68,6 +69,9 @@ export default function LookupScreen() {
   const [result, setResult] = useState<LookupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [quota, setQuota] = useState<LookupQuota | null>(null);
+  // Local only. The server is the record; this is so the button can say it
+  // worked without refetching the whole cart to find out.
+  const [inCart, setInCart] = useState(false);
 
   const refreshQuota = useCallback(async () => {
     try {
@@ -87,6 +91,7 @@ export default function LookupScreen() {
       try {
         const response = await lookUpProduct(target);
         setResult(response);
+        setInCart(false);
         setQuota(response.quota);
         // A lookup that returned something is a real completed action, which
         // is what the rating prompt counts.
@@ -257,6 +262,21 @@ export default function LookupScreen() {
                 <Button
                   label={t("lookup.openStore")}
                   onPress={() => void Linking.openURL(detail.url)}
+                />
+                {/* The natural place to add something — you've just read
+                    everything there is to know about it. */}
+                <Button
+                  label={inCart ? t("cart.added") : t("cart.add")}
+                  variant="secondary"
+                  disabled={inCart}
+                  onPress={async () => {
+                    try {
+                      await addToCart({ productId: result.productId });
+                      setInCart(true);
+                    } catch (err) {
+                      setError((err as ApiError).message);
+                    }
+                  }}
                 />
                 {!result.isTracked && (
                   <Button

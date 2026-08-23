@@ -153,10 +153,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="cart"
+        options={{
+          title: t("tabs.cart"),
+          tabBarIcon: tabIcon("cart", "cart-outline"),
+        }}
+      />
+      <Tabs.Screen
+        // Still a route, no longer a tab. Deals moved into the Home shortcuts
+        // to make room for the cart, and href: null is how expo-router keeps a
+        // screen reachable without giving it a slot in the bar.
         name="deals"
         options={{
+          href: null,
           title: t("tabs.deals"),
-          tabBarIcon: tabIcon("flame", "flame-outline"),
         }}
       />
     </Tabs>

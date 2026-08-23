@@ -23,6 +23,7 @@ import { maybeAskForReview } from "@/lib/reviewPrompt";
 import { storeListPhrase } from "@/lib/format";
 import {
   ApiError,
+  addToCart,
   type Schedule,
   type TrackedProduct,
   getSchedule,
@@ -307,6 +308,12 @@ export default function TrackingScreen() {
                     label: t("search.details"),
                     tone: "accent" as const,
                     onPress: () => router.push(`/lookup?productId=${item.product.id}`),
+                  },
+                  {
+                    key: "cart",
+                    icon: "cart-outline",
+                    label: t("cart.add"),
+                    onPress: () => void addToCart({ productId: item.product.id }).catch(() => {}),
                   },
                   {
                     key: "bought",

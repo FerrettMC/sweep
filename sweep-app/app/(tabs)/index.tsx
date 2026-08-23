@@ -280,6 +280,14 @@ export default function HomeScreen() {
               hint={t("home.budgetHint")}
               onPress={() => router.push("/budget")}
             />
+            {/* Moved off the tab bar to make room for the cart. Still worth
+                a place — it's the social half of the app. */}
+            <Shortcut
+              icon="flame-outline"
+              label={t("home.deals")}
+              hint={t("home.dealsHint")}
+              onPress={() => router.push("/(tabs)/deals")}
+            />
             <Shortcut
               icon="radio-outline"
               label={t("home.radar")}

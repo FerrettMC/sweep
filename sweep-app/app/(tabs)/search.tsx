@@ -43,6 +43,7 @@ import {
   type Quota,
   type RetailerResult,
   type SearchProduct,
+  addToCart,
   claimRewardedSearch,
   getRetailerStatus,
   getSearchProgress,
@@ -129,6 +130,24 @@ export default function SearchScreen() {
   const [starred, setStarred] = useState<Record<string, SearchProduct>>({});
   const [watchingAd, setWatchingAd] = useState(false);
   const [showAds, setShowAds] = useState(false);
+
+  /**
+   * Add something to the cart from a result row.
+   *
+   * Deliberately quiet: a confirmation banner for an action whose whole point
+   * is that it's cheap would slow down adding three things in a row. Failures
+   * do speak up, because a silent one looks like a dead button.
+   */
+  async function addToCartFrom(
+    target: { url: string } | { productId: string },
+  ) {
+    try {
+      await addToCart(target);
+      setNotice(t("cart.added"));
+    } catch (err) {
+      setError((err as ApiError).message);
+    }
+  }
   const [showWhy, setShowWhy] = useState(false);
   const [listTarget, setListTarget] = useState<ListTarget | null>(null);
   // Null until a search tells us what this tier allows. Persisted so the choice
@@ -727,6 +746,12 @@ export default function SearchScreen() {
                     tone: "accent" as const,
                     onPress: () =>
                       router.push(`/lookup?url=${encodeURIComponent(item.url)}`),
+                  },
+                  {
+                    key: "cart",
+                    icon: "cart-outline",
+                    label: t("cart.add"),
+                    onPress: () => void addToCartFrom({ url: item.url }),
                   },
                   // Search is for comparing who's cheapest. Tracking happens by
                   // pasting a link on the Tracking tab, which costs no quota.
