@@ -140,7 +140,7 @@ export default function SearchScreen() {
    * do speak up, because a silent one looks like a dead button.
    */
   async function addToCartFrom(
-    target: { url: string } | { productId: string },
+    target: { retailer: string; retailerId: string } | { productId: string },
   ) {
     try {
       await addToCart(target);
@@ -754,7 +754,18 @@ export default function SearchScreen() {
                     key: "cart",
                     icon: "cart-outline",
                     label: t("cart.add"),
-                    onPress: () => void addToCartFrom({ url: item.url }),
+                    // Identified by retailer + id rather than url. The server
+                    // looks a url up by exact string match, which misses when
+                    // the stored one differs by so much as a tracking
+                    // parameter — and then falls back to scraping the page,
+                    // which can simply fail. retailer + id hits the unique
+                    // index, so a product we already have from this very
+                    // search is found without touching the network.
+                    onPress: () =>
+                      void addToCartFrom({
+                        retailer: item.retailer,
+                        retailerId: item.retailerId,
+                      }),
                   },
                   // Search is for comparing who's cheapest. Tracking happens by
                   // pasting a link on the Tracking tab, which costs no quota.
