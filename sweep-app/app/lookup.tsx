@@ -281,8 +281,12 @@ export default function LookupScreen() {
                       try {
                         await addToCart({ productId: result.productId });
                         setInCart(true);
+                        toast(t("cart.added"));
                       } catch (err) {
-                        setError((err as ApiError).message);
+                        // A toast rather than the page's error banner, which
+                        // sits above the fold — this button is well down the
+                        // page by the time anyone reaches it.
+                        toast((err as ApiError).message, "bad");
                       }
                     }}
                   />
