@@ -68,12 +68,23 @@ const makeStyles = (colors: Palette) =>
       alignItems: "center",
       gap: spacing.xs,
       backgroundColor: colors.surfaceRaised,
-      borderColor: colors.surfaceBorder,
+      // surfaceBorder is nearly the same colour as surfaceRaised, so the
+      // outline vanished and the pill read as a smudge on the background. This
+      // is a floating thing and needs to look like one, in both themes.
+      borderColor: colors.textTertiary,
       borderWidth: 1,
       borderRadius: radius.pill,
       paddingVertical: 10,
       paddingHorizontal: spacing.md,
       maxWidth: "88%",
+      // A real shadow is what separates a floating surface from the page.
+      // elevation covers Android; the shadow* properties are for iOS, and are
+      // harmless where they're ignored.
+      elevation: 8,
+      shadowColor: "#000",
+      shadowOpacity: 0.35,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
     },
     text: {
       color: colors.textPrimary,
