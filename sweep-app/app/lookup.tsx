@@ -51,6 +51,7 @@ import {
   retailerLabel,
 } from "@/lib/format";
 import { maybeAskForReview } from "@/lib/reviewPrompt";
+import { toast } from "@/lib/toast";
 
 export default function LookupScreen() {
   const { colors } = useTheme();

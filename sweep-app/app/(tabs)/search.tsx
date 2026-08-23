@@ -36,6 +36,7 @@ import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import { maybeAskForReview } from "@/lib/reviewPrompt";
+import { toast } from "@/lib/toast";
 import { storeListPhrase } from "@/lib/format";
 import {
   ApiError,
@@ -143,9 +144,11 @@ export default function SearchScreen() {
   ) {
     try {
       await addToCart(target);
-      setNotice(t("cart.added"));
+      toast(t("cart.added"));
     } catch (err) {
-      setError((err as ApiError).message);
+      // A toast rather than the error banner: the banner sits at the top of
+      // the results, and the row that was tapped is usually further down.
+      toast((err as ApiError).message, "bad");
     }
   }
   const [showWhy, setShowWhy] = useState(false);

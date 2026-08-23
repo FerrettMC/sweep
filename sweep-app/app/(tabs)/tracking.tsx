@@ -20,6 +20,7 @@ import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import { maybeAskForReview } from "@/lib/reviewPrompt";
+import { toast } from "@/lib/toast";
 import { storeListPhrase } from "@/lib/format";
 import {
   ApiError,
@@ -313,7 +314,17 @@ export default function TrackingScreen() {
                     key: "cart",
                     icon: "cart-outline",
                     label: t("cart.add"),
-                    onPress: () => void addToCart({ productId: item.product.id }).catch(() => {}),
+                    onPress: async () => {
+                      // Was fire-and-forget with the error swallowed, which on
+                      // a long list meant a tap with no visible result — the
+                      // exact "is this button broken?" problem.
+                      try {
+                        await addToCart({ productId: item.product.id });
+                        toast(t("cart.added"));
+                      } catch (err) {
+                        toast((err as ApiError).message, "bad");
+                      }
+                    },
                   },
                   {
                     key: "bought",
