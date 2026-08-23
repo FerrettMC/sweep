@@ -52,6 +52,15 @@ curl -X POST https://api.sweepshopping.com/notifications/announce \
 | `title` | yes      | 80 characters max                                               |
 | `body`  | yes      | 300 characters max                                              |
 | `href`  | no       | Must start with `/` — an in-app path like `/lookup` or `/plans` |
+
+Links typed into the **body** become tappable only if they point at
+`sweepshopping.com` or `play.google.com` — including subdomains, with or
+without `https://`. Everything else stays plain text.
+
+That allow-list is a security boundary rather than a formatting rule.
+Announcements reach every user, so a tappable link is one that whoever holds
+the admin key chose to put in front of all of them. Restricting it means a
+stolen key sends a rude message rather than a phishing campaign.
 | `email` | no       | One person when present, everyone when absent                   |
 
 `href` is restricted to in-app paths on purpose: an announcement that could

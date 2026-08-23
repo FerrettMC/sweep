@@ -13,7 +13,15 @@
 
 import { useCallback, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Linking,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { EmptyState, Loading, Screen } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
@@ -21,6 +29,7 @@ import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import { type AppNotification, getNotifications, markNotificationsRead } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/format";
+import { linkify } from "@/lib/linkify";
 import { setUnreadCount } from "@/lib/unreadCount";
 
 /**
@@ -121,7 +130,21 @@ export default function Notifications() {
                   <Text style={styles.title} numberOfLines={2}>
                     {item.title}
                   </Text>
-                  <Text style={styles.text}>{item.body}</Text>
+                  <Text style={styles.text}>
+                    {linkify(item.body).map((part, i) =>
+                      part.url ? (
+                        <Text
+                          key={i}
+                          style={styles.link}
+                          onPress={() => void Linking.openURL(part.url!).catch(() => {})}
+                        >
+                          {part.text}
+                        </Text>
+                      ) : (
+                        part.text
+                      ),
+                    )}
+                  </Text>
                   <Text style={styles.when}>{formatRelativeTime(item.createdAt)}</Text>
                 </View>
                 {/* Only shown where there's somewhere to go, so the chevron
@@ -177,5 +200,6 @@ const makeStyles = (colors: Palette) =>
       fontWeight: "700",
     },
     text: { color: colors.textSecondary, fontSize: type.caption.fontSize, lineHeight: 17 },
+    link: { color: colors.accent, fontWeight: "700" },
     when: { color: colors.textTertiary, fontSize: type.caption.fontSize },
   });
