@@ -258,36 +258,46 @@ export default function LookupScreen() {
                 </View>
               )}
 
+              {/* The primary action gets its own row. Three buttons sized to
+                  their own labels ran straight off the screen, and squeezing
+                  them onto one line would truncate the words instead. */}
               <View style={styles.actions}>
                 <Button
                   label={t("lookup.openStore")}
                   onPress={() => void Linking.openURL(detail.url)}
                 />
+              </View>
+
+              <View style={styles.actionsRow}>
                 {/* The natural place to add something — you've just read
                     everything there is to know about it. */}
-                <Button
-                  label={inCart ? t("cart.added") : t("cart.add")}
-                  variant="secondary"
-                  disabled={inCart}
-                  onPress={async () => {
-                    try {
-                      await addToCart({ productId: result.productId });
-                      setInCart(true);
-                    } catch (err) {
-                      setError((err as ApiError).message);
-                    }
-                  }}
-                />
-                {!result.isTracked && (
+                <View style={styles.action}>
                   <Button
-                    label={t("lookup.track")}
+                    label={inCart ? t("cart.added") : t("cart.add")}
                     variant="secondary"
-                    onPress={() =>
-                      router.push(
-                        `/(tabs)/tracking?addUrl=${encodeURIComponent(detail.url)}`,
-                      )
-                    }
+                    disabled={inCart}
+                    onPress={async () => {
+                      try {
+                        await addToCart({ productId: result.productId });
+                        setInCart(true);
+                      } catch (err) {
+                        setError((err as ApiError).message);
+                      }
+                    }}
                   />
+                </View>
+                {!result.isTracked && (
+                  <View style={styles.action}>
+                    <Button
+                      label={t("lookup.track")}
+                      variant="secondary"
+                      onPress={() =>
+                        router.push(
+                          `/(tabs)/tracking?addUrl=${encodeURIComponent(detail.url)}`,
+                        )
+                      }
+                    />
+                  </View>
                 )}
               </View>
               <Text style={styles.fetched}>
@@ -794,7 +804,11 @@ const makeStyles = (colors: Palette) =>
     },
     couponText: { color: colors.success, fontSize: type.caption.fontSize, flex: 1 },
 
-    actions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs },
+    actions: { marginTop: spacing.xs },
+    // Equal halves rather than content-sized, so a long translated label
+    // wraps inside its button instead of pushing the next one off screen.
+    actionsRow: { flexDirection: "row", gap: spacing.sm },
+    action: { flex: 1 },
     fetched: { color: colors.textTertiary, fontSize: type.caption.fontSize },
 
     warnRow: { flexDirection: "row", gap: spacing.xs, alignItems: "flex-start" },
