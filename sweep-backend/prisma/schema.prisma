@@ -28,6 +28,7 @@ model User {
   notifications     Notification[]
   dealsFound        Deal[]   @relation("DealFinder")
   lists             List[]
+  cartItems         CartItem[]
 }
 
 // One row per device a user has granted notification permission on. A user can
@@ -174,6 +175,7 @@ model Product {
   scrapeChecks  ScrapeCheck[]
   deals         Deal[]
   listItems     ListItem[]
+  cartItems     CartItem[]
   budgetEntries BudgetEntry[]
 
   @@unique([retailer, retailerId])
@@ -288,6 +290,34 @@ model SearchCache {
 
   @@unique([keyword, retailer])
   @@index([fetchedAt])
+}
+
+// The basket: what someone intends to buy, across every store at once.
+//
+// Deliberately distinct from List. A list is a wishlist — long-lived,
+// shareable, often for somebody else. A cart is this week's shopping, one per
+// person, and it exists to be emptied.
+//
+// priceAtAdd is the part no shop's own basket can do: it records what the item
+// cost when it went in, so the cart can say "this has dropped £12 since you
+// added it" — or that it has gone up, which is the more useful warning.
+model CartItem {
+  id          String   @id @default(uuid())
+  quantity    Int      @default(1)
+  // Cents, at the moment it was added. Null when the product had no price
+  // then, which is rare but shouldn't block adding it.
+  priceAtAdd  Int?
+  addedAt     DateTime @default(now())
+
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+
+  // One row per product. Adding the same thing twice raises the quantity
+  // rather than making a second line, which is what every basket does.
+  @@unique([userId, productId])
+  @@index([userId, addedAt])
 }
 
 model GuestQuota {
