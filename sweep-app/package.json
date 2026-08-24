@@ -36,6 +36,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~57.0.1",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -48,7 +50,9 @@
     "test:auth-errors": "npx tsx lib/authErrors.test.ts",
     "test:email-typos": "npx tsx lib/emailTypos.test.ts",
     "test:chart": "npx tsx lib/chartGeometry.test.ts",
-    "test:linkify": "npx tsx lib/linkify.test.ts"
+    "test:linkify": "npx tsx lib/linkify.test.ts",
+    "lint": "expo lint",
+    "test:splash": "npx tsx lib/splashCurves.test.ts"
   },
   "private": true
 }

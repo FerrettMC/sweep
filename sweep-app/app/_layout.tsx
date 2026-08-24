@@ -18,6 +18,7 @@ import {
 } from "react-native-safe-area-context";
 import AppErrorScreen from "@/components/AppErrorScreen";
 import OfflineBanner from "@/components/OfflineBanner";
+import SplashCart from "@/components/SplashCart";
 import Toast from "@/components/Toast";
 import ReviewPrompt from "@/components/ReviewPrompt";
 import { useIsOnline } from "@/lib/connection";
@@ -263,7 +264,17 @@ function RootNavigator() {
     }
   }, [ready, seenTour, signedIn, guest, segments, router]);
 
-  if (!ready || seenTour === null) return null;
+  // Not `null`. That handed the native splash over to an empty rectangle for
+  // as long as the session check took, which on a cold start over bad data is
+  // long enough to read as a hang rather than as loading.
+  if (!ready || seenTour === null) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+        <SplashCart />
+      </View>
+    );
+  }
 
   return (
     // An explicit flex container: the banner and the navigator are siblings,
