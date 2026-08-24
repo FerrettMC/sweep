@@ -203,11 +203,21 @@ export interface RetailerResult {
   products: SearchProduct[];
 }
 
+/**
+ * How much the server trusts a retailer's claimed discount.
+ *
+ * Absent from older servers, so treat undefined as "no opinion" and render
+ * exactly as before rather than assuming the worst.
+ */
+export type DiscountConfidence = "plausible" | "unverified";
+
 export interface Highlight {
   kind: "cheapest" | "best_rated" | "biggest_discount";
   label: string;
   reason: string;
   product: SearchProduct;
+  /** "biggest_discount" only, and only from servers that send it. */
+  confidence?: DiscountConfidence;
 }
 
 export interface SearchResponse {
@@ -816,6 +826,8 @@ export interface SaleAssessment {
   detail: string;
   /** The retailer's claimed discount, which may well be theatre. */
   claimedPercentOff: number | null;
+  /** Whether that claim is believable on its face. Older servers omit it. */
+  claimedConfidence?: DiscountConfidence | null;
   /** What it's actually worth against its own history. */
   realPercentBelowTypical: number | null;
 }

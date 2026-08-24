@@ -36,7 +36,15 @@ export default function HighlightCard({
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const t = useTranslate();
-  const { product, label, reason, kind } = highlight;
+  const { product, label, reason, kind, confidence } = highlight;
+
+  // An accent badge and a falling-price arrow both read as "good news". When
+  // the server can't vouch for the discount, this shouldn't celebrate it — so
+  // the badge goes amber and the arrow becomes a question mark. Undefined
+  // confidence means an older server that never sends it: render as before.
+  const doubtful = confidence === "unverified";
+  const icon: IoniconName = doubtful ? "help-circle" : ICONS[kind];
+  const badgeColor = doubtful ? colors.warning : colors.accent;
 
   return (
     <Pressable
@@ -44,8 +52,10 @@ export default function HighlightCard({
       onPress={onPress}
     >
       <View style={styles.badgeRow}>
-        <Ionicons name={ICONS[kind]} size={13} color={colors.accent} />
-        <Text style={styles.badge}>{label.toUpperCase()}</Text>
+        <Ionicons name={icon} size={13} color={badgeColor} />
+        <Text style={[styles.badge, { color: badgeColor }]}>
+          {label.toUpperCase()}
+        </Text>
       </View>
 
       {product.imageUrl ? (

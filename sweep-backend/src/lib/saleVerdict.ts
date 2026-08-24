@@ -9,6 +9,8 @@
 //
 // Costs nothing to compute — the history is already loaded to draw the graph.
 
+import { UNVERIFIED_ABOVE_PERCENT, type DiscountConfidence } from "./discount.js";
+
 /** History points needed before we'll make a claim about "usual" pricing. */
 const MIN_HISTORY_POINTS = 3;
 
@@ -26,6 +28,13 @@ export interface SaleAssessment {
   detail: string;
   /** The retailer's claimed discount, which may well be theatre. */
   claimedPercentOff: number | null;
+  /**
+   * How much we trust that claim on its face, before history is considered.
+   *
+   * Null when there's no claim to judge. Optional on the wire so an older app
+   * ignores it and renders as it always did.
+   */
+  claimedConfidence?: DiscountConfidence | null;
   /** What it's actually worth against its own history. */
   realPercentBelowTypical: number | null;
 }
@@ -45,10 +54,13 @@ export function judgeSale(input: {
       verdict: "no-history",
       headline: "Not enough history yet",
       detail:
-        claimedPercentOff !== null
-          ? `The store claims ${claimedPercentOff}% off. Track it for a few days and Sweep can tell you whether that's real.`
-          : "Track this for a few days and Sweep can tell you whether a sale is genuine.",
+        claimedPercentOff === null
+          ? "Track this for a few days and Sweep can tell you whether a sale is genuine."
+          : confidenceOf(claimedPercentOff) === "unverified"
+            ? `${claimedPercentOff}% off is a big claim, and some sellers inflate the crossed-out price to make one. Track it for a few days and Sweep will know the real price.`
+            : `The store claims ${claimedPercentOff}% off. Track it for a few days and Sweep can tell you whether that's real.`,
       claimedPercentOff,
+      claimedConfidence: confidenceOf(claimedPercentOff),
       realPercentBelowTypical: null,
     };
   }
@@ -61,6 +73,7 @@ export function judgeSale(input: {
       headline: "Lowest price we've seen",
       detail: `Across ${points} checks this has never been cheaper.`,
       claimedPercentOff,
+      claimedConfidence: confidenceOf(claimedPercentOff),
       realPercentBelowTypical,
     };
   }
@@ -71,6 +84,7 @@ export function judgeSale(input: {
       headline: `${realPercentBelowTypical}% below its usual price`,
       detail: `Typically ${formatCents(average)} across ${points} checks. Lowest we've recorded is ${formatCents(low)}.`,
       claimedPercentOff,
+      claimedConfidence: confidenceOf(claimedPercentOff),
       realPercentBelowTypical,
     };
   }
@@ -81,6 +95,7 @@ export function judgeSale(input: {
       headline: "Pricier than usual right now",
       detail: `This normally sits around ${formatCents(average)}. It's been as low as ${formatCents(low)}.`,
       claimedPercentOff,
+      claimedConfidence: confidenceOf(claimedPercentOff),
       realPercentBelowTypical,
     };
   }
@@ -93,8 +108,14 @@ export function judgeSale(input: {
         : "This is its normal price",
     detail: `It's sat around ${formatCents(average)} across ${points} checks. Lowest we've recorded is ${formatCents(low)}.`,
     claimedPercentOff,
+    claimedConfidence: confidenceOf(claimedPercentOff),
     realPercentBelowTypical,
   };
+}
+
+function confidenceOf(percent: number | null): DiscountConfidence | null {
+  if (percent === null) return null;
+  return percent > UNVERIFIED_ABOVE_PERCENT ? "unverified" : "plausible";
 }
 
 function formatCents(cents: number): string {

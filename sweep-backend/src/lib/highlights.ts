@@ -10,6 +10,7 @@
 // Biggest drop leads because it's the most time-sensitive: the cheapest item is
 // still cheapest tomorrow, but a drop might not still be there.
 
+import { type DiscountConfidence, claimedDiscount } from "./discount.js";
 import type { ScrapedProduct } from "./scrapers/types.js";
 
 export type HighlightKind = "cheapest" | "best_rated" | "biggest_discount";
@@ -20,12 +21,17 @@ export interface Highlight {
   /** Why this one won, in words the UI can show directly. */
   reason: string;
   product: ScrapedProduct;
+  /**
+   * Present on "Biggest drop" only: how much we trust the claim.
+   *
+   * Optional so an older app that doesn't know the field renders exactly as it
+   * did before — it just won't show the caveat.
+   */
+  confidence?: DiscountConfidence;
 }
 
 /** Ratings below this many reviews are noise, not signal. */
 const MIN_RATINGS_FOR_BEST_RATED = 25;
-/** A "discount" smaller than this is marketing, not a deal. */
-const MIN_DISCOUNT_PERCENT = 10;
 
 export function pickHighlights(products: ScrapedProduct[]): Highlight[] {
   const priced = products.filter(
@@ -42,25 +48,36 @@ export function pickHighlights(products: ScrapedProduct[]): Highlight[] {
   // priority has to match display priority — otherwise a card could be labelled
   // "Biggest drop" while showing the second-biggest, which is just false.
 
-  // 1. Biggest genuine discount off the retailer's own list price.
+  // 1. Biggest discount off the retailer's own list price.
+  //
+  // Sorted so anything we can vouch for outranks anything we can't, and only
+  // then by size. Straight descending order would hand this card to a fake MSRP
+  // permanently: an invented 87% beats a real 45% every time, so the one card
+  // meant to surface real deals would show nothing but the least honest listing
+  // on the page. A doubtful claim can still win — but only when there's no
+  // credible discount to show instead, and it says so when it does.
   const discounted = priced
-    .map((p) => ({
-      product: p,
-      percent:
-        p.listPrice && p.listPrice > p.price
-          ? Math.round(((p.listPrice - p.price) / p.listPrice) * 100)
-          : 0,
-    }))
-    .filter((entry) => entry.percent >= MIN_DISCOUNT_PERCENT)
-    .sort((a, b) => b.percent - a.percent);
+    .map((p) => ({ product: p, discount: claimedDiscount(p.price, p.listPrice) }))
+    .filter(
+      (entry): entry is { product: ScrapedProduct & { price: number }; discount: NonNullable<ReturnType<typeof claimedDiscount>> } =>
+        entry.discount !== null,
+    )
+    .sort((a, b) => {
+      const trust = rank(a.discount.confidence) - rank(b.discount.confidence);
+      return trust !== 0 ? trust : b.discount.percent - a.discount.percent;
+    });
 
   const biggest = discounted[0];
   if (biggest) {
+    const unverified = biggest.discount.confidence === "unverified";
     highlights.push({
       kind: "biggest_discount",
-      label: "Biggest drop",
-      reason: `${biggest.percent}% off its usual price`,
+      label: unverified ? "Big claim" : "Biggest drop",
+      reason: unverified
+        ? `Store claims ${biggest.discount.percent}% off — track it to see if that's real`
+        : `${biggest.discount.percent}% off its usual price`,
       product: biggest.product,
+      confidence: biggest.discount.confidence,
     });
     claimed.add(key(biggest.product));
   }
@@ -95,6 +112,11 @@ export function pickHighlights(products: ScrapedProduct[]): Highlight[] {
   }
 
   return highlights;
+}
+
+/** Lower sorts first, so a discount we believe outranks one we don't. */
+function rank(confidence: DiscountConfidence): number {
+  return confidence === "plausible" ? 0 : 1;
 }
 
 function formatCount(count: number) {

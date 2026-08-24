@@ -381,6 +381,38 @@ are subscribers paying for it, not before.
 emails. It would make all of this free, so it's still worth chasing — but it
 blocks nothing now.
 
+### Inflated list prices — the rule, and why it exists
+
+Walmart's marketplace sellers invent MSRPs. A real listing found during testing
+priced $20.09 against a "$159.95 list" — a manufactured 87% discount. eBay does
+this too; Amazon and Best Buy are far more disciplined about it.
+
+This breaks anything that ranks by discount, because ranking sorts descending:
+**an invented number beats every real sale on the page, every time.** The one
+card meant to surface genuine deals would reliably show the least honest listing.
+
+The rule lives in `lib/discount.ts`, in one place:
+
+- Under 10% off — not a deal, ignored.
+- 10–50% — `plausible`. Still the retailer's claim, not our measurement.
+- Above 50% — `unverified`. Shown, never celebrated.
+
+50% is a judgement call, not a measurement. Genuine half-off is real —
+clearances, end-of-line, Black Friday — so this can't mean "fake". It means
+"large enough that an inflated list price is at least as likely as a real sale,
+and we have no history to tell them apart".
+
+**Ranking prefers what we can vouch for.** "Biggest drop" sorts by confidence
+first, then size, so a credible 45% outranks a doubtful 87%. A doubtful claim
+can still win the card — but only when there's nothing credible to show, and it
+relabels to "Big claim" with an amber badge and a question-mark icon.
+
+**Where there's history, none of this applies** — `judgeSale()` uses our own
+recorded prices, the one number in the app nobody can stage. The claim is
+reported alongside it, never trusted over it.
+
+Covered by `npm run test:discount`.
+
 ### Walmart — check before applying
 
 The right programme is the **Content Provider API**, reached through the
