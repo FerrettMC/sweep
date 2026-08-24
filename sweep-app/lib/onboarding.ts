@@ -25,7 +25,17 @@ function emit() {
 
 export async function hasSeenOnboarding(): Promise<boolean> {
   if (seen !== null) return seen;
-  seen = (await AsyncStorage.getItem(KEY)) === "true";
+  try {
+    seen = (await AsyncStorage.getItem(KEY)) === "true";
+  } catch {
+    // A failed read has to resolve to something. The root layout waits for
+    // this before it will mount the navigator, so leaving it null means the
+    // app never gets past its launch screen.
+    //
+    // False is the safe answer: the worst case is replaying a tour someone has
+    // already seen, which is a minor annoyance rather than a dead app.
+    seen = false;
+  }
   emit();
   return seen;
 }

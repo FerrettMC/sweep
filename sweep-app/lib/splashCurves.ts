@@ -18,8 +18,31 @@
 /** How far the cart rises over each bump, in points. */
 export const BOB = 3.5;
 
-/** One traverse, left to right. Slow enough to read as a stroll, not a dash. */
-export const TRAVEL_MS = 2600;
+/**
+ * The exit: cart in from the left, logo swept away, orange lifted.
+ *
+ * Deliberately short. This runs on EVERY cold start, and an animation that
+ * charms once is an obstacle by the twentieth time someone opens the app.
+ */
+export const EXIT_MS = 900;
+
+/** How long the cart takes to leave, as a fraction of the exit. The orange
+ *  only starts lifting after this, so the screen doesn't fade out from under
+ *  the cart while it's still crossing. */
+export const SWEEP_MS = 620;
+
+/** Half a breath while waiting: 1.0 to 1.04 and back. */
+export const HOLD_PULSE_MS = 1100;
+
+/**
+ * Force-unmount the splash after this, no matter what.
+ *
+ * An interrupted Animated timing does not reliably fire its completion
+ * callback, and this overlay covers the entire app — so "the animation didn't
+ * finish" would mean "the app never appears". Generously longer than EXIT_MS,
+ * because it should only ever fire when something has genuinely gone wrong.
+ */
+export const SAFETY_MS = 2500;
 
 /**
  * Nothing is drawn for this long after mount.
@@ -32,7 +55,7 @@ export const TRAVEL_MS = 2600;
 export const APPEAR_DELAY_MS = 180;
 export const APPEAR_MS = 260;
 
-/** Four bumps per traverse, up quickly and down slowly. */
+/** Four bumps as the cart crosses, up quickly and down slowly. */
 export const BOB_CURVE = {
   inputRange: [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1],
   outputRange: [0, -BOB, 0, -BOB, 0, -BOB, 0, -BOB, 0],
@@ -48,15 +71,34 @@ export const TILT_CURVE = {
   outputRange: ["0deg", "-2deg", "2deg", "-2deg", "2deg", "-2deg", "2deg", "-2deg", "2deg", "0deg"],
 };
 
-/**
- * Arrives and leaves, so the loop's snap back to the left edge is never seen.
- *
- * Both ends MUST be 0. The driver jumps 1 -> 0 on every repeat, and anything
- * visible at that moment teleports across the screen.
- */
-export const EDGE_FADE = {
-  inputRange: [0, 0.08, 0.92, 1],
-  outputRange: [0, 1, 1, 0],
-};
+export const CURVES = { bob: BOB_CURVE, tilt: TILT_CURVE };
 
-export const CURVES = { bob: BOB_CURVE, tilt: TILT_CURVE, edges: EDGE_FADE };
+/**
+ * Hide the native splash after this even if the logo never decoded.
+ *
+ * We ask the native splash to stay open and then hide it once our own logo has
+ * painted. If that image fails — corrupt asset, bad build — the callback never
+ * arrives and the splash we asked to persist persists forever, leaving an app
+ * that cannot be opened at all. Short, because by this point the only thing
+ * being protected is a flash.
+ */
+export const NATIVE_HIDE_BAIL_MS = 1200;
+
+/** Where the cart has finished crossing, as a fraction of the whole exit. */
+export const SWEEP_FRACTION = SWEEP_MS / EXIT_MS;
+
+/**
+ * Squeeze a 0-to-1 curve into the sweep, holding its final value afterwards.
+ *
+ * The cart has to be gone BEFORE the orange starts lifting, or the screen
+ * fades out from underneath a cart still halfway across — which reads as the
+ * animation being cut off rather than finishing. Everything the cart does is
+ * therefore run inside the sweep and pinned at its end value for the fade.
+ */
+export function withinSweep<T>(curve: { inputRange: number[]; outputRange: T[] }) {
+  const last = curve.outputRange[curve.outputRange.length - 1];
+  return {
+    inputRange: [...curve.inputRange.map((n) => n * SWEEP_FRACTION), 1],
+    outputRange: [...curve.outputRange, last],
+  };
+}
