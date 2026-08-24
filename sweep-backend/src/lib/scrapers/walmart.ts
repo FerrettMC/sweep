@@ -1,12 +1,19 @@
 // lib/scrapers/walmart.ts
 //
 // Walmart is a Next.js pages-router site and ships the full product payload in
-// __NEXT_DATA__, so a plain fetch is enough — no provider, no cost.
+// __NEXT_DATA__, so the parsing is easy and always was. What is not easy is
+// being allowed to ask: Walmart refuses our datacenter IP outright, and no
+// amount of pacing changes that because it is reputation-based.
+//
+// So the fetch goes through Decodo when DECODO_AUTH_TOKEN is set, and directly
+// otherwise. Everything below the fetch is unchanged — see decodo.ts for what
+// was tried before it and why those failed.
 //
 // Verified structures (search and PDP put the data in different places):
 //   search: props.pageProps.initialData.searchResult.itemStacks[].items[]
 //   PDP:    props.pageProps.initialData.data.product
 
+import { DecodoError, fetchViaDecodo, isDecodoConfigured } from "./decodo.js";
 import {
   ScrapeHttpError,
   extractNextData,
@@ -30,7 +37,7 @@ export async function searchWalmart(
   const url = `${BASE}/search?q=${encodeURIComponent(keyword)}`;
 
   try {
-    const html = await fetchText(url, { headers: { referer: `${BASE}/` } });
+    const html = await getPage(url);
     const nextData = extractNextData(html);
     if (!nextData) {
       return fail("failed", "no __NEXT_DATA__ in search response", elapsed(started));
@@ -69,7 +76,7 @@ export async function scrapeWalmartProduct(
   const started = Date.now();
 
   try {
-    const html = await fetchText(url, { headers: { referer: `${BASE}/` } });
+    const html = await getPage(url);
     const nextData = extractNextData(html);
     if (!nextData) {
       return fail("failed", "no __NEXT_DATA__ in product response", elapsed(started));
@@ -225,6 +232,11 @@ function elapsed(started: number) {
 }
 
 function kindOf(err: unknown): "failed" | "blocked" {
+  // DecodoError carries its own kind, and it matters: a challenge page coming
+  // back through the proxy is Walmart refusing us, and should start the
+  // cooldown. Without this it read as a plain failure and we would have kept
+  // hammering — and paying — through a block.
+  if (err instanceof DecodoError) return err.kind;
   return err instanceof ScrapeHttpError && err.kind === "blocked"
     ? "blocked"
     : "failed";
@@ -232,4 +244,17 @@ function kindOf(err: unknown): "failed" | "blocked" {
 
 function messageOf(err: unknown) {
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Walmart's HTML, from wherever we can actually get it.
+ *
+ * Falls back to a direct fetch when no proxy is configured. That path is known
+ * to be refused from a datacenter, but it keeps the adapter working on a
+ * developer machine — a home IP is fine, which is how this was written in the
+ * first place.
+ */
+async function getPage(url: string): Promise<string> {
+  if (isDecodoConfigured()) return fetchViaDecodo(url);
+  return fetchText(url, { headers: { referer: `${BASE}/` } });
 }

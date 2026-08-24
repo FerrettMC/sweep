@@ -119,12 +119,13 @@ export const unthrottledAdapters: Record<Retailer, RetailerAdapter> = {
     // 200 with an interstitial, not a 429) and clears within minutes — that's
     // rate-based, and spacing requests fixes it.
     //
-    // From a datacenter IP it refused the very first request of an idle
-    // minute, twice. That is reputation-based, and no amount of spacing
-    // changes it. 3000ms is the generous end of what pacing can do; if it
-    // still refuses, the answer is a residential proxy or DISABLED_RETAILERS.
+    // Requests go through Decodo now (see decodo.ts), so the old 3000ms gap
+    // is pointless — it was pacing our own IP against a block that pacing
+    // never solved anyway. What matters here is Decodo's rate limit and the
+    // fact that every request is billed, so this stays modest rather than
+    // opening the taps.
     concurrency: 2,
-    minIntervalMs: 3000,
+    minIntervalMs: 500,
     categories: null,
   },
   newegg: {

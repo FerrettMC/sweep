@@ -306,7 +306,7 @@ official API or a paid residential proxy.
 
 | Store                                    | Path                                                                                                                                     |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **Walmart**                              | **Verify API access is still open before applying** — see below. The scraper already exists to swap behind it. |
+| **Walmart**                              | **Built and working through Decodo, switched off until it pays for itself** — see below. The official API is still worth chasing; it would make it free. |
 | Target, Chewy, Overstock, Apple, Samsung | No public API. Proxy only.                                                                                                               |
 | Temu                                     | No API, and fights scrapers hardest.                                                                                                     |
 | ~~Booking.com~~                          | Travel, not goods — different comparison logic entirely. Dropped.                                                                        |
@@ -330,10 +330,10 @@ the more official of the two.
 If neither answers by September, that is the answer: the programme isn't
 staffed for this, and the effort belongs somewhere else.
 
-### Walmart — scraping is ruled out, don't retry it
+### Walmart — scraping works, through Decodo and nothing cheaper
 
-Tested properly, cost nothing, and the answer is no. Recorded so this doesn't
-get re-attempted from scratch:
+Every cheap route was tested properly, cost nothing, and failed. Recorded so
+they don't get re-attempted from scratch:
 
 | Route | Result |
 | ----- | ------ |
@@ -355,10 +355,31 @@ just to fail, so a working version at that latency would time out on every
 search and only ever appear in scheduled checks. A store that exists in price
 alerts but never in search results is a confusing half-feature, not a win.
 
-**What's left:** the official Content Provider API, which is the two unanswered
-emails, or a Bright Data-class provider at real money. Neither is worth chasing
-before there's revenue, and neither blocks anything — three stores are live and
-Best Buy is landing.
+**Decodo is the route that works.** Standard proxy, no JS rendering, no geo
+targeting — the cheapest thing they sell:
+
+| Check | Result |
+| ----- | ------ |
+| Success rate | 12/12, every response carrying `__NEXT_DATA__` |
+| Product page | ~3s |
+| Search page | 6–10s, `itemStacks` present |
+
+Search at 6–10s fits inside the 12-second deadline, but not by much, so Walmart
+will sometimes lose the race on a slow run and appear only in scheduled checks.
+That is acceptable; a store that is usually there beats one that never is.
+
+**Wired up but switched off.** `walmart.ts` fetches through `decodo.ts` when
+`DECODO_AUTH_TOKEN` is set and directly otherwise, and Walmart stays in
+`DISABLED_RETAILERS` on Railway. Turning it on is two environment variables and
+a redeploy — no code change, no new release.
+
+**Why it stays off:** 2,000 free requests, then $19/mo for 38k. Every search and
+every scheduled price check spends one. It should be turned on the day there
+are subscribers paying for it, not before.
+
+**Still open:** the official Content Provider API, which is the two unanswered
+emails. It would make all of this free, so it's still worth chasing — but it
+blocks nothing now.
 
 ### Walmart — check before applying
 

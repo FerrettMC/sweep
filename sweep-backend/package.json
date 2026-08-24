@@ -38,7 +38,8 @@
     "test:waittimes": "tsx src/test-waittimes.ts",
     "test:notifications": "tsx src/test-notifications.ts",
     "test:admin": "tsx src/test-admin.ts",
-    "test:cart": "tsx src/test-cart.ts"
+    "test:cart": "tsx src/test-cart.ts",
+    "test:walmart": "tsx src/test-walmart.ts"
   },
   "keywords": [],
   "author": "",
