@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Button, Loading, Screen } from "@/components/ui";
+import RedeemCode from "@/components/RedeemCode";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
@@ -174,6 +175,12 @@ export default function PlansScreen() {
         ))}
 
         {notice && <Text style={styles.notice}>{notice}</Text>}
+
+        {/* Under the plans on purpose: this is the screen someone opens when
+            they're weighing up paying, which is exactly when a code in their
+            hand is worth spending. Hidden from guests, who have no account for
+            a grant to attach to. */}
+        {signedIn !== false && <RedeemCode onRedeemed={load} />}
 
         {/* Play requires a way back for someone who reinstalled or switched
             device — they must not have to pay twice. */}

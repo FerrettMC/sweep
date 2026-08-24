@@ -106,3 +106,36 @@ function generateCode(): string {
   }
   return out;
 }
+
+export interface DeleteResult {
+  code: string;
+  /** How many redemption records were removed with it. */
+  redemptionsRemoved: number;
+}
+
+/**
+ * Remove a code entirely.
+ *
+ * Redemption rows point at the code, so they go first or the delete fails on
+ * the foreign key. Both happen in one transaction: a half-delete would leave
+ * rows referencing a code that no longer exists.
+ *
+ * Grants already handed out are NOT revoked, and can't be — they live on the
+ * wallet in their own columns, which is the same separation that stops a promo
+ * from damaging a subscription. Deleting a code stops anyone ELSE redeeming it;
+ * it doesn't reach back and take time off people who already have it. That's
+ * the right behaviour (nobody should lose access because we tidied up an admin
+ * table) but it has to be said out loud, since "delete" can suggest otherwise.
+ */
+export async function deletePromoCode(rawCode: string): Promise<DeleteResult> {
+  const code = normalizeCode(rawCode);
+  const promo = await prisma.promoCode.findUnique({ where: { code } });
+  if (!promo) throw new Error(`"${code}" doesn't exist`);
+
+  const [removed] = await prisma.$transaction([
+    prisma.promoCodeRedemption.deleteMany({ where: { promoCodeId: promo.id } }),
+    prisma.promoCode.delete({ where: { id: promo.id } }),
+  ]);
+
+  return { code, redemptionsRemoved: removed.count };
+}

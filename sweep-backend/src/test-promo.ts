@@ -17,7 +17,7 @@ console.log(`target: ${targetSummary()}`);
 
 import { prisma } from "./lib/prisma.js";
 import { createTestUser, purgeTestUser } from "./testCleanup.js";
-import { createPromoCode } from "./lib/promoAdmin.js";
+import { createPromoCode, deletePromoCode } from "./lib/promoAdmin.js";
 import { normalizeCode, redeemPromoCode } from "./lib/promo.js";
 import { effectiveTier } from "./lib/tiers.js";
 
@@ -192,6 +192,35 @@ try {
 
     const rows = await prisma.promoCodeRedemption.count({ where: { promoCodeId: row!.id } });
     check("and no redemption row is left behind by a loser", rows === 1, rows);
+  }
+
+  console.log("\n— deleting a redeemed code —");
+  {
+    // The foreign key from redemptions means a naive delete fails outright.
+    // More importantly: deleting a code must NOT reach back and revoke time
+    // people already have, and this is where that gets proven rather than
+    // assumed.
+    const user = await newUser("promo");
+    const code = await newCode({ days: 21 });
+    const redeemed = await redeemPromoCode(user.id, code.code);
+    check("redeemed first", redeemed.ok, redeemed);
+
+    const before = await wallet(user.id);
+    const result = await deletePromoCode(code.code);
+    check("the code deletes despite having been used", result.redemptionsRemoved === 1, result);
+
+    const gone = await prisma.promoCode.findUnique({ where: { code: code.code } });
+    check("and is really gone", gone === null);
+
+    const after = await wallet(user.id);
+    check("the grant survives the code being deleted",
+      after!.promoTier === before!.promoTier &&
+      after!.promoExpiresAt?.getTime() === before!.promoExpiresAt?.getTime(),
+      { before: before!.promoExpiresAt, after: after!.promoExpiresAt });
+    check("they're still on the granted tier", effectiveTier(after!) === "pro", effectiveTier(after!));
+
+    const orphans = await prisma.promoCodeRedemption.count({ where: { userId: user.id } });
+    check("no redemption row is orphaned", orphans === 0, orphans);
   }
 
   console.log("\n— bad codes —");

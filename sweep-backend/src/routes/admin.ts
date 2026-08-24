@@ -26,7 +26,7 @@
 import type { FastifyInstance } from "fastify";
 import { requireAdmin } from "../lib/adminAuth.js";
 import { getAdminStats } from "../lib/adminStats.js";
-import { createPromoCode, listPromoCodes } from "../lib/promoAdmin.js";
+import { createPromoCode, deletePromoCode, listPromoCodes } from "../lib/promoAdmin.js";
 
 export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin", async (_request, reply) => {
@@ -40,6 +40,22 @@ export async function adminRoutes(app: FastifyInstance) {
 
   app.get("/admin/promo", { preHandler: requireAdmin }, async () => {
     return { codes: await listPromoCodes() };
+  });
+
+  app.delete("/admin/promo/:code", { preHandler: requireAdmin }, async (request, reply) => {
+    const { code } = request.params as { code: string };
+    try {
+      const result = await deletePromoCode(code);
+      request.log.warn(
+        { code: result.code, redemptionsRemoved: result.redemptionsRemoved },
+        "promo code deleted",
+      );
+      return { ok: true, ...result };
+    } catch (err) {
+      return reply
+        .status(404)
+        .send({ error: err instanceof Error ? err.message : "Could not delete code" });
+    }
   });
 
   app.post("/admin/promo", { preHandler: requireAdmin }, async (request, reply) => {
@@ -104,6 +120,9 @@ const PAGE = `<!doctype html>
   .dim { color: var(--dim); }
   button { background: #4f46e5; color: #fff; border: 0; font-weight: 700; cursor: pointer; }
   button.secondary { background: transparent; border: 1px solid var(--line); color: inherit; font-weight: 600; }
+  /* An inline action inside a table row, not a page-level button. */
+  button.link { background: none; border: 0; color: #dc2626; font-weight: 600;
+                width: auto; margin: 0; padding: 2px 0; font-size: 13px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
   .card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
   .n { font-size: 22px; font-weight: 800; }
@@ -165,7 +184,7 @@ const PAGE = `<!doctype html>
   </div>
   <input id="pExpires" type="number" min="1" placeholder="Code itself expires in N days (blank = never)">
   <button onclick="makeCode()">Create code</button>
-  <table><thead><tr><th>Code</th><th>Grants</th><th>Used</th><th>Status</th></tr></thead>
+  <table><thead><tr><th>Code</th><th>Grants</th><th>Used</th><th>Status</th><th></th></tr></thead>
   <tbody id="promo"></tbody></table>
 
   <h2>Send an announcement</h2>
@@ -328,11 +347,38 @@ async function loadPromo() {
     const used = c.used + (c.max === null ? " / unlimited" : " / " + c.max);
     const grants = c.days + "d " + c.tier;
     const cls = status === "active" ? "" : ' class="dim"';
+    // Attributes carry what the confirm prompt needs, so deleting doesn't have
+    // to re-fetch the row it is already looking at.
+    const del = '<button class="link" onclick="dropCode(this)" data-code="' + c.code +
+      '" data-used="' + c.used + '">Delete</button>';
     return "<tr" + cls + "><td><code>" + c.code + "</code></td><td>" + grants +
-      "</td><td>" + used + "</td><td>" + status + "</td></tr>";
+      "</td><td>" + used + "</td><td>" + status + "</td><td>" + del + "</td></tr>";
   }).join("");
   document.getElementById("promo").innerHTML = rows ||
-    '<tr><td colspan="4" class="dim">No codes yet.</td></tr>';
+    '<tr><td colspan="5" class="dim">No codes yet.</td></tr>';
+}
+
+async function dropCode(el) {
+  const code = el.getAttribute("data-code");
+  const used = parseInt(el.getAttribute("data-used"), 10) || 0;
+
+  // Spelled out, because "delete" reads like it takes access back and it does
+  // not — grants already given live on the wallet and stay there.
+  const warning = used > 0
+    ? "Delete " + code + "?\\n\\n" + used + " already redeemed it. They KEEP their time — " +
+      "this only stops anyone else using the code, and erases the record of who redeemed it."
+    : "Delete " + code + "? Nobody has redeemed it.";
+  if (!confirm(warning)) return;
+
+  const res = await fetch("/admin/promo/" + encodeURIComponent(code), {
+    method: "DELETE",
+    headers: { "x-admin-key": key() },
+  });
+  const data = await res.json().catch(function () { return {}; });
+  if (!res.ok) return say(data.error || "Could not delete that code.", true);
+
+  say("Deleted " + code + ".");
+  loadPromo();
 }
 
 async function makeCode() {

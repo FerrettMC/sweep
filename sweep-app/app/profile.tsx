@@ -27,6 +27,7 @@ import { LANGUAGES, setLanguage, useLanguage, useTranslate } from "@/lib/i18n";
 import { activeProductId, openSubscriptionSettings } from "@/lib/purchases";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import UsernameSheet from "@/components/UsernameSheet";
+import RedeemCode from "@/components/RedeemCode";
 import {
   ApiError,
   type PromoGrant,
@@ -37,7 +38,6 @@ import {
   getPromoStatus,
   getQuota,
   getRetailerStatus,
-  redeemPromoCode,
 } from "@/lib/api";
 import { pluralize, retailerColor } from "@/lib/format";
 import { setGuestMode } from "@/lib/guestMode";
@@ -89,36 +89,6 @@ export default function ProfileScreen() {
   // screen can show what someone has without offering to cancel something
   // they never bought.
   const [grant, setGrant] = useState<PromoGrant | null>(null);
-  const [codeInput, setCodeInput] = useState("");
-  const [redeeming, setRedeeming] = useState(false);
-  const [codeNote, setCodeNote] = useState<{ text: string; bad: boolean } | null>(null);
-
-  const onRedeem = useCallback(async () => {
-    const code = codeInput.trim();
-    if (!code || redeeming) return;
-
-    setRedeeming(true);
-    setCodeNote(null);
-    try {
-      const result = await redeemPromoCode(code);
-      if (result.ok) {
-        setCodeInput("");
-        setCodeNote({ text: result.message, bad: false });
-        // Re-read rather than patching state from the response: the tier that
-        // matters is whatever the server now says, and it may be higher than
-        // what this code granted.
-        await load();
-      } else {
-        setCodeNote({ text: result.message, bad: true });
-      }
-    } catch {
-      setCodeNote({ text: t("profile.codeOffline"), bad: true });
-    } finally {
-      setRedeeming(false);
-    }
-    // `load` is defined below and stable for the lifetime of the screen.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [codeInput, redeeming, t]);
 
   const load = useCallback(async () => {
     const [
@@ -312,46 +282,8 @@ export default function ProfileScreen() {
           </Text>
         </Pressable>
 
-        {!isGuest && (
-          <View style={styles.card}>
-            <Text style={styles.label}>{t("profile.haveACode")}</Text>
-            <Text style={styles.sub}>{t("profile.haveACodeBody")}</Text>
-            <View style={styles.codeRow}>
-              <TextInput
-                value={codeInput}
-                onChangeText={(text) => {
-                  setCodeInput(text);
-                  setCodeNote(null);
-                }}
-                placeholder={t("profile.codePlaceholder")}
-                placeholderTextColor={colors.textTertiary}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                editable={!redeeming}
-                style={styles.codeInput}
-                onSubmitEditing={onRedeem}
-                returnKeyType="go"
-              />
-              <Pressable
-                onPress={onRedeem}
-                disabled={redeeming || !codeInput.trim()}
-                style={[
-                  styles.codeButton,
-                  (redeeming || !codeInput.trim()) && styles.codeButtonDisabled,
-                ]}
-              >
-                <Text style={styles.codeButtonText}>
-                  {redeeming ? t("profile.redeeming") : t("profile.redeem")}
-                </Text>
-              </Pressable>
-            </View>
-            {codeNote && (
-              <Text style={[styles.codeNote, codeNote.bad && styles.codeNoteBad]}>
-                {codeNote.text}
-              </Text>
-            )}
-          </View>
-        )}
+        {/* Guests have no account to attach a grant to. */}
+        {!isGuest && <RedeemCode onRedeemed={load} />}
 
         <View style={styles.card}>
           <View style={styles.planRow}>
@@ -789,44 +721,6 @@ const makeStyles = (colors: Palette) =>
       fontWeight: "600",
       marginTop: spacing.xs,
     },
-    codeRow: {
-      flexDirection: "row",
-      gap: spacing.sm,
-      marginTop: spacing.sm,
-    },
-    codeInput: {
-      flex: 1,
-      backgroundColor: colors.surfaceRaised,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.surfaceBorder,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-      color: colors.textPrimary,
-      fontSize: type.body.fontSize,
-      // Codes are read off a screen and typed in; the extra tracking makes it
-      // much easier to check a character against the source.
-      letterSpacing: 1.5,
-    },
-    codeButton: {
-      backgroundColor: colors.accent,
-      borderRadius: radius.md,
-      paddingHorizontal: spacing.lg,
-      justifyContent: "center",
-    },
-    codeButtonDisabled: { opacity: 0.5 },
-    codeButtonText: {
-      color: colors.background,
-      fontWeight: "800",
-      fontSize: type.label.fontSize,
-    },
-    codeNote: {
-      color: colors.success,
-      fontSize: type.caption.fontSize,
-      fontWeight: "600",
-      marginTop: spacing.sm,
-    },
-    codeNoteBad: { color: colors.danger },
     pushNote: {
       color: colors.warning,
       fontSize: type.caption.fontSize,

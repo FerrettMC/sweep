@@ -62,7 +62,7 @@ try {
 
   // The handlers wired to onclick must actually exist, or the buttons are
   // decoration. A parse error is one way to lose them; a rename is another.
-  for (const fn of ["signIn", "signOut", "announce", "useTemplate", "counts", "load", "makeCode", "loadPromo"]) {
+  for (const fn of ["signIn", "signOut", "announce", "useTemplate", "counts", "load", "makeCode", "loadPromo", "dropCode"]) {
     check(`${fn}() is defined`, new RegExp(`function ${fn}\\s*\\(`).test(script));
   }
 
@@ -118,6 +118,26 @@ try {
   check("listing works with the key", listed.statusCode === 200, listed.statusCode);
   check("the new code is in the list",
     listed.json().codes.some((c: { code: string }) => c.code === createdCode));
+
+  console.log("\n— deleting a code —");
+  const delNoKey = await app.inject({ method: "DELETE", url: `/admin/promo/${createdCode}` });
+  check("deleting needs the key", delNoKey.statusCode === 401, delNoKey.statusCode);
+
+  const delMissing = await app.inject({
+    method: "DELETE", url: "/admin/promo/NOSUCHCODE", headers: { "x-admin-key": KEY },
+  });
+  check("deleting something that isn't there is a 404", delMissing.statusCode === 404, delMissing.statusCode);
+
+  const deleted = await app.inject({
+    method: "DELETE", url: `/admin/promo/${createdCode}`, headers: { "x-admin-key": KEY },
+  });
+  check("deleting works with the key", deleted.statusCode === 200, deleted.statusCode);
+
+  const afterDelete = await app.inject({
+    method: "GET", url: "/admin/promo", headers: { "x-admin-key": KEY },
+  });
+  check("and it's gone from the list",
+    !afterDelete.json().codes.some((c: { code: string }) => c.code === createdCode));
 
   if (createdCode) {
     await prisma.promoCode.deleteMany({ where: { code: createdCode } });
