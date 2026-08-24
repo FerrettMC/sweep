@@ -9,7 +9,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Notifications from "expo-notifications";
 import { Stack, useRouter, useSegments } from "expo-router";
-import * as SplashScreen from "expo-splash-screen";
 import { View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import {
@@ -19,7 +18,6 @@ import {
 } from "react-native-safe-area-context";
 import AppErrorScreen from "@/components/AppErrorScreen";
 import OfflineBanner from "@/components/OfflineBanner";
-import AnimatedSplash from "@/components/AnimatedSplash";
 import Toast from "@/components/Toast";
 import ReviewPrompt from "@/components/ReviewPrompt";
 import { useIsOnline } from "@/lib/connection";
@@ -38,14 +36,6 @@ import {
   registerForPushNotifications,
 } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
-
-// Hold the orange screen open until AnimatedSplash has painted over it.
-//
-// At module scope on purpose: inside a component this runs after the first
-// frame, and that frame is exactly the flash we're preventing. Rejection is
-// ignored — it throws only when the splash is already gone, which is not a
-// reason to fail a launch.
-SplashScreen.preventAutoHideAsync().catch(() => {});
 
 /**
  * expo-router renders this instead of the screen when a render throws.
@@ -116,10 +106,6 @@ function RootNavigator() {
   const t = useTranslate();
 
   const [ready, setReady] = useState(false);
-  // Separate from `ready`: the app can be ready while the splash is still
-  // playing its exit, and the navigator needs to be mounted underneath it by
-  // then or the reveal shows an empty screen.
-  const [splashDone, setSplashDone] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   // From the shared stores rather than local copies: writing either one has
   // to re-run the gate below, or the two screens bounce off each other.
@@ -283,22 +269,15 @@ function RootNavigator() {
     }
   }, [ready, seenTour, signedIn, guest, segments, router]);
 
-  const appReady = ready && seenTour !== null;
+  if (!ready || seenTour === null) return null;
 
-  // The navigator is not mounted until the gate resolves — routing decisions
-  // depend on `seenTour`, and mounting early puts someone on a screen the gate
-  // is about to move them off. The splash covers that gap instead of `null`,
-  // which is what used to hand the native splash over to an empty rectangle.
   return (
     // An explicit flex container: the banner and the navigator are siblings,
     // so the navigator needs something to fill the space that's left.
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Light icons while the orange is up regardless of theme — dark status
-          icons on #fc5430 are barely legible. Reverts as the splash leaves. */}
-      <StatusBar style={!splashDone ? "light" : scheme === "dark" ? "light" : "dark"} />
+      <StatusBar style={scheme === "dark" ? "light" : "dark"} />
       {/* Above the navigator so no screen can forget it. */}
       <OfflineBanner />
-      {appReady && (
       <SafeAreaInsetsContext.Provider value={navigatorInsets}>
         <Stack
         screenOptions={{
@@ -430,7 +409,6 @@ function RootNavigator() {
         />
         </Stack>
       </SafeAreaInsetsContext.Provider>
-      )}
 
       {/*
         AFTER the navigator, deliberately. These paint over whatever screen is
@@ -445,16 +423,6 @@ function RootNavigator() {
       <Toast />
       {/* One dialog for an ask triggered from five screens. */}
       <ReviewPrompt />
-
-      {/*
-        Last of all, so it covers everything — same reason the toast sits after
-        the navigator. It unmounts itself once its exit animation is done, and
-        force-unmounts on a timer if that animation is ever interrupted, since
-        a splash that never leaves is an app that never starts.
-      */}
-      {!splashDone && (
-        <AnimatedSplash appReady={appReady} onFinished={() => setSplashDone(true)} />
-      )}
     </View>
   );
 }

@@ -51,9 +51,7 @@
     "test:email-typos": "npx tsx lib/emailTypos.test.ts",
     "test:chart": "npx tsx lib/chartGeometry.test.ts",
     "test:linkify": "npx tsx lib/linkify.test.ts",
-    "lint": "expo lint",
-    "test:splash": "npx tsx lib/splashCurves.test.ts",
-    "test:splash-config": "node lib/splashConfig.check.mjs"
+    "lint": "expo lint"
   },
   "private": true
 }
