@@ -330,6 +330,36 @@ the more official of the two.
 If neither answers by September, that is the answer: the programme isn't
 staffed for this, and the effort belongs somewhere else.
 
+### Walmart — scraping is ruled out, don't retry it
+
+Tested properly, cost nothing, and the answer is no. Recorded so this doesn't
+get re-attempted from scratch:
+
+| Route | Result |
+| ----- | ------ |
+| Railway (datacenter IP) | Refused the first request of an idle minute, twice. Reputation-based |
+| Cloudflare Worker | HTTP 200 with an identical 15KB challenge page, 12/12. No `__NEXT_DATA__` |
+| Geonode, datacenter | 422 `UNPROCESSABLE_CONTENT`, `retryable: false` |
+| Geonode, residential | 422, same |
+| Geonode, residential + JS render | 422, same |
+
+The scraper itself is fine — `walmart.ts` parses `__NEXT_DATA__` correctly and
+always did. **The blocker is entirely which IP the request comes from**, and
+cheap infrastructure does not solve it. Cloudflare's ranges are as well known
+for this as any datacenter's, and Geonode's own service reports it cannot
+process the page at all.
+
+Worth knowing even if something did work: Sweep races stores against a
+12-second search deadline. Geonode's residential attempts took 11–18 seconds
+just to fail, so a working version at that latency would time out on every
+search and only ever appear in scheduled checks. A store that exists in price
+alerts but never in search results is a confusing half-feature, not a win.
+
+**What's left:** the official Content Provider API, which is the two unanswered
+emails, or a Bright Data-class provider at real money. Neither is worth chasing
+before there's revenue, and neither blocks anything — three stores are live and
+Best Buy is landing.
+
 ### Walmart — check before applying
 
 The right programme is the **Content Provider API**, reached through the
