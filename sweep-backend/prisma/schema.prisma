@@ -9,26 +9,26 @@ datasource db {
 }
 
 model User {
-  id           String   @id
-  email        String   @unique
+  id        String   @id
+  email     String   @unique
   // Public display name on the leaderboard. Null until the user picks one, in
   // which case they show as an anonymous "Sweeper #abcd" — a leaderboard must
   // never expose email addresses.
-  username     String?  @unique
-  createdAt    DateTime @default(now())
+  username  String?  @unique
+  createdAt DateTime @default(now())
 
-  wallet            Wallet?
-  trackedProducts   TrackedProduct[]
-  transactions      Transaction[]
-  budgetEntries     BudgetEntry[]
-  budgetLimits      BudgetLimit[]
-  savedSearches     SavedSearch[]
-  promoRedemptions  PromoCodeRedemption[]
-  pushTokens        PushToken[]
-  notifications     Notification[]
-  dealsFound        Deal[]   @relation("DealFinder")
-  lists             List[]
-  cartItems         CartItem[]
+  wallet           Wallet?
+  trackedProducts  TrackedProduct[]
+  transactions     Transaction[]
+  budgetEntries    BudgetEntry[]
+  budgetLimits     BudgetLimit[]
+  savedSearches    SavedSearch[]
+  promoRedemptions PromoCodeRedemption[]
+  pushTokens       PushToken[]
+  notifications    Notification[]
+  dealsFound       Deal[]                @relation("DealFinder")
+  lists            List[]
+  cartItems        CartItem[]
 }
 
 // One row per device a user has granted notification permission on. A user can
@@ -37,7 +37,7 @@ model User {
 model PushToken {
   id         String   @id @default(uuid())
   token      String   @unique // ExponentPushToken[...]
-  platform   String?  // "ios" | "android"
+  platform   String? // "ios" | "android"
   createdAt  DateTime @default(now())
   lastUsedAt DateTime @default(now())
 
@@ -48,15 +48,25 @@ model PushToken {
 }
 
 model Wallet {
-  id                String    @id @default(uuid())
-  tier              String    @default("free") // "free" | "pro" | "ultimate"
-  tierExpiresAt     DateTime?
-  xp                Int       @default(0)
-  searchesUsedToday Int       @default(0)
+  id            String    @id @default(uuid())
+  tier          String    @default("free") // "free" | "pro" | "ultimate"
+  tierExpiresAt DateTime?
+
+  // A promo grant lives in its own two columns rather than sharing `tier`.
+  //
+  // Sharing looked simpler and is a trap: a paying Pro subscriber who redeems
+  // a 14-day Ultimate code would have their paid tier overwritten, and drop to
+  // FREE when the promo lapsed — still paying, silently downgraded. Kept apart,
+  // effectiveTier() just takes whichever of the two is better right now, and
+  // neither can damage the other.
+  promoTier          String? // "pro" | "ultimate", null when no grant
+  promoExpiresAt     DateTime?
+  xp                 Int       @default(0)
+  searchesUsedToday  Int       @default(0)
   // Extra searches unlocked today by watching rewarded ads, on top of the
   // tier's base allowance. Resets on the same daily boundary.
-  bonusSearchesToday Int      @default(0)
-  searchesResetAt   DateTime  @default(now())
+  bonusSearchesToday Int       @default(0)
+  searchesResetAt    DateTime  @default(now())
 
   // Fixed times of day this user's products are checked, as local hours (0-23).
   // Free tier picks 2 — that's what bounds scraping load predictably instead of
@@ -64,9 +74,9 @@ model Wallet {
   // interval instead.
   // Manual "Check price now" budget. Free gets a daily count, Pro a cooldown
   // between checks, Ultimate neither — see TIER_LIMITS.
-  manualChecksToday Int       @default(0)
-  manualChecksResetAt DateTime @default(now())
-  lastManualCheckAt DateTime?
+  manualChecksToday   Int       @default(0)
+  manualChecksResetAt DateTime  @default(now())
+  lastManualCheckAt   DateTime?
 
   // Product lookups — one enriched page about one product. Metered separately
   // from search because they are different actions and spending one shouldn't
@@ -76,28 +86,28 @@ model Wallet {
   // which product lookup replaced. Kept rather than renamed: a column rename
   // is a migration plus a window where old and new backends disagree about a
   // live table, bought for nothing but a nicer name.
-  sweepsUsedToday   Int       @default(0)
-  sweepsResetAt     DateTime  @default(now())
+  sweepsUsedToday Int      @default(0)
+  sweepsResetAt   DateTime @default(now())
 
   // Manual "check my radars now" budget. This is what makes the free tier's
   // radar bounded: nothing runs unless someone taps, and they can only tap so
   // many times a day.
-  radarRefreshesToday Int      @default(0)
+  radarRefreshesToday   Int      @default(0)
   radarRefreshesResetAt DateTime @default(now())
   // New radars + keyword edits. Stops delete-and-recreate (or rename) churn
   // from turning a 1-radar allowance into an unlimited search box.
-  radarChangesToday Int        @default(0)
-  radarChangesResetAt DateTime @default(now())
+  radarChangesToday     Int      @default(0)
+  radarChangesResetAt   DateTime @default(now())
 
-  checkHours        Int[]     @default([9, 21])
+  checkHours  Int[]    @default([9, 21])
   // Minute offset for the interval tiers, anchored to local midnight.
   // Pro (every 2h) with 35 => 00:35, 02:35, 04:35…
   // Ultimate (every 30m) with 5 => 00:05, 00:35, 01:05…
-  checkMinute       Int       @default(0)
+  checkMinute Int      @default(0)
   // IANA zone, so "9am" means 9am where the user is, and survives DST. Stored
   // rather than an offset because an offset goes stale twice a year.
-  timezone          String    @default("UTC")
-  updatedAt         DateTime  @updatedAt
+  timezone    String   @default("UTC")
+  updatedAt   DateTime @updatedAt
 
   user   User   @relation(fields: [userId], references: [id])
   userId String @unique
@@ -141,34 +151,34 @@ model Notification {
 // across all users tracking the same item, so a single check refreshes
 // the price for everyone at once (same principle as Fervor's odds polling).
 model Product {
-  id            String    @id @default(uuid())
-  retailer      String    // "amazon" | "walmart" | "target" | "bestbuy" | "ebay"
-  retailerId    String    // ASIN / item ID / SKU — however that retailer identifies it
-  url           String
-  title         String
-  imageUrl      String?
-  currentPrice  Int?      // cents, null if not yet checked
-  listPrice     Int?      // cents — retailer's "was"/list price, when shown
-  currency      String    @default("USD")
-  availability  String?   // free-text from the retailer, normalized where possible
-  rating        Float?
-  ratingCount   Int?
+  id                String    @id @default(uuid())
+  retailer          String // "amazon" | "walmart" | "target" | "bestbuy" | "ebay"
+  retailerId        String // ASIN / item ID / SKU — however that retailer identifies it
+  url               String
+  title             String
+  imageUrl          String?
+  currentPrice      Int? // cents, null if not yet checked
+  listPrice         Int? // cents — retailer's "was"/list price, when shown
+  currency          String    @default("USD")
+  availability      String? // free-text from the retailer, normalized where possible
+  rating            Float?
+  ratingCount       Int?
   // Marketplace seller feedback, kept separate from `rating` because 99.3%
   // positive feedback and 4.4 stars on a product are not the same claim.
   // eBay is the only source today. Added so the search cache can rebuild a
   // result faithfully rather than quietly dropping the seller half.
   sellerRating      Float?
   sellerRatingCount Int?
-  lastCheckedAt DateTime?
+  lastCheckedAt     DateTime?
   // Outcome of the most recent check. Mirrors ScrapeCheck.status but kept here
   // so a stale/blocked product can be filtered without joining the log.
-  lastStatus    String?   // "success" | "failed" | "blocked"
+  lastStatus        String? // "success" | "failed" | "blocked"
   // Consecutive checks that came back at the same price. Drives adaptive
   // backoff: an item that hasn't moved in weeks doesn't need checking as often
   // as one that's actively changing. Lives on Product, not TrackedProduct,
   // because checks are shared — if it's stable, it's stable for everyone.
-  unchangedChecks Int     @default(0)
-  createdAt     DateTime  @default(now())
+  unchangedChecks   Int       @default(0)
+  createdAt         DateTime  @default(now())
 
   priceHistory  PriceHistory[]
   trackedBy     TrackedProduct[]
@@ -186,7 +196,7 @@ model Product {
 
 model PriceHistory {
   id        String   @id @default(uuid())
-  price     Int      // cents
+  price     Int // cents
   checkedAt DateTime @default(now())
 
   product   Product @relation(fields: [productId], references: [id])
@@ -199,7 +209,7 @@ model PriceHistory {
 // (custom threshold, notification state) live here, not on Product.
 model TrackedProduct {
   id              String    @id @default(uuid())
-  customThreshold Int?      // cents — only notify below this (Pro and above)
+  customThreshold Int? // cents — only notify below this (Pro and above)
   addedAt         DateTime  @default(now())
   lastNotifiedAt  DateTime?
   // What it cost when this user started watching, in cents. Stored rather than
@@ -221,15 +231,15 @@ model TrackedProduct {
 // raw material for scraper health monitoring — a retailer changing its page
 // structure shows up as a failure-rate spike, not as silent staleness.
 model ScrapeCheck {
-  id        String   @id @default(uuid())
-  retailer  String
-  status    String   // "success" | "failed" | "blocked"
+  id         String   @id @default(uuid())
+  retailer   String
+  status     String // "success" | "failed" | "blocked"
   // Truncated response body or error message, kept so the alert email can show
   // WHY it broke (structure change vs. actively blocked vs. timeout) without
   // needing to re-run the scrape to find out.
-  detail    String?
+  detail     String?
   durationMs Int?
-  checkedAt DateTime @default(now())
+  checkedAt  DateTime @default(now())
 
   product   Product? @relation(fields: [productId], references: [id])
   productId String?
@@ -240,9 +250,9 @@ model ScrapeCheck {
 // Tracks when we last alerted about a given retailer, so a sustained outage
 // sends one email instead of one per failed check.
 model ScraperAlert {
-  id          String   @id @default(uuid())
-  retailer    String   @unique
-  lastAlertAt DateTime @default(now())
+  id          String    @id @default(uuid())
+  retailer    String    @unique
+  lastAlertAt DateTime  @default(now())
   resolvedAt  DateTime?
 }
 
@@ -302,12 +312,12 @@ model SearchCache {
 // cost when it went in, so the cart can say "this has dropped £12 since you
 // added it" — or that it has gone up, which is the more useful warning.
 model CartItem {
-  id          String   @id @default(uuid())
-  quantity    Int      @default(1)
+  id         String   @id @default(uuid())
+  quantity   Int      @default(1)
   // Cents, at the moment it was added. Null when the product had no price
   // then, which is rare but shouldn't block adding it.
-  priceAtAdd  Int?
-  addedAt     DateTime @default(now())
+  priceAtAdd Int?
+  addedAt    DateTime @default(now())
 
   user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
@@ -355,10 +365,10 @@ model AdReward {
 // else is the one worth crediting.
 model Deal {
   id                  String   @id @default(uuid())
-  previousPrice       Int      // cents
-  newPrice            Int      // cents
+  previousPrice       Int // cents
+  newPrice            Int // cents
   percentBelowAverage Int
-  averagePrice        Int      // cents, what "normal" was at the time
+  averagePrice        Int // cents, what "normal" was at the time
   createdAt           DateTime @default(now())
 
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -398,11 +408,11 @@ model List {
 // real scraping, and a 100-item wishlist shouldn't quietly become 100 tracked
 // products.
 model ListItem {
-  id        String   @id @default(uuid())
-  note      String?
-  addedAt   DateTime @default(now())
+  id      String   @id @default(uuid())
+  note    String?
+  addedAt DateTime @default(now())
   // Marked off by the list owner, or by whoever they shared it with.
-  claimed   Boolean  @default(false)
+  claimed Boolean  @default(false)
 
   list      List    @relation(fields: [listId], references: [id], onDelete: Cascade)
   listId    String
@@ -415,7 +425,7 @@ model ListItem {
 
 model BudgetEntry {
   id          String   @id @default(uuid())
-  amount      Int      // cents
+  amount      Int // cents
   category    String
   description String?
   spentAt     DateTime @default(now())
@@ -457,18 +467,24 @@ model BudgetEntry {
 model SavedSearch {
   id          String   @id @default(uuid())
   keyword     String
-  /** Cents. Null means "tell me about anything notable", not "never alert". */
+  /**
+   * Cents. Null means "tell me about anything notable", not "never alert".
+   */
   targetPrice Int?
   createdAt   DateTime @default(now())
 
-  lastCheckedAt DateTime?
-  nextCheckAt   DateTime  @default(now())
-  /** Feeds the same adaptive backoff that tracked products use. */
-  unchangedChecks Int @default(0)
+  lastCheckedAt   DateTime?
+  nextCheckAt     DateTime  @default(now())
+  /**
+   * Feeds the same adaptive backoff that tracked products use.
+   */
+  unchangedChecks Int       @default(0)
 
-  /** Cheapest price we've already told this user about, so we don't repeat it. */
-  lastBestPrice Int?
-  lastMatchAt   DateTime?
+  /**
+   * Cheapest price we've already told this user about, so we don't repeat it.
+   */
+  lastBestPrice  Int?
+  lastMatchAt    DateTime?
   lastNotifiedAt DateTime?
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -480,7 +496,7 @@ model SavedSearch {
 
 model BudgetLimit {
   id        String   @id @default(uuid())
-  amount    Int      // cents
+  amount    Int // cents
   category  String   @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -497,7 +513,7 @@ model BudgetLimit {
 model Transaction {
   id        String   @id @default(uuid())
   xpChange  Int
-  reason    String   // "deal_found" | "first_track" | "milestone"
+  reason    String // "deal_found" | "first_track" | "milestone"
   // Which product earned it, when applicable. Drives the per-product cooldown
   // that stops someone farming XP off one item bouncing in price.
   productId String?
@@ -518,9 +534,9 @@ model Transaction {
 model PromoCode {
   id                 String    @id @default(uuid())
   code               String    @unique
-  grantsTier         String    // "pro" | "ultimate"
-  grantsDurationDays Int       // e.g. 7 for a week free
-  maxRedemptions     Int?      // null = unlimited
+  grantsTier         String // "pro" | "ultimate"
+  grantsDurationDays Int // e.g. 7 for a week free
+  maxRedemptions     Int? // null = unlimited
   timesRedeemed      Int       @default(0)
   expiresAt          DateTime? // code itself stops working after this date, if set
   createdAt          DateTime  @default(now())
@@ -529,8 +545,8 @@ model PromoCode {
 }
 
 model PromoCodeRedemption {
-  id          String   @id @default(uuid())
-  redeemedAt  DateTime @default(now())
+  id         String   @id @default(uuid())
+  redeemedAt DateTime @default(now())
 
   user        User      @relation(fields: [userId], references: [id])
   userId      String

@@ -50,3 +50,12 @@ export const SCRAPE_LIMIT = { max: 10, timeWindow: "1 minute" };
 
 /** Auth-adjacent writes, where repeated attempts are the attack. */
 export const SENSITIVE_LIMIT = { max: 20, timeWindow: "1 minute" };
+
+/**
+ * Promo redemption, where guessing IS the attack.
+ *
+ * A code is short enough to brute-force and a hit is worth real money, so this
+ * is deliberately far tighter than SENSITIVE_LIMIT. Nobody legitimately types
+ * more than a handful of codes a minute — they're reading one off a screen.
+ */
+export const REDEEM_LIMIT = { max: 5, timeWindow: "1 minute" };

@@ -1194,3 +1194,47 @@ export function deleteAccount(password: string) {
     authRecordRemoved: boolean;
   }>("/me", { method: "DELETE", body: { confirm: true, password } });
 }
+
+// ---- promo codes -------------------------------------------------------------
+//
+// A grant is not a subscription, and the app has to keep them apart. Someone on
+// granted Pro must not be offered "Cancel subscription" — that opens Play and
+// shows them nothing to cancel.
+
+export interface PromoGrant {
+  tier: string;
+  /** ISO date. */
+  expiresAt: string;
+  daysLeft: number;
+}
+
+export interface PromoStatus {
+  /** Null when there's no active grant. */
+  grant: PromoGrant | null;
+  effectiveTier: string;
+}
+
+export type RedeemResult =
+  | {
+      ok: true;
+      tier: string;
+      expiresAt: string;
+      days: number;
+      effectiveTier: string;
+      /** True when a paid subscription already beats this grant. */
+      overshadowed: boolean;
+      message: string;
+    }
+  | { ok: false; reason: string; message: string };
+
+/**
+ * Failures come back as 200 with ok:false and a message written for the user,
+ * so this returns the body either way rather than throwing on a bad code.
+ */
+export function redeemPromoCode(code: string) {
+  return request<RedeemResult>("/promo/redeem", { method: "POST", body: { code } });
+}
+
+export function getPromoStatus() {
+  return request<PromoStatus>("/promo/status");
+}

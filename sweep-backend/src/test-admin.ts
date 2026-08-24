@@ -62,7 +62,7 @@ try {
 
   // The handlers wired to onclick must actually exist, or the buttons are
   // decoration. A parse error is one way to lose them; a rename is another.
-  for (const fn of ["signIn", "signOut", "announce", "useTemplate", "counts", "load"]) {
+  for (const fn of ["signIn", "signOut", "announce", "useTemplate", "counts", "load", "makeCode", "loadPromo"]) {
     check(`${fn}() is defined`, new RegExp(`function ${fn}\\s*\\(`).test(script));
   }
 
@@ -84,6 +84,44 @@ try {
     method: "GET", url: "/admin/stats", headers: { "x-admin-key": KEY },
   });
   check("the right key is accepted", right.statusCode === 200, right.statusCode);
+
+  console.log("\n— promo codes are guarded —");
+  const promoNoKey = await app.inject({ method: "GET", url: "/admin/promo" });
+  check("listing needs the key", promoNoKey.statusCode === 401, promoNoKey.statusCode);
+
+  const makeNoKey = await app.inject({
+    method: "POST", url: "/admin/promo", payload: { tier: "pro", days: 14 },
+  });
+  check("creating needs the key", makeNoKey.statusCode === 401, makeNoKey.statusCode);
+
+  const made = await app.inject({
+    method: "POST",
+    url: "/admin/promo",
+    headers: { "x-admin-key": KEY },
+    payload: { tier: "pro", days: 14, maxRedemptions: 5 },
+  });
+  check("creating works with the key", made.statusCode === 200, made.statusCode);
+  const createdCode: string | undefined = made.json().code;
+  check("and returns the code", typeof createdCode === "string" && createdCode.length >= 4, createdCode);
+
+  const bad = await app.inject({
+    method: "POST",
+    url: "/admin/promo",
+    headers: { "x-admin-key": KEY },
+    payload: { tier: "free", days: 14 },
+  });
+  check("a free-tier code is rejected", bad.statusCode === 400, bad.statusCode);
+
+  const listed = await app.inject({
+    method: "GET", url: "/admin/promo", headers: { "x-admin-key": KEY },
+  });
+  check("listing works with the key", listed.statusCode === 200, listed.statusCode);
+  check("the new code is in the list",
+    listed.json().codes.some((c: { code: string }) => c.code === createdCode));
+
+  if (createdCode) {
+    await prisma.promoCode.deleteMany({ where: { code: createdCode } });
+  }
 
   console.log("\n— refuses when unconfigured —");
   delete process.env.ADMIN_API_KEY;

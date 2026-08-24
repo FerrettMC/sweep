@@ -6,7 +6,15 @@
 
 import { useCallback, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Button, ErrorBanner, Loading, Screen, SectionTitle } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
@@ -21,12 +29,15 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import UsernameSheet from "@/components/UsernameSheet";
 import {
   ApiError,
+  type PromoGrant,
   deleteAccount,
   getMyXp,
   getNotificationStatus,
   getPlans,
+  getPromoStatus,
   getQuota,
   getRetailerStatus,
+  redeemPromoCode,
 } from "@/lib/api";
 import { pluralize, retailerColor } from "@/lib/format";
 import { setGuestMode } from "@/lib/guestMode";
@@ -74,17 +85,61 @@ export default function ProfileScreen() {
   const [username, setUsernameValue] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
+  // A granted tier is not a subscription. Kept separate from `tier` so the
+  // screen can show what someone has without offering to cancel something
+  // they never bought.
+  const [grant, setGrant] = useState<PromoGrant | null>(null);
+  const [codeInput, setCodeInput] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
+  const [codeNote, setCodeNote] = useState<{ text: string; bad: boolean } | null>(null);
+
+  const onRedeem = useCallback(async () => {
+    const code = codeInput.trim();
+    if (!code || redeeming) return;
+
+    setRedeeming(true);
+    setCodeNote(null);
+    try {
+      const result = await redeemPromoCode(code);
+      if (result.ok) {
+        setCodeInput("");
+        setCodeNote({ text: result.message, bad: false });
+        // Re-read rather than patching state from the response: the tier that
+        // matters is whatever the server now says, and it may be higher than
+        // what this code granted.
+        await load();
+      } else {
+        setCodeNote({ text: result.message, bad: true });
+      }
+    } catch {
+      setCodeNote({ text: t("profile.codeOffline"), bad: true });
+    } finally {
+      setRedeeming(false);
+    }
+    // `load` is defined below and stable for the lifetime of the screen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [codeInput, redeeming, t]);
 
   const load = useCallback(async () => {
-    const [{ data: session }, quotaResult, statusResult, pushResult, xpResult, plansResult] =
-      await Promise.all([
-        supabase.auth.getSession(),
-        getQuota().catch(() => null),
-        getRetailerStatus().catch(() => null),
-        getNotificationStatus().catch(() => null),
-        getMyXp().catch(() => null),
-        getPlans().catch(() => null),
-      ]);
+    const [
+      { data: session },
+      quotaResult,
+      statusResult,
+      pushResult,
+      xpResult,
+      plansResult,
+      promoResult,
+    ] = await Promise.all([
+      supabase.auth.getSession(),
+      getQuota().catch(() => null),
+      getRetailerStatus().catch(() => null),
+      getNotificationStatus().catch(() => null),
+      getMyXp().catch(() => null),
+      getPlans().catch(() => null),
+      // An older server has no /promo/status. Null means "no grant", which is
+      // exactly how this renders anyway.
+      getPromoStatus().catch(() => null),
+    ]);
 
     setEmail(session.session?.user.email ?? null);
     if (quotaResult) {
@@ -95,6 +150,7 @@ export default function ProfileScreen() {
     setPlanSummary(
       plansResult?.plans.find((p) => p.tier === quotaResult?.tier)?.summary ?? null,
     );
+    setGrant(promoResult?.grant ?? null);
     setRetailers(statusResult?.retailers ?? null);
     setPushRegistered(pushResult?.registered ?? null);
     setUsernameValue(xpResult?.username ?? null);
@@ -229,7 +285,7 @@ export default function ProfileScreen() {
           {/* Only for someone actually paying. Cancelling opens Play, because
               Google requires it to happen there — an app can't quietly make
               leaving difficult. */}
-          {tier && tier !== "free" && (
+          {tier && tier !== "free" && !grant && (
             <Pressable
               onPress={async () => {
                 const productId = await activeProductId();
@@ -244,10 +300,58 @@ export default function ProfileScreen() {
               <Ionicons name="open-outline" size={14} color={colors.textTertiary} />
             </Pressable>
           )}
+          {grant && (
+            <Text style={styles.grantNote}>
+              {t("profile.grantActive")
+                .replace("{tier}", grant.tier.toUpperCase())
+                .replace("{days}", String(grant.daysLeft))}
+            </Text>
+          )}
           <Text style={styles.comparePlans}>
             {tier === null || tier === "free" ? t("profile.comparePlans") : t("profile.seeIncluded")}
           </Text>
         </Pressable>
+
+        {!isGuest && (
+          <View style={styles.card}>
+            <Text style={styles.label}>{t("profile.haveACode")}</Text>
+            <Text style={styles.sub}>{t("profile.haveACodeBody")}</Text>
+            <View style={styles.codeRow}>
+              <TextInput
+                value={codeInput}
+                onChangeText={(text) => {
+                  setCodeInput(text);
+                  setCodeNote(null);
+                }}
+                placeholder={t("profile.codePlaceholder")}
+                placeholderTextColor={colors.textTertiary}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                editable={!redeeming}
+                style={styles.codeInput}
+                onSubmitEditing={onRedeem}
+                returnKeyType="go"
+              />
+              <Pressable
+                onPress={onRedeem}
+                disabled={redeeming || !codeInput.trim()}
+                style={[
+                  styles.codeButton,
+                  (redeeming || !codeInput.trim()) && styles.codeButtonDisabled,
+                ]}
+              >
+                <Text style={styles.codeButtonText}>
+                  {redeeming ? t("profile.redeeming") : t("profile.redeem")}
+                </Text>
+              </Pressable>
+            </View>
+            {codeNote && (
+              <Text style={[styles.codeNote, codeNote.bad && styles.codeNoteBad]}>
+                {codeNote.text}
+              </Text>
+            )}
+          </View>
+        )}
 
         <View style={styles.card}>
           <View style={styles.planRow}>
@@ -679,6 +783,50 @@ const makeStyles = (colors: Palette) =>
       fontWeight: "700",
       marginTop: spacing.xs,
     },
+    grantNote: {
+      color: colors.success,
+      fontSize: type.caption.fontSize,
+      fontWeight: "600",
+      marginTop: spacing.xs,
+    },
+    codeRow: {
+      flexDirection: "row",
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+    },
+    codeInput: {
+      flex: 1,
+      backgroundColor: colors.surfaceRaised,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+      // Codes are read off a screen and typed in; the extra tracking makes it
+      // much easier to check a character against the source.
+      letterSpacing: 1.5,
+    },
+    codeButton: {
+      backgroundColor: colors.accent,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.lg,
+      justifyContent: "center",
+    },
+    codeButtonDisabled: { opacity: 0.5 },
+    codeButtonText: {
+      color: colors.background,
+      fontWeight: "800",
+      fontSize: type.label.fontSize,
+    },
+    codeNote: {
+      color: colors.success,
+      fontSize: type.caption.fontSize,
+      fontWeight: "600",
+      marginTop: spacing.sm,
+    },
+    codeNoteBad: { color: colors.danger },
     pushNote: {
       color: colors.warning,
       fontSize: type.caption.fontSize,

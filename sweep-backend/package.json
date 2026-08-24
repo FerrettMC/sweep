@@ -41,7 +41,8 @@
     "test:cart": "tsx src/test-cart.ts",
     "test:walmart": "tsx src/test-walmart.ts",
     "test:discount": "tsx src/test-discount.ts",
-    "bandwidth-model": "tsx src/bandwidth-model.ts"
+    "bandwidth-model": "tsx src/bandwidth-model.ts",
+    "test:promo": "tsx src/test-promo.ts"
   },
   "keywords": [],
   "author": "",

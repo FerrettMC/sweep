@@ -11,7 +11,11 @@ import { type Retailer, type ScrapedProduct, isRetailer } from "./scrapers/types
 import { recordCheck } from "./health.js";
 import { backoffMultiplier, effectiveIntervalMinutes } from "./backoff.js";
 import { isDueAtFixedTimes, isDueAtInterval } from "./schedule.js";
-import { TIER_LIMITS, type Tier } from "./tiers.js";
+import {
+  TIER_LIMITS,
+  WALLET_TIER_SELECT,
+  type Tier,
+} from "./tiers.js";
 
 export interface CheckOutcome {
   productId: string;
@@ -134,8 +138,7 @@ export async function findDueProducts(limit = 200): Promise<string[]> {
         select: {
           wallet: {
             select: {
-              tier: true,
-              tierExpiresAt: true,
+              ...WALLET_TIER_SELECT,
               checkHours: true,
               checkMinute: true,
               timezone: true,

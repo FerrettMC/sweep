@@ -14,7 +14,7 @@ import { prisma } from "./prisma.js";
 import { RETAILERS, RETAILER_LABELS, type Retailer } from "./scrapers/types.js";
 import { cooldownRemaining } from "./scrapers/cooldown.js";
 import { isRetailerEnabled } from "./scrapers/index.js";
-import { effectiveTier } from "./tiers.js";
+import { WALLET_TIER_SELECT, effectiveTier } from "./tiers.js";
 
 export interface AdminStats {
   users: { total: number; newToday: number; newThisWeek: number };
@@ -78,8 +78,7 @@ export async function getAdminStats(): Promise<AdminStats> {
     prisma.user.count({ where: { createdAt: { gte: weekAgo } } }),
     prisma.wallet.findMany({
       select: {
-        tier: true,
-        tierExpiresAt: true,
+        ...WALLET_TIER_SELECT,
         searchesUsedToday: true,
         searchesResetAt: true,
         sweepsUsedToday: true,
@@ -97,8 +96,7 @@ export async function getAdminStats(): Promise<AdminStats> {
       orderBy: [{ searchesUsedToday: "desc" }, { sweepsUsedToday: "desc" }],
       take: 8,
       select: {
-        tier: true,
-        tierExpiresAt: true,
+        ...WALLET_TIER_SELECT,
         searchesUsedToday: true,
         sweepsUsedToday: true,
         user: { select: { email: true } },

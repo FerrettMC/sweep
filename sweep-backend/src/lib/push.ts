@@ -19,7 +19,7 @@ import {
   recordNotification,
   recordNotifications,
 } from "./notificationFeed.js";
-import { TIER_LIMITS, type Tier, effectiveTier } from "./tiers.js";
+import { TIER_LIMITS, WALLET_TIER_SELECT, effectiveTier, type Tier } from "./tiers.js";
 
 // No access token needed for sending to Expo push tokens; EXPO_ACCESS_TOKEN
 // only matters if you enable enhanced push security in your Expo account.
@@ -85,7 +85,7 @@ export async function notifyPriceDrop({
       user: {
         include: {
           pushTokens: true,
-          wallet: { select: { tier: true, tierExpiresAt: true } },
+          wallet: { select: WALLET_TIER_SELECT },
         },
       },
     },

@@ -279,26 +279,70 @@ export const GUEST_LIMITS = {
 export const MAX_REWARDED_SEARCHES_PER_DAY = 3;
 
 /**
- * Resolve the tier actually in force. A wallet can carry a tier that has since
- * expired (promo code lapsed, subscription ended) — expiry is checked here, at
- * read time, so nothing depends on a background job having run.
+ * What a wallet is entitled to, from one source of entitlement.
+ *
+ * Expiry is checked here, at read time, so nothing depends on a background job
+ * having run. A null expiry never lapses — that's deliberate for a paid tier
+ * (see billing.ts) and impossible for a promo, which always sets one.
+ */
+function granted(tier: string | null, expiresAt: Date | null): Tier {
+  if (!tier) return "free";
+  const claimed = tier as Tier;
+  if (!TIERS.includes(claimed)) return "free";
+  if (claimed === "free") return "free";
+  if (expiresAt && expiresAt.getTime() < Date.now()) return "free";
+  return claimed;
+}
+
+/** Higher index wins: TIERS is ordered free < pro < ultimate. */
+function better(a: Tier, b: Tier): Tier {
+  return TIERS.indexOf(a) >= TIERS.indexOf(b) ? a : b;
+}
+
+/**
+ * Resolve the tier actually in force, across both what they pay for and what
+ * they've been granted.
+ *
+ * The two are deliberately independent. Whichever is better right now wins,
+ * and when it lapses the other is still standing — so a promo can only ever
+ * add to what someone has, never take it away. A paying Pro subscriber can
+ * redeem a week of Ultimate and land back on Pro, not on free.
+ *
+ * Promo fields are optional in the signature so a caller that selects only the
+ * paid columns still compiles. That's a real risk of silently ignoring a grant,
+ * so callers that gate features MUST select all four — see WALLET_TIER_SELECT.
  */
 export function effectiveTier(wallet: {
   tier: string;
   tierExpiresAt: Date | null;
+  promoTier?: string | null;
+  promoExpiresAt?: Date | null;
 }): Tier {
-  const claimed = wallet.tier as Tier;
-  if (!TIERS.includes(claimed)) return "free";
-  if (claimed === "free") return "free";
-  if (wallet.tierExpiresAt && wallet.tierExpiresAt.getTime() < Date.now()) {
-    return "free";
-  }
-  return claimed;
+  return better(
+    granted(wallet.tier, wallet.tierExpiresAt),
+    granted(wallet.promoTier ?? null, wallet.promoExpiresAt ?? null),
+  );
 }
+
+/**
+ * The columns effectiveTier needs, as a Prisma select.
+ *
+ * Exists so "which fields decide a tier" is written once. Selecting a subset
+ * still typechecks but quietly under-grants, and that's the kind of bug that
+ * shows up as a support email rather than a stack trace.
+ */
+export const WALLET_TIER_SELECT = {
+  tier: true,
+  tierExpiresAt: true,
+  promoTier: true,
+  promoExpiresAt: true,
+} as const;
 
 export function limitsFor(wallet: {
   tier: string;
   tierExpiresAt: Date | null;
+  promoTier?: string | null;
+  promoExpiresAt?: Date | null;
 }): TierLimits {
   return TIER_LIMITS[effectiveTier(wallet)];
 }

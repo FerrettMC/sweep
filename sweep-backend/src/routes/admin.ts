@@ -24,8 +24,9 @@
 // form that asks for the key. Everything real is behind /admin/stats.
 
 import type { FastifyInstance } from "fastify";
-import { timingSafeEqual } from "node:crypto";
+import { requireAdmin } from "../lib/adminAuth.js";
 import { getAdminStats } from "../lib/adminStats.js";
+import { createPromoCode, listPromoCodes } from "../lib/promoAdmin.js";
 
 export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin", async (_request, reply) => {
@@ -33,24 +34,43 @@ export async function adminRoutes(app: FastifyInstance) {
     return reply.send(PAGE);
   });
 
-  app.get("/admin/stats", async (request, reply) => {
-    const expected = process.env.ADMIN_API_KEY;
-    if (!expected) {
-      return reply.status(503).send({ error: "ADMIN_API_KEY is not set" });
-    }
-    const provided = request.headers["x-admin-key"];
-    if (typeof provided !== "string" || !secretsMatch(provided, expected)) {
-      return reply.status(401).send({ error: "Unauthorized" });
-    }
+  app.get("/admin/stats", { preHandler: requireAdmin }, async () => {
     return getAdminStats();
   });
-}
 
-function secretsMatch(provided: string, expected: string): boolean {
-  const a = Buffer.from(provided);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
+  app.get("/admin/promo", { preHandler: requireAdmin }, async () => {
+    return { codes: await listPromoCodes() };
+  });
+
+  app.post("/admin/promo", { preHandler: requireAdmin }, async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    try {
+      const created = await createPromoCode({
+        code: typeof body.code === "string" ? body.code : undefined,
+        tier: String(body.tier ?? "pro"),
+        days: Number(body.days ?? 14),
+        maxRedemptions:
+          body.maxRedemptions === null || body.maxRedemptions === undefined || body.maxRedemptions === ""
+            ? null
+            : Number(body.maxRedemptions),
+        expiresInDays:
+          body.expiresInDays === null || body.expiresInDays === undefined || body.expiresInDays === ""
+            ? null
+            : Number(body.expiresInDays),
+      });
+      request.log.info(
+        { code: created.code, tier: created.grantsTier, days: created.grantsDurationDays },
+        "promo code created",
+      );
+      return { ok: true, code: created.code };
+    } catch (err) {
+      // Validation messages here are written for the admin reading them, and
+      // the only reader is authenticated, so passing them through is safe.
+      return reply
+        .status(400)
+        .send({ error: err instanceof Error ? err.message : "Could not create code" });
+    }
+  });
 }
 
 const PAGE = `<!doctype html>
@@ -71,11 +91,17 @@ const PAGE = `<!doctype html>
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em;
        color: var(--dim); margin: 28px 0 10px; }
   .sub { color: var(--dim); font-size: 13px; margin: 0 0 20px; }
-  input, button, textarea {
+  input, button, textarea, select {
     font: inherit; padding: 10px 12px; border-radius: 8px;
     border: 1px solid var(--line); background: transparent; color: inherit;
     width: 100%; margin-bottom: 8px;
   }
+  /* Two fields side by side, stacking on a phone — which is where this page
+     actually gets used. */
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; min-width: 0; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  .dim { color: var(--dim); }
   button { background: #4f46e5; color: #fff; border: 0; font-weight: 700; cursor: pointer; }
   button.secondary { background: transparent; border: 1px solid var(--line); color: inherit; font-weight: 600; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
@@ -121,6 +147,26 @@ const PAGE = `<!doctype html>
   This answers who is driving the Amazon bill.</p>
   <table><thead><tr><th>Account</th><th>Tier</th><th>Searches</th><th>Lookups</th></tr></thead>
   <tbody id="heaviest"></tbody></table>
+
+  <h2>Promo codes</h2>
+  <p class="sub">Grants time on a paid tier. It never touches a real subscription —
+  someone who already pays keeps what they pay for, and the grant is what they
+  fall back on if that ever ends.</p>
+  <div class="row">
+    <select id="pTier">
+      <option value="pro">Pro</option>
+      <option value="ultimate">Ultimate</option>
+    </select>
+    <input id="pDays" type="number" min="1" max="365" value="14" placeholder="Days">
+  </div>
+  <div class="row">
+    <input id="pCode" placeholder="Code (blank = generate one)" autocomplete="off">
+    <input id="pMax" type="number" min="1" placeholder="Max uses (blank = unlimited)">
+  </div>
+  <input id="pExpires" type="number" min="1" placeholder="Code itself expires in N days (blank = never)">
+  <button onclick="makeCode()">Create code</button>
+  <table><thead><tr><th>Code</th><th>Grants</th><th>Used</th><th>Status</th></tr></thead>
+  <tbody id="promo"></tbody></table>
 
   <h2>Send an announcement</h2>
   <p class="sub">Appears in everyone's bell. Tick the box below to buzz their phone too —
@@ -242,6 +288,10 @@ async function load() {
   document.getElementById("stamp").textContent =
     "Updated " + new Date(s.generatedAt).toLocaleTimeString();
 
+  // Separate request, deliberately not awaited: a failure to list codes
+  // shouldn't stop the stats that just arrived from rendering.
+  loadPromo();
+
   document.getElementById("people").innerHTML =
     card("Users", s.users.total) + card("New today", s.users.newToday) +
     card("New this week", s.users.newThisWeek) + card("Tracking", s.usage.tracked) +
@@ -267,6 +317,46 @@ async function load() {
         return "<tr><td>" + h.email + "</td><td>" + h.tier + "</td><td>" + h.searches + "</td><td>" + h.lookups + "</td></tr>";
       }).join("")
     : '<tr><td colspan="4" class="dim">Nothing used yet today.</td></tr>';
+}
+
+async function loadPromo() {
+  const res = await fetch("/admin/promo", { headers: { "x-admin-key": key() } });
+  if (!res.ok) return;
+  const data = await res.json();
+  const rows = data.codes.map(function (c) {
+    const status = c.expired ? "expired" : c.exhausted ? "used up" : "active";
+    const used = c.used + (c.max === null ? " / unlimited" : " / " + c.max);
+    const grants = c.days + "d " + c.tier;
+    const cls = status === "active" ? "" : ' class="dim"';
+    return "<tr" + cls + "><td><code>" + c.code + "</code></td><td>" + grants +
+      "</td><td>" + used + "</td><td>" + status + "</td></tr>";
+  }).join("");
+  document.getElementById("promo").innerHTML = rows ||
+    '<tr><td colspan="4" class="dim">No codes yet.</td></tr>';
+}
+
+async function makeCode() {
+  const days = parseInt(document.getElementById("pDays").value, 10);
+  if (!days || days < 1) return say("Days must be at least 1.", true);
+
+  const res = await fetch("/admin/promo", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-admin-key": key() },
+    body: JSON.stringify({
+      tier: document.getElementById("pTier").value,
+      days: days,
+      code: document.getElementById("pCode").value.trim(),
+      maxRedemptions: document.getElementById("pMax").value.trim(),
+      expiresInDays: document.getElementById("pExpires").value.trim(),
+    }),
+  });
+
+  const data = await res.json().catch(function () { return {}; });
+  if (!res.ok) return say(data.error || "Could not create that code.", true);
+
+  say("Created " + data.code + ".");
+  document.getElementById("pCode").value = "";
+  loadPromo();
 }
 
 async function announce() {
