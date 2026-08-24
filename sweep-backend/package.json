@@ -40,7 +40,8 @@
     "test:admin": "tsx src/test-admin.ts",
     "test:cart": "tsx src/test-cart.ts",
     "test:walmart": "tsx src/test-walmart.ts",
-    "test:discount": "tsx src/test-discount.ts"
+    "test:discount": "tsx src/test-discount.ts",
+    "bandwidth-model": "tsx src/bandwidth-model.ts"
   },
   "keywords": [],
   "author": "",

@@ -377,6 +377,29 @@ a redeploy — no code change, no new release.
 every scheduled price check spends one. It should be turned on the day there
 are subscribers paying for it, not before.
 
+**Pay-as-you-go residential was considered and rejected** — $4/GB, no monthly
+commitment, which is genuinely tempting at zero revenue. The problem is page
+weight. Walmart search pages are 1.47 MB of HTML, among the heaviest things
+Sweep fetches, and bandwidth billing punishes exactly that while per-request
+billing ignores it:
+
+| | $/scrape | vs Scraper API |
+| --- | --- | --- |
+| Scraper API | $0.00050 flat | — |
+| Residential, product page | $0.00049 | a dead heat |
+| Residential, search page | $0.00073 | 1.5x worse |
+| Residential, if billed uncompressed | $0.002–0.006 | 4–12x worse |
+
+Best case is a tie, and it's only best case if Decodo meters compressed bytes,
+which their pricing doesn't say. A bare residential proxy is also **only an
+IP** — no managed headers, no TLS fingerprint handling — so the 12/12 success
+rate wouldn't carry over for free. Switching pricing models to the one worst
+suited to our workload, in exchange for an unproven fetch path, isn't a trade
+worth making.
+
+Re-run `npm run bandwidth-model` if page weights change; the measurements are
+named constants at the top of it.
+
 **Still open:** the official Content Provider API, which is the two unanswered
 emails. It would make all of this free, so it's still worth chasing — but it
 blocks nothing now.
