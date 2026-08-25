@@ -404,6 +404,45 @@ named constants at the top of it.
 emails. It would make all of this free, so it's still worth chasing — but it
 blocks nothing now.
 
+### Newegg and ASOS — written, working, and off for a reason
+
+Both adapters are complete and parse correctly. Both were enabled once and
+**failed on deploy**, which is why they sit in `DISABLED_RETAILERS`. The reason
+was never written down, and that gap has now cost two separate re-investigations
+— hence this section.
+
+It is the same cause as Walmart: **our datacenter IP**, not the code. Verified
+25 Aug 2026:
+
+| Route | Newegg | ASOS |
+| --- | --- | --- |
+| Home IP, direct | search 799ms-1.2s, refresh 161-273ms | search 831ms-1.1s, refresh 96-580ms |
+| Railway, direct | **failed** | **failed** |
+| Through Decodo | 3.3s, payload intact | 2.9s, payload intact |
+
+**They do NOT go through Decodo.** Decodo already serves Walmart, and only one
+retailer goes through a provider account at a time while we are on its free
+credits — 2,000 requests split two ways burns twice as fast and takes the
+working store down with it when they run out. Walmart would die to switch on
+Newegg. That rule is settled; do not re-price it.
+
+So the route for either of these is **a different provider's free tier**, or the
+day the bills are being paid and retailers can share one account. The code side
+is small whenever that happens — the app already ships labels and brand colours
+for both, so it is a backend deploy with no release.
+
+**One thing to fix first.** `decodo.ts` treats a missing `__NEXT_DATA__` as a
+block. That is a Walmart-specific marker: Newegg and ASOS have no such blob, so
+every fetch would report as blocked and trip the circuit breaker. The check
+needs to become a per-caller parameter before a second store uses it.
+
+**What it costs.** Each becomes a metered store, billed per request. Both are
+category specialists — Newegg `electronics`, ASOS `clothing` — so routing only
+calls them when the query matches, which bounds the spend. That bound is not a
+reason to put them on Walmart's account anyway.
+
+---
+
 ### Inflated list prices — the rule, and why it exists
 
 Walmart's marketplace sellers invent MSRPs. A real listing found during testing
