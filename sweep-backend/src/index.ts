@@ -12,6 +12,7 @@ import { authRoutes } from "./routes/auth.js";
 import { dealRoutes } from "./routes/deals.js";
 import { leaderboardRoutes } from "./routes/leaderboard.js";
 import { videoMockRoutes } from "./routes/videoMock.js";
+import { videoMock2Routes } from "./routes/videoMock2.js";
 import { adminRoutes } from "./routes/admin.js";
 import { cartRoutes } from "./routes/cart.js";
 import { billingRoutes } from "./routes/billing.js";
@@ -108,6 +109,7 @@ app.setErrorHandler((error: Error & { statusCode?: number; code?: string }, requ
 
 app.register(adminRoutes);
 app.register(videoMockRoutes);
+app.register(videoMock2Routes);
 app.register(authRoutes);
 app.register(budgetRoutes);
 app.register(dealRoutes);
