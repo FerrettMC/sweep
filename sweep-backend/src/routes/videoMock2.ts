@@ -87,6 +87,20 @@ const PAGE = `<!doctype html>
   .caret { width: 2px; height: 17px; background: var(--accent); animation: blink 1s steps(2) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
 
+  /* --- browser tabs piling up, the "before" picture --- */
+  .tabs { display: flex; flex-direction: column; gap: 8px; }
+  .tab {
+    display: flex; align-items: center; gap: 9px;
+    background: var(--raised); border: 1px solid var(--border);
+    border-radius: 10px; padding: 11px 13px; font-size: 14px;
+    opacity: 0; transform: translateY(10px) scale(.98);
+    animation: pop .38s ease forwards;
+  }
+  .fav { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .tabPrice { margin-left: auto; font-weight: 800; font-size: 15px; }
+  .tabSub { margin-left: auto; font-size: 12px; color: var(--faint);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
   /* --- a store result row --- */
   .row {
     display: flex; align-items: center; gap: 10px;
@@ -188,16 +202,41 @@ const PAGE = `<!doctype html>
 </head>
 <body>
 
-<!-- 1. the hook ------------------------------------------------------------->
+<!-- 1. the problem, before Sweep appears --------------------------------------->
+<!--
+  Deliberately NOT a recreation of anyone's storefront. Naming the shops you
+  actually search is fine and factual; rebuilding Amazon's or eBay's page inside
+  a page we host and put our own brand on is a different thing entirely, and not
+  one worth risking on a promo video. Tab chrome carries the same joke — the
+  clutter IS the point — without imitating anybody.
+-->
 <div class="scene" id="s0">
-  <div class="eyebrow">Sweep</div>
-  <h2>What are you shopping for?</h2>
-  <div class="search"><span>wireless headphones</span><span class="caret"></span></div>
+  <div class="eyebrow">Buying one thing</div>
+  <div class="tabs">
+    <div class="tab" style="animation-delay:.15s">
+      <span class="fav" style="background:#FF9900"></span>Amazon<span class="tabPrice">$279</span>
+    </div>
+    <div class="tab" style="animation-delay:.7s">
+      <span class="fav" style="background:#E53238"></span>eBay<span class="tabPrice">$239</span>
+    </div>
+    <div class="tab" style="animation-delay:1.25s">
+      <span class="fav" style="background:#0071DC"></span>Walmart<span class="tabPrice">$268</span>
+    </div>
+    <div class="tab" style="animation-delay:1.8s">
+      <span class="fav" style="background:#FF9900"></span>Amazon<span class="tabSub">reviews</span>
+    </div>
+    <div class="tab" style="animation-delay:2.35s">
+      <span class="fav" style="background:#E53238"></span>eBay<span class="tabSub">seller feedback</span>
+    </div>
+    <div class="tab" style="animation-delay:2.9s">
+      <span class="fav" style="background:#4285F4"></span>Google<span class="tabSub">is $239 a good price</span>
+    </div>
+  </div>
 </div>
 
-<!-- 2. every store at once ---------------------------------------------------->
+<!-- 2. one search, every store ------------------------------------------------->
 <div class="scene" id="s1">
-  <div class="eyebrow">14 results</div>
+  <div class="search"><span>wireless headphones</span><span class="caret"></span></div>
   <div class="row" style="animation-delay:.1s">
     <div class="dot" style="background:#FF9900"></div><div class="store">Amazon</div>
     <div class="title">Sony WH-1000XM5</div><div class="price">$279</div>
@@ -213,11 +252,6 @@ const PAGE = `<!doctype html>
   <div class="row" style="animation-delay:1.45s">
     <div class="dot" style="background:#F1641E"></div><div class="store">Etsy</div>
     <div class="title">Headphone stand, walnut</div><div class="price">$34</div>
-  </div>
-  <div class="hl" style="animation-delay:1.95s">
-    <div class="hlBadge">Cheapest</div>
-    <div class="hlTitle">Sony WH-1000XM5</div>
-    <div class="hlReason">Lowest price of 14 results</div>
   </div>
 </div>
 
@@ -319,8 +353,8 @@ const PAGE = `<!doctype html>
   // rather than read: a caption that leaves before the sentence does is worse
   // than no caption.
   var BEATS = [
-    ["s0", "One search.", 3000],
-    ["s1", "Every store, side by side.", 5200],
+    ["s0", "Six tabs. One thing.", 6200],
+    ["s1", "One search &mdash; every store.", 5200],
     ["s2", "It tells you what&rsquo;s <em>actually</em> worth it.", 4200],
     ["s3", "Open anything &mdash; ratings, real reviews, shipping.", 5200],
     ["s4", "And the price history the store can&rsquo;t rewrite.", 4600],
@@ -343,7 +377,7 @@ const PAGE = `<!doctype html>
     // sitting still after the first pass.
     var live = document.getElementById(beat[0]);
     Array.prototype.forEach.call(
-      live.querySelectorAll(".row, .hl, .end, .line"),
+      live.querySelectorAll(".row, .hl, .tab, .end, .line"),
       function (node) {
         var a = node.style.animation;
         node.style.animation = "none";
