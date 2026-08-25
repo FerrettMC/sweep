@@ -404,6 +404,38 @@ named constants at the top of it.
 emails. It would make all of this free, so it's still worth chasing — but it
 blocks nothing now.
 
+### Which retailers a plain scraper could even reach
+
+Swept 23 candidates on 25 Aug 2026, fetching a search page with a browser UA
+and looking for extractable prices. Recorded so nobody re-runs it.
+
+**One survivor: Zappos.** 100 of 100 results carried JSON-LD Product blocks with
+price, brand, SKU, image, colour and availability — cleaner structured data than
+most adapters we already have. Product page 200 in ~900ms with the same blob, so
+search and price-refresh both work. No ratings anywhere, so lookup coverage
+would be thin. Amazon-owned, and shoes/apparel overlaps the slot ASOS was for.
+
+**Refused outright (403/429):** Costco, Home Depot, Lowe's, B&H Photo, GameStop,
+Micro Center, StockX, Chewy.
+
+**Served a shell with no product data** — client-rendered, so they would need JS
+rendering, which is a paid proxy feature and bills at a higher rate: Target,
+IKEA, Sephora, Wayfair, Nordstrom, Macy's, Mercari, ThriftBooks, Dick's.
+
+**No usable response:** REI, Barnes & Noble, Overstock, Backcountry.
+
+**The caveat that matters.** All of this was measured from a home IP. Newegg and
+ASOS also passed from a home IP and then failed on deploy, so a pass here is NOT
+a pass on Railway — it only rules candidates out, never in. Zappos needs
+verifying from a datacenter IP before any adapter work starts.
+
+**Worth building first:** an admin-only probe endpoint that fetches a URL from
+the deployed server and reports what came back. Not being able to test from
+Railway has now cost three investigations (Walmart, Newegg, ASOS) and would have
+answered each of them in a minute.
+
+---
+
 ### Newegg and ASOS — written, working, and off for a reason
 
 Both adapters are complete and parse correctly. Both were enabled once and
