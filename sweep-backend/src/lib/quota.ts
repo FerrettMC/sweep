@@ -467,6 +467,27 @@ export async function refundGuestLookup(
 
 // ---- shared ----------------------------------------------------------------
 
+/**
+ * Server-side kill switch for rewarded ads.
+ *
+ * Exists because ADS_ENABLED in the app is compiled in — hiding the "Watch ad"
+ * button there needs a store release, and needing a release is exactly what you
+ * cannot have when the ad account is not yet approved. AdMob generally will not
+ * approve an app that is not publicly listed, so there is a guaranteed window
+ * at launch where the button would appear and every tap would fail with an SDK
+ * error, shown to the one group of users who have just hit their daily limit.
+ *
+ * With this, that button is hidden by an environment variable and comes back
+ * the day approval lands, with no build and no review wait.
+ *
+ * Defaults to ON so nothing changes silently. A visible broken button is a
+ * better failure than ads quietly never serving after approval, which is the
+ * mistake nobody notices for a month.
+ */
+export function rewardedAdsEnabled(): boolean {
+  return (process.env.REWARDED_ADS_ENABLED ?? "true").trim().toLowerCase() !== "false";
+}
+
 function state(
   used: number,
   limit: number,
@@ -482,7 +503,10 @@ function state(
     remaining: Math.max(0, limit + bonus - used),
     // Only ad-supported tiers can top up, and only up to the daily ceiling.
     canWatchAd:
-      adsAllowed && TIER_LIMITS[tier].showAds && bonus < MAX_REWARDED_SEARCHES_PER_DAY,
+      adsAllowed &&
+      rewardedAdsEnabled() &&
+      TIER_LIMITS[tier].showAds &&
+      bonus < MAX_REWARDED_SEARCHES_PER_DAY,
     resetsAt,
   };
 }

@@ -1,6 +1,7 @@
 // Sentry must be first — it instruments modules at import time, so anything
 // loaded before it runs untraced.
 import { Sentry } from "./instrument.js";
+import { rewardedAdsEnabled } from "./lib/quota.js";
 
 import "dotenv/config";
 import Fastify from "fastify";
@@ -162,5 +163,14 @@ app.listen({ port, host: "0.0.0.0" }, (err, address) => {
     process.exit(1);
   }
   console.log(`Server running at ${address}`);
+  // Said out loud at every boot. A kill switch you forget is switched off is
+  // how rewarded ads quietly never serve for a month after the account is
+  // finally approved.
+  if (!rewardedAdsEnabled()) {
+    console.log(
+      "REWARDED_ADS_ENABLED=false — the Watch ad button is hidden and no " +
+        "bonus searches will be granted. Remove this variable once AdMob approves.",
+    );
+  }
   startScheduler();
 });
