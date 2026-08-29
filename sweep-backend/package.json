@@ -44,7 +44,8 @@
     "bandwidth-model": "tsx src/bandwidth-model.ts",
     "test:promo": "tsx src/test-promo.ts",
     "test:video2": "tsx src/test-video2.ts",
-    "test:adswitch": "tsx src/test-adswitch.ts"
+    "test:adswitch": "tsx src/test-adswitch.ts",
+    "test:landing": "tsx src/test-landing.ts"
   },
   "keywords": [],
   "author": "",
