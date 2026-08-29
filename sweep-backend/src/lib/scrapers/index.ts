@@ -112,7 +112,11 @@ export const unthrottledAdapters: Record<Retailer, RetailerAdapter> = {
     scrapeProduct: scrapeWalmartProduct,
     productUrl: walmartProductUrl,
     matchesUrl: (url) => /(^|\.)walmart\.com$/i.test(hostOf(url)),
-    metered: false,
+    // True since the Decodo swap: every Walmart fetch is now billed, which
+    // makes it exactly the kind of retailer the longer cache TTL exists for.
+    // Left at false it kept the 45-minute free-tier window and re-bought
+    // answers we already had, roughly four times more often than needed.
+    metered: true,
     // Two different defences, and they need different answers.
     //
     // Under load from a home connection Walmart serves "Robot or human?" (a
