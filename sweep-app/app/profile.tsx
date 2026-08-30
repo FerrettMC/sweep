@@ -46,7 +46,7 @@ import {
   registerForPushNotifications,
 } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
-import { setLiveStores } from "@/lib/liveStores";
+import { isOffered, setLiveStores } from "@/lib/liveStores";
 
 interface RetailerStatus {
   retailer: string;
@@ -394,7 +394,7 @@ export default function ProfileScreen() {
                 most of Sweep being broken. `enabled === false` rather than
                 `!enabled`, because an older server omits the field entirely
                 and the list must not empty itself against one. */}
-            {(retailers ?? []).filter((r) => r.enabled !== false).map((item, index) => (
+            {(retailers ?? []).filter(isOffered).map((item, index) => (
               <View
                 key={item.retailer}
                 style={[styles.statusRow, index > 0 && styles.statusRowDivided]}

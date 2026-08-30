@@ -66,3 +66,37 @@ export function useLiveStores(): string[] {
   const value = useSyncExternalStore(subscribe, snapshot, () => null);
   return value ?? Object.values(RETAILER_LABELS);
 }
+
+/**
+ * The shape every store-status consumer needs. A structural type rather than an
+ * import, so callers can pass their own row objects unchanged.
+ */
+interface StoreRow {
+  available?: boolean;
+  enabled?: boolean;
+}
+
+/**
+ * Is this store on offer at all?
+ *
+ * `enabled !== false` and never `enabled`, because an older server omits the
+ * field. Read the other way, every list in the app empties against one.
+ */
+export function isOffered(store: StoreRow): boolean {
+  return store.enabled !== false;
+}
+
+/**
+ * Stores that are switched ON and currently failing — the only ones worth
+ * warning about.
+ *
+ * Without the offered check this counted the stores we've turned off ourselves,
+ * so Home permanently read "3 stores having trouble": a standing warning about
+ * nothing, which is worse than none because it buries a real outage in noise.
+ *
+ * Lives here because three screens need the same answer, and three copies of a
+ * predicate is how two of them end up disagreeing.
+ */
+export function storesInTrouble<T extends StoreRow>(stores: T[]): T[] {
+  return stores.filter((store) => isOffered(store) && !store.available);
+}

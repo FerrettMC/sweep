@@ -18,10 +18,18 @@ import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { retailerColor, retailerLabel, type Retailer } from "@/lib/format";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
+import { isOffered } from "@/lib/liveStores";
 
 export interface StoreOption {
   retailer: Retailer;
   available: boolean;
+  /**
+   * False when the store is switched off server-side.
+   *
+   * Optional: an older server doesn't send it, and absent must mean "no
+   * opinion" rather than "off", or the picker empties against one.
+   */
+  enabled?: boolean;
 }
 
 export default function StorePicker({
@@ -44,7 +52,13 @@ export default function StorePicker({
 
   if (!visible) return null;
 
-  const usable = stores.filter((store) => store.available);
+  // Stores we've switched off aren't choices — listing them greyed out as
+  // "Unavailable" made the picker look like half of Sweep was broken, when in
+  // fact they were never on offer. A store that IS on and currently failing
+  // still appears, greyed, because that one is genuinely temporary and worth
+  // explaining.
+  const offered = stores.filter(isOffered);
+  const usable = offered.filter((store) => store.available);
   const allOn = selected.length === 0;
 
   function toggle(retailer: Retailer) {
@@ -90,7 +104,7 @@ export default function StorePicker({
               {allOn && <Ionicons name="checkmark" size={17} color={colors.accent} />}
             </Pressable>
 
-            {stores.map((store) => {
+            {offered.map((store) => {
               const on = !allOn && selected.includes(store.retailer);
               return (
                 <Pressable

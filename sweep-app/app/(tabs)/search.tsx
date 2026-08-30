@@ -59,7 +59,7 @@ import {
 } from "@/lib/ads";
 import { type Retailer, pluralize, retailerColor } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
-import { setLiveStores } from "@/lib/liveStores";
+import { isOffered, setLiveStores } from "@/lib/liveStores";
 
 interface Section {
   title: string;
@@ -222,6 +222,7 @@ export default function SearchScreen() {
             status.retailers.map((r) => ({
               retailer: r.retailer as Retailer,
               available: r.available,
+              enabled: r.enabled,
             })),
           );
           setTypicalSeconds(
@@ -558,7 +559,9 @@ export default function SearchScreen() {
                   ? t("search.allStores")
                   : t("search.storesPicked", {
                       count: pickedStores.length,
-                      total: storeOptions.filter((o) => o.available).length,
+                      total: storeOptions.filter(
+                        (o) => isOffered(o) && o.available,
+                      ).length,
                     })}
               </Text>
               <Ionicons name="chevron-down" size={13} color={colors.textSecondary} />

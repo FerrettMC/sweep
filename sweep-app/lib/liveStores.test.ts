@@ -9,7 +9,7 @@
 // The case that needs the most care is an OLD server, which doesn't send
 // `enabled` at all. Absent must mean "no opinion", not "disabled" — read the
 // other way, the store list empties and the app says it searches nothing.
-import { liveStoreNames, setLiveStores } from "./liveStores";
+import { isOffered, liveStoreNames, setLiveStores, storesInTrouble } from "./liveStores";
 import { storeListPhrase } from "./format";
 
 let pass = 0, fail = 0;
@@ -56,6 +56,28 @@ setLiveStores([]);
 check("an empty list changes nothing", liveStoreNames().join(",") === before);
 setLiveStores([{ label: "Amazon", enabled: false }]);
 check("all-disabled changes nothing", liveStoreNames().join(",") === before, liveStoreNames());
+
+console.log("\n— what counts as a store in trouble —");
+const board = [
+  { retailer: "amazon", available: true, enabled: true },
+  { retailer: "walmart", available: false, enabled: true },   // on, and failing
+  { retailer: "bestbuy", available: false, enabled: false },  // we turned it off
+  { retailer: "newegg", available: false, enabled: false },
+  { retailer: "asos", available: false, enabled: false },
+  { retailer: "etsy", available: true, enabled: true },
+];
+const trouble = storesInTrouble(board);
+// The bug this replaced: Home read "3 stores having trouble" permanently,
+// because the three we switched off ourselves were counted as outages.
+check("only the store that is on and failing", trouble.length === 1, trouble.map((s) => s.retailer));
+check("and it is the right one", trouble[0]?.retailer === "walmart", trouble[0]);
+check("a healthy board reports nothing",
+  storesInTrouble(board.filter((s) => s.enabled !== false).map((s) => ({ ...s, available: true }))).length === 0);
+
+check("isOffered keeps switched-on stores", isOffered({ enabled: true }));
+check("isOffered drops switched-off stores", !isOffered({ enabled: false }));
+// The old-server case again, at the predicate level this time.
+check("isOffered keeps a store with no opinion", isOffered({}));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

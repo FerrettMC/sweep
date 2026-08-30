@@ -19,7 +19,7 @@ import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import { setUnreadCount } from "@/lib/unreadCount";
 import StoreTroubleSheet from "@/components/StoreTroubleSheet";
-import { setLiveStores } from "@/lib/liveStores";
+import { setLiveStores, storesInTrouble } from "@/lib/liveStores";
 import {
   getNotificationStatus,
   getQuota,
@@ -96,8 +96,16 @@ export default function HomeScreen() {
       setIsGuest(quota.isGuest);
     }
     setPushRegistered(push?.registered ?? null);
-    // Only the ones that aren't working — a healthy list has nothing to say.
-    setDownStores((stores?.retailers ?? []).filter((r) => !r.available));
+    // Only stores that are BOTH switched on and failing.
+    //
+    // Without the enabled check this counted the three stores we've turned off
+    // ourselves, so Home permanently read "3 stores having trouble" — a
+    // standing warning about nothing, which is worse than no warning at all
+    // because it also hides a real outage in the noise.
+    //
+    // `enabled !== false` rather than `enabled`, since an older server omits
+    // the field and absence means "no opinion", not "switched off".
+    setDownStores(storesInTrouble(stores?.retailers ?? []));
     setLoading(false);
   }, []);
 
