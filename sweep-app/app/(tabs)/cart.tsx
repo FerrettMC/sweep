@@ -148,7 +148,12 @@ export default function CartScreen() {
                 {item.imageUrl ? (
                   <Image source={{ uri: item.imageUrl }} style={styles.thumb} />
                 ) : (
-                  <View style={styles.thumb} />
+                  // An empty square reads as a hole in the row now that the row
+                  // has an edge of its own. A faint glyph reads as "no picture",
+                  // which is the true thing and a quieter one.
+                  <View style={[styles.thumb, styles.thumbEmpty]}>
+                    <Ionicons name="image-outline" size={22} color={colors.textTertiary} />
+                  </View>
                 )}
 
                 <Pressable
@@ -321,24 +326,52 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.sm,
       backgroundColor: colors.surface,
       borderRadius: radius.lg,
-      padding: spacing.sm,
+      padding: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
     },
     thumb: {
-      width: 52,
-      height: 52,
+      // Grown with the row. The quantity stepper is 40dp tall twice over, so a
+      // 52px image sat marooned in the middle of a much taller row.
+      width: 64,
+      height: 64,
       borderRadius: radius.md,
       backgroundColor: colors.background,
       resizeMode: "contain",
     },
-    body: { flex: 1, gap: 3 },
-    title: { color: colors.textPrimary, fontSize: type.caption.fontSize, lineHeight: 17 },
-    storeRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-    dot: { width: 7, height: 7, borderRadius: 4 },
-    store: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    thumbEmpty: { alignItems: "center", justifyContent: "center" },
+
+    // The hierarchy here used to be flat — title, store and price were all
+    // within two points of each other and all at or near the smallest size in
+    // the scale, so the row read as a block of grey with no entry point. Three
+    // levels now: the title is what you read, the price is what you check, the
+    // store is context.
+    body: { flex: 1, gap: 5 },
+    title: {
+      color: colors.textPrimary,
+      fontSize: type.body.fontSize,
+      fontWeight: "600",
+      lineHeight: 20,
+    },
+    storeRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+    dot: { width: 8, height: 8, borderRadius: 4 },
+    store: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "700",
+      letterSpacing: 0.2,
+    },
     priceRow: { flexDirection: "row", alignItems: "baseline", gap: spacing.xs },
-    price: { color: colors.textPrimary, fontSize: type.label.fontSize, fontWeight: "800" },
-    downSmall: { color: colors.success, fontSize: type.caption.fontSize, fontWeight: "700" },
-    upSmall: { color: colors.danger, fontSize: type.caption.fontSize, fontWeight: "700" },
+    // The number the whole screen exists for. It was 13px, two points above the
+    // store name it sits under.
+    price: {
+      color: colors.textPrimary,
+      fontSize: type.heading.fontSize,
+      fontWeight: "800",
+      letterSpacing: -0.3,
+    },
+    downSmall: { color: colors.success, fontSize: type.label.fontSize, fontWeight: "800" },
+    upSmall: { color: colors.danger, fontSize: type.label.fontSize, fontWeight: "800" },
 
     qty: { alignItems: "center", gap: 3 },
     qtyBtn: {
