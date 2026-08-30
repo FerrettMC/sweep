@@ -93,10 +93,58 @@ const css = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
 // EVERY rule mentioning the selector, not just the first one found. `footer`
 // appears three times here, and checking only the first was checking a rule
 // with no padding in it at all — a test that passed by looking somewhere else.
-const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].map((m) => ({
-  selector: m[1].trim(),
-  body: m[2],
-}));
+/**
+ * Every top-level style rule, walked rather than matched.
+ *
+ * A flat regex cannot read this stylesheet: @media and @keyframes nest, so a
+ * pattern that pairs the next brace with the next closing brace desynchronises
+ * at the first one and silently reports some rules and not others. That is
+ * exactly what happened — a perspective check came back failing for three
+ * selectors that had it, because the parser never saw those rules at all.
+ *
+ * Rules inside @media are skipped deliberately: the reduced-motion block exists
+ * to switch effects OFF, and counting it would have every check pass on the
+ * rule that disables the thing being checked.
+ */
+function topLevelRules(raw: string): { selector: string; body: string }[] {
+  // Comments first. Everything between the previous closing brace and the next
+  // opening one is the selector, and this stylesheet is heavily commented — so
+  // without this, .proof arrives as "/* ---- the proof ... */ .proof" and no
+  // exact match ever succeeds.
+  const source = raw.replace(/\/\*[\s\S]*?\*\//g, "");
+  const out: { selector: string; body: string }[] = [];
+  let i = 0;
+  let selector = "";
+
+  while (i < source.length) {
+    const ch = source[i];
+    if (ch === "{") {
+      const name = selector.trim();
+      let depth = 1;
+      let j = i + 1;
+      while (j < source.length && depth > 0) {
+        if (source[j] === "{") depth++;
+        else if (source[j] === "}") depth--;
+        j++;
+      }
+      // At-rules hold rules of their own; their bodies are not declarations.
+      if (!name.startsWith("@")) out.push({ selector: name, body: source.slice(i + 1, j - 1) });
+      selector = "";
+      i = j;
+      continue;
+    }
+    if (ch === "}") {
+      selector = "";
+      i++;
+      continue;
+    }
+    selector += ch;
+    i++;
+  }
+  return out;
+}
+
+const rules = topLevelRules(css);
 
 for (const name of [".wrap", ".hero", "section", ".closing", "footer"]) {
   const touching = rules.filter((r) =>
@@ -181,6 +229,39 @@ check("pointer work is frame-throttled", /requestAnimationFrame\(paint\)/.test(s
 check("pointer effects are gated on having a pointer", /matchMedia\("\(hover: hover\)"\)/.test(script));
 
 check("reduced motion disables the overlays", /prefers-reduced-motion[\s\S]*?\.spot, \.grain, \.prog \{ display:none/.test(css));
+
+console.log("\n— the depth carries past the hero —");
+// The point of the rebuild: the hero was three-dimensional and everything below
+// it was flat. These are the pieces that fix that, and they are easy to lose in
+// a later edit because nothing breaks when they go.
+check("sections arrive in 3D", /\.rise \{[^}]*rotateX/.test(css));
+check("and settle flat", /\.rise\.in \{[^}]*rotateX\(0deg\)/.test(css));
+check("panels tilt, not just cards", (html.match(/data-tilt/g) ?? []).length >= 8, (html.match(/data-tilt/g) ?? []).length);
+check("the tilt is driven by the attribute", /querySelectorAll\("\[data-tilt\]"\)/.test(script));
+check("stats have depth", /\.stat b \{[^}]*translateZ/.test(css));
+check("the proof panel has depth", /\.proof \.verdict \{[^}]*translateZ/.test(css));
+check("the closing is a lit slab", /\.slab \{[^}]*perspective/.test(css));
+check("the background parallaxes", /--par/.test(css) && /--par/.test(script));
+
+// Every element that tilts must have its own perspective. One shared scene
+// swings whatever sits far from its vanishing point, and these run the full
+// height of the document.
+// ANY rule for the selector, not the first one found — .feat is styled across
+// several rules and its perspective lives in a later one. Checking only the
+// first is the same mistake the padding check made.
+for (const sel of [".feat", ".stat", ".proof", ".slab", ".rise"]) {
+  const mine = rules.filter((r) => r.selector.split(",").some((one) => one.trim() === sel));
+  check(`${sel}: has rules`, mine.length > 0, mine.length);
+  check(
+    `${sel}: carries its own perspective`,
+    mine.some((r) => /perspective\(/.test(r.body)),
+    mine.map((r) => r.selector),
+  );
+}
+
+// Off-screen elements must be skipped before the maths runs — a long page has
+// dozens of these and most are nowhere near the cursor.
+check("off-screen tilters are skipped", /r\.bottom < 0 \|\| r\.top > h/.test(script));
 
 console.log("\n— the hero image —");
 // Referenced but not bundled: nothing imports it, so only the Dockerfile's COPY

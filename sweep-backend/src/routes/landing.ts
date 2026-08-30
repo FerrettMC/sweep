@@ -177,6 +177,9 @@ function render(stats: Stats) {
   .aura b {
     position:absolute; display:block; border-radius:50%;
     filter:blur(90px); opacity:.5;
+    /* --par is written on scroll, at a different rate per blob, so the
+       background has its own depth rather than being painted on. */
+    translate:0 var(--par,0px);
   }
   .aura b:nth-child(1) {
     width:640px; height:640px; top:-220px; left:-160px;
@@ -287,9 +290,21 @@ function render(stats: Stats) {
     filter:blur(52px); transform:translateZ(-60px); z-index:-1;
   }
 
-  /* ---- scroll reveal ---------------------------------------------------- */
-  .rise { opacity:0; transform:translateY(26px); transition:opacity .7s ease, transform .7s cubic-bezier(.2,.7,.3,1); }
-  .rise.in { opacity:1; transform:none; }
+  /* ---- scroll reveal, in three dimensions --------------------------------
+     Sections arrive laid back and set into the page, rather than sliding up it.
+     The perspective is per element: one shared scene would swing anything far
+     from its vanishing point, and these run the whole height of the document.
+
+     Nine degrees, not thirty. Past about ten the text is being read off a
+     surface at an angle while it settles, and a heading that has to be waited
+     out is worse than one that simply appeared. */
+  .rise {
+    opacity:0;
+    transform:perspective(1200px) rotateX(9deg) translate3d(0,30px,-70px);
+    transition:opacity .75s ease, transform .85s cubic-bezier(.2,.7,.3,1);
+    transform-origin:50% 0%;
+  }
+  .rise.in { opacity:1; transform:perspective(1200px) rotateX(0deg) translate3d(0,0,0); }
   .rise[data-d="1"] { transition-delay:.09s; }
   .rise[data-d="2"] { transition-delay:.18s; }
   .rise[data-d="3"] { transition-delay:.27s; }
@@ -307,7 +322,13 @@ function render(stats: Stats) {
   .stat {
     background:var(--panel); border:1px solid var(--line); border-radius:var(--r);
     padding:22px 24px;
+    transform:perspective(900px) rotateX(var(--tx,0deg)) rotateY(var(--ty,0deg));
+    transform-style:preserve-3d;
+    transition:transform .3s cubic-bezier(.2,.7,.3,1), border-color .3s ease;
+    will-change:transform;
   }
+  .stat:hover { border-color:rgba(228,115,63,.4); }
+  .stat b { transform:translateZ(22px); }
   .stat b { display:block; font-size:34px; font-weight:800; letter-spacing:-.03em; }
   .stat span { color:var(--faint); font-size:14px; }
 
@@ -340,7 +361,16 @@ function render(stats: Stats) {
   .proof {
     background:var(--panel); border:1px solid var(--line); border-radius:22px;
     padding:26px; margin-top:36px;
+    transform:perspective(1100px) rotateX(var(--tx,0deg)) rotateY(var(--ty,0deg));
+    transform-style:preserve-3d;
+    transition:transform .35s cubic-bezier(.2,.7,.3,1);
+    will-change:transform;
   }
+  /* The chart and the verdict stand off the panel, so tilting it opens a gap
+     between them and the surface instead of moving a flat picture. */
+  .proof svg { transform:translateZ(30px); }
+  .proof .verdict { transform:translateZ(46px); }
+  .proof .proofTop { transform:translateZ(20px); }
   .proofTop { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
   .proofTop b { font-size:21px; font-weight:800; }
   .was { color:var(--faint); text-decoration:line-through; }
@@ -369,6 +399,24 @@ function render(stats: Stats) {
   .prose strong { color:var(--fg); font-weight:700; }
 
   .closing { text-align:center; padding-top:88px; padding-bottom:96px; }
+  /* A slab, tilted and lit, so the page ends on something with weight rather
+     than on centred text over the background. */
+  .slab {
+    position:relative; border-radius:28px; padding:56px 32px;
+    background:linear-gradient(160deg, rgba(228,115,63,.13), rgba(20,20,23,.6) 55%);
+    border:1px solid rgba(228,115,63,.26);
+    transform:perspective(1300px) rotateX(var(--tx,0deg)) rotateY(var(--ty,0deg));
+    transform-style:preserve-3d;
+    transition:transform .35s cubic-bezier(.2,.7,.3,1);
+    box-shadow:0 40px 90px rgba(0,0,0,.5);
+    will-change:transform;
+  }
+  .slab h2, .slab .sub, .slab .cta, .slab .note { transform:translateZ(34px); }
+  .slab::before {
+    content:""; position:absolute; inset:-40px 10% auto; height:120px;
+    background:radial-gradient(ellipse, rgba(228,115,63,.4), transparent 70%);
+    filter:blur(46px); transform:translateZ(-50px); pointer-events:none;
+  }
   .closing .sub { margin:0 auto 30px; }
   .closing h2 { font-size:clamp(30px,5vw,46px); }
 
@@ -478,8 +526,11 @@ function render(stats: Stats) {
     .phone { transform:rotateX(4deg) rotateY(-10deg); }
     .float { opacity:1; }
     .spot, .grain, .prog { display:none; }
-    .feat, .feat:hover { transform:none; }
-    .feat .ico, .feat h3, .feat p { transform:none; }
+    .feat, .feat:hover, .stat, .proof, .slab { transform:none; }
+    .feat .ico, .feat h3, .feat p,
+    .stat b, .proof svg, .proof .verdict, .proof .proofTop,
+    .slab h2, .slab .sub, .slab .cta, .slab .note { transform:none; }
+    .rise { transform:none; }
   }
 </style>
 </head>
@@ -541,9 +592,9 @@ function render(stats: Stats) {
     showStats
       ? `<div class="wrap rise">
     <div class="stats">
-      <div class="stat"><b data-count="${stats.priceChecks}">0</b><span>prices recorded</span></div>
-      <div class="stat"><b data-count="${stats.tracked}">0</b><span>products watched</span></div>
-      <div class="stat"><b data-count="${stats.drops}">0</b><span>real drops caught</span></div>
+      <div class="stat" data-tilt><b data-count="${stats.priceChecks}">0</b><span>prices recorded</span></div>
+      <div class="stat" data-tilt><b data-count="${stats.tracked}">0</b><span>products watched</span></div>
+      <div class="stat" data-tilt><b data-count="${stats.drops}">0</b><span>real drops caught</span></div>
     </div>
   </div>`
       : ""
@@ -559,7 +610,7 @@ function render(stats: Stats) {
       </p>
     </div>
 
-    <div class="proof rise" id="proof">
+    <div class="proof rise" id="proof" data-tilt>
       <div class="proofTop">
         <b>$24.99</b><span class="was">$62.99</span><span class="off">60% OFF</span>
       </div>
@@ -582,32 +633,32 @@ function render(stats: Stats) {
     </div>
 
     <div class="feats">
-      <div class="feat rise">
+      <div class="feat rise" data-tilt>
         <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div>
         <h3>One search, several stores</h3>
         <p>Results side by side, cheapest first — and each store appears the moment it answers rather than waiting for the slowest.</p>
       </div>
-      <div class="feat rise" data-d="1">
+      <div class="feat rise" data-d="1" data-tilt>
         <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
         <h3>Price drop alerts</h3>
         <p>Track something and get told while the deal is still live, not a week after it ended.</p>
       </div>
-      <div class="feat rise" data-d="2">
+      <div class="feat rise" data-d="2" data-tilt>
         <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg></div>
         <h3>Real price history</h3>
         <p>${APP_NAME} keeps its own record, so it can tell when a big red discount badge is sitting on the price an item always costs.</p>
       </div>
-      <div class="feat rise" data-d="3">
+      <div class="feat rise" data-d="3" data-tilt>
         <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/></svg></div>
         <h3>Deal Radar</h3>
         <p>Name a product and a price; it keeps looking for weeks so you don&rsquo;t have to keep checking.</p>
       </div>
-      <div class="feat rise">
+      <div class="feat rise" data-tilt>
         <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg></div>
         <h3>Lists and a budget</h3>
         <p>Shareable gift lists with live prices, and somewhere to log what you actually spent.</p>
       </div>
-      <div class="feat rise" data-d="1">
+      <div class="feat rise" data-d="1" data-tilt>
         <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.6 12.4a1.5 1.5 0 0 0 1.5 1.1h8.4a1.5 1.5 0 0 0 1.5-1.2L21 8H6"/></svg></div>
         <h3>A cart across stores</h3>
         <p>Collect things from anywhere you searched or tracked, and watch what the whole lot costs move over time.</p>
@@ -646,10 +697,12 @@ function render(stats: Stats) {
   </section>
 
   <div class="closing wrap rise">
-    <h2>Stop opening six tabs.</h2>
-    <p class="sub">One search, every store, and a straight answer about the price.</p>
-    <a class="cta" href="${PLAY_URL}">Get it on Google Play</a>
-    <p class="note" style="margin-top:16px">Free on Android.</p>
+    <div class="slab" data-tilt>
+      <h2>Stop opening six tabs.</h2>
+      <p class="sub">One search, every store, and a straight answer about the price.</p>
+      <a class="cta" href="${PLAY_URL}">Get it on Google Play</a>
+      <p class="note" style="margin-top:16px">Free on Android.</p>
+    </div>
   </div>
 </main>
 
@@ -716,7 +769,7 @@ function render(stats: Stats) {
   var phone = document.getElementById("phone");
   var spot = document.getElementById("spot");
   var cta = document.querySelector(".cta");
-  var cards = document.querySelectorAll(".feat");
+  var tilters = document.querySelectorAll("[data-tilt]");
   var hasPointer = window.matchMedia("(hover: hover)").matches;
 
   if (hasPointer) {
@@ -762,20 +815,27 @@ function render(stats: Stats) {
           : "";
       }
 
-      // Cards tilt about themselves, and only while the cursor is over one.
-      for (var c = 0; c < cards.length; c++) {
-        var card = cards[c];
-        var r = card.getBoundingClientRect();
+      // Anything marked data-tilt leans about its own centre, and only while
+      // the cursor is over it. Off-screen elements are skipped before the
+      // maths: a long page has dozens of these and most are nowhere near.
+      for (var c = 0; c < tilters.length; c++) {
+        var el = tilters[c];
+        var r = el.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > h) continue;
+
         var inside = mx >= r.left && mx <= r.right && my >= r.top && my <= r.bottom;
         if (!inside) {
-          card.style.setProperty("--tx", "0deg");
-          card.style.setProperty("--ty", "0deg");
+          el.style.setProperty("--tx", "0deg");
+          el.style.setProperty("--ty", "0deg");
           continue;
         }
+        // Bigger panels get a gentler lean. The same angle that gives a small
+        // card life makes a full-width slab look like it is falling over.
+        var soft = r.width > 700 ? 0.45 : 1;
         var px = (mx - r.left) / r.width - 0.5;
         var py = (my - r.top) / r.height - 0.5;
-        card.style.setProperty("--ty", (px * 11).toFixed(2) + "deg");
-        card.style.setProperty("--tx", (-py * 9).toFixed(2) + "deg");
+        el.style.setProperty("--ty", (px * 11 * soft).toFixed(2) + "deg");
+        el.style.setProperty("--tx", (-py * 9 * soft).toFixed(2) + "deg");
       }
     }
   }
@@ -786,6 +846,7 @@ function render(stats: Stats) {
   // scrollY inside the frame rather than in the listener keeps the handler to
   // a single boolean write, which is what makes it cheap enough to leave on.
   var prog = document.getElementById("prog");
+  var blobs = document.querySelectorAll(".aura b");
   var scrollQueued = false;
 
   window.addEventListener("scroll", function () {
@@ -802,6 +863,12 @@ function render(stats: Stats) {
         var p = Math.min(1, y / (window.innerHeight * 0.9));
         phone.style.setProperty("--lift", (-p * 42).toFixed(1) + "px");
         phone.style.setProperty("--fade", (1 - p * 0.45).toFixed(3));
+      }
+
+      // The background moves slower than the page, and each blob at its own
+      // rate, which is what stops it reading as wallpaper.
+      for (var b = 0; b < blobs.length; b++) {
+        blobs[b].style.setProperty("--par", (y * (b === 0 ? -0.12 : -0.06)).toFixed(1) + "px");
       }
     });
   }, { passive: true });
