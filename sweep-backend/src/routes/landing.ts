@@ -296,6 +296,26 @@ function render(stats: Stats) {
     filter:blur(52px); transform:translateZ(-60px); z-index:-1;
   }
 
+  /* ---- headings arrive a word at a time ---------------------------------
+     Split by script at load. Each word is its own inline-block so it can be
+     transformed; the wrapper keeps overflow hidden so they rise out of a
+     clean edge rather than fading in place.
+
+     This is what stops a heading reading as flat: it has a direction and an
+     order, where a block that simply appears has neither. */
+  .w { display:inline-block; overflow:hidden; vertical-align:top; }
+  /* A backstop. If the split runs but the reveal never arrives — an observer
+     that failed, a class that got cleared — a heading that is merely un-animated
+     is recoverable, and one that is invisible is not. */
+  .w > i { opacity:1; transform:none; }
+  .rise .w > i {
+    display:inline-block; font-style:inherit;
+    transform:translateY(105%) rotate(4deg); opacity:0;
+    transition:transform .72s cubic-bezier(.16,.84,.3,1), opacity .5s ease;
+    transition-delay:calc(var(--w) * 55ms);
+  }
+  .rise.in .w > i, .in .w > i { transform:none; opacity:1; }
+
   /* ---- scroll reveal, in three dimensions --------------------------------
      Sections arrive laid back and set into the page, rather than sliding up it.
      The perspective is per element: one shared scene would swing anything far
@@ -328,7 +348,7 @@ function render(stats: Stats) {
   .stat {
     background:var(--panel); border:1px solid var(--line); border-radius:var(--r);
     padding:22px 24px;
-    transform:perspective(900px) rotateX(var(--tx,0deg)) rotateY(var(--ty,0deg));
+    transform:perspective(900px) rotateX(calc(var(--sx,0deg) + var(--tx,0deg))) rotateY(var(--ty,0deg));
     transform-style:preserve-3d;
     transition:transform .3s cubic-bezier(.2,.7,.3,1), border-color .3s ease;
     will-change:transform;
@@ -367,7 +387,7 @@ function render(stats: Stats) {
   .proof {
     background:var(--panel); border:1px solid var(--line); border-radius:22px;
     padding:26px; margin-top:36px;
-    transform:perspective(1100px) rotateX(var(--tx,0deg)) rotateY(var(--ty,0deg));
+    transform:perspective(1100px) rotateX(calc(var(--sx,0deg) + var(--tx,0deg))) rotateY(var(--ty,0deg));
     transform-style:preserve-3d;
     transition:transform .35s cubic-bezier(.2,.7,.3,1);
     will-change:transform;
@@ -411,7 +431,7 @@ function render(stats: Stats) {
     position:relative; border-radius:28px; padding:56px 32px;
     background:linear-gradient(160deg, rgba(228,115,63,.13), rgba(20,20,23,.6) 55%);
     border:1px solid rgba(228,115,63,.26);
-    transform:perspective(1300px) rotateX(var(--tx,0deg)) rotateY(var(--ty,0deg));
+    transform:perspective(1300px) rotateX(calc(var(--sx,0deg) + var(--tx,0deg))) rotateY(var(--ty,0deg));
     transform-style:preserve-3d;
     transition:transform .35s cubic-bezier(.2,.7,.3,1);
     box-shadow:0 40px 90px rgba(0,0,0,.5);
@@ -508,11 +528,11 @@ function render(stats: Stats) {
      ride, because they sit far from its vanishing point. */
   .feat {
     perspective:900px;
-    transform:perspective(900px) rotateX(var(--tx,0deg)) rotateY(var(--ty,0deg)) translateY(0);
+    transform:perspective(900px) rotateX(calc(var(--sx,0deg) + var(--tx,0deg))) rotateY(var(--ty,0deg)) translateY(0);
     transform-style:preserve-3d;
     will-change:transform;
   }
-  .feat:hover { transform:perspective(900px) rotateX(var(--tx,0deg)) rotateY(var(--ty,0deg)) translateY(-5px); }
+  .feat:hover { transform:perspective(900px) rotateX(calc(var(--sx,0deg) + var(--tx,0deg))) rotateY(var(--ty,0deg)) translateY(-5px); }
   .feat .ico, .feat h3 { transform:translateZ(26px); }
   .feat p { transform:translateZ(14px); }
 
@@ -550,7 +570,12 @@ function render(stats: Stats) {
 <main>
   <div class="hero wrap">
     <div class="heroGrid">
-      <div>
+      <!-- .rise is not decoration here: the headings are split into words that
+           start hidden and are revealed by .in, which only ever arrives on a
+           .rise element. Without it the h1 would be invisible. It is in view at
+           load, and IntersectionObserver reports that immediately, so it plays
+           its entrance rather than waiting for a scroll that never comes. -->
+      <div class="rise">
         <span class="badge"><i></i>Live on Google Play</span>
         <h1>Know whether that sale <span>is really a sale.</span></h1>
         <p class="lede">
@@ -735,15 +760,69 @@ function render(stats: Stats) {
     return;
   }
 
+  // ---- split every heading into words ----
+  //
+  // Walks text nodes rather than rewriting innerHTML, so the gradient span
+  // inside the h1 survives — replacing the markup wholesale would flatten it
+  // back to plain text and lose the one piece of colour on the page.
+  var headings = document.querySelectorAll("h1, h2");
+  for (var hI = 0; hI < headings.length; hI++) splitWords(headings[hI]);
+
+  function splitWords(el) {
+    var index = 0;
+    var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+    var texts = [];
+    var node;
+    while ((node = walker.nextNode())) texts.push(node);
+
+    for (var t = 0; t < texts.length; t++) {
+      var textNode = texts[t];
+      var words = textNode.nodeValue.split(/(\s+)/);
+      var frag = document.createDocumentFragment();
+
+      for (var wI = 0; wI < words.length; wI++) {
+        var word = words[wI];
+        if (!word) continue;
+        if (!word.trim()) {
+          frag.appendChild(document.createTextNode(word));
+          continue;
+        }
+        var outer = document.createElement("span");
+        outer.className = "w";
+        var inner = document.createElement("i");
+        inner.textContent = word;
+        // Staggered by position across the whole heading, not per text node,
+        // so a heading broken up by a coloured span still reads left to right.
+        inner.style.setProperty("--w", String(index++));
+        outer.appendChild(inner);
+        frag.appendChild(outer);
+      }
+      textNode.parentNode.replaceChild(frag, textNode);
+    }
+  }
+
   // ---- reveal on scroll ----
-  var seen = new WeakSet();
+  // Counted once, but revealed every time. Numbers racing back up on a second
+  // pass looks broken; a section arriving again as you scroll back down looks
+  // alive, and is the difference between a page that animates and a page that
+  // animated once while you were not looking.
+  var counted = new WeakSet();
   var io = new IntersectionObserver(function (entries) {
     entries.forEach(function (entry) {
-      if (!entry.isIntersecting || seen.has(entry.target)) return;
-      seen.add(entry.target);
-      entry.target.classList.add("in");
-      var counter = entry.target.querySelectorAll("[data-count]");
-      for (var i = 0; i < counter.length; i++) countUp(counter[i]);
+      if (entry.isIntersecting) {
+        entry.target.classList.add("in");
+        var counter = entry.target.querySelectorAll("[data-count]");
+        for (var i = 0; i < counter.length; i++) {
+          if (counted.has(counter[i])) continue;
+          counted.add(counter[i]);
+          countUp(counter[i]);
+        }
+      } else if (entry.boundingClientRect.top > 0) {
+        // Only when it leaves downward — past the top of the screen it is
+        // behind you, and resetting it there causes a visible flick if you
+        // scroll back up by a pixel.
+        entry.target.classList.remove("in");
+      }
     });
   }, { threshold: 0.15, rootMargin: "0px 0px -60px 0px" });
 
@@ -876,8 +955,27 @@ function render(stats: Stats) {
       for (var b = 0; b < blobs.length; b++) {
         blobs[b].style.setProperty("--par", (y * (b === 0 ? -0.12 : -0.06)).toFixed(1) + "px");
       }
+
+      // Every panel leans continuously with its position on screen: laid back
+      // on the way in, flat across the middle, tipped away on the way out.
+      // This is the part that makes SCROLLING feel three-dimensional rather
+      // than the page merely containing 3D things — it is always moving,
+      // rather than playing once and stopping.
+      var vh = window.innerHeight;
+      for (var t = 0; t < tilters.length; t++) {
+        var el = tilters[t];
+        var box = el.getBoundingClientRect();
+        if (box.bottom < -80 || box.top > vh + 80) continue;
+        // -1 below the fold, 0 dead centre, +1 above the top.
+        var pos = 1 - (box.top + box.height / 2) / (vh / 2);
+        el.style.setProperty("--sx", (Math.max(-1, Math.min(1, pos)) * -7).toFixed(2) + "deg");
+      }
     });
   }, { passive: true });
+
+  // Once at load. Without this the panels sit flat until the first scroll,
+  // which is a visible jump on a page you have not touched yet.
+  window.dispatchEvent(new Event("scroll"));
 })();
 </script>
 </body>

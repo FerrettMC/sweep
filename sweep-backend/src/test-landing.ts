@@ -263,6 +263,26 @@ for (const sel of [".feat", ".stat", ".proof", ".slab", ".rise"]) {
 // dozens of these and most are nowhere near the cursor.
 check("off-screen tilters are skipped", /r\.bottom < 0 \|\| r\.top > h/.test(script));
 
+console.log("\n— scrolling does something —");
+// The complaint that prompted this: the page contained 3D but scrolling past it
+// did nothing. These are the two things that change that.
+check("panels lean with scroll position", /--sx/.test(script) && /--sx/.test(css));
+check("scroll tilt composes with pointer tilt, not replaces it",
+  /rotateX\(calc\(var\(--sx,0deg\) \+ var\(--tx,0deg\)\)\)/.test(css));
+check("headings split into words", /className = "w"/.test(script));
+check("the split walks text nodes, keeping the gradient span",
+  /createTreeWalker/.test(script) && /SHOW_TEXT/.test(script));
+check("words are staggered", /--w/.test(css) && /setProperty\("--w"/.test(script));
+check("reveals repeat on the way back", /classList\.remove\("in"\)/.test(script));
+check("but the numbers only count once", /counted\.has/.test(script));
+
+// The headline is split too, and split words start hidden — so the hero must
+// be a .rise or it never receives the class that reveals them. This one is
+// worth pinning: getting it wrong makes the h1 invisible, not merely static.
+check("the hero is a reveal target", /<div class="rise">\s*\n?\s*<span class="badge"/.test(html));
+check("words have a visible fallback", /\.w > i \{ opacity:1; transform:none; \}/.test(css));
+check("the scroll pass runs at load", /dispatchEvent\(new Event\("scroll"\)\)/.test(script));
+
 console.log("\n— the hero image —");
 // Referenced but not bundled: nothing imports it, so only the Dockerfile's COPY
 // puts it in the image. Getting that wrong 404s a picture that works locally.
