@@ -710,7 +710,6 @@ export const en = {
   card: {
     added: "Added",
     compare: "Compare",
-    list: "List",
     noPrice: "No price",
     hidePassword: "Hide password",
     showPassword: "Show password",
@@ -1455,7 +1454,6 @@ export const es: Translations = {
   card: {
     added: "Añadido",
     compare: "Comparar",
-    list: "Lista",
     noPrice: "Sin precio",
     hidePassword: "Ocultar contraseña",
     showPassword: "Mostrar contraseña",

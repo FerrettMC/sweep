@@ -755,13 +755,10 @@ export default function SearchScreen() {
                         // are the same action rather than two separate ones.
                         starred={Boolean(starred[productKey(h.product)])}
                         onToggleStar={() => toggleStar(h.product)}
-                        onAddToList={() =>
-                          setListTarget({
-                            retailer: h.product.retailer,
-                            retailerId: h.product.retailerId,
-                            title: h.product.title,
-                            url: h.product.url,
-                          })
+                        onDetails={() =>
+                          router.push(
+                            `/lookup?url=${encodeURIComponent(h.product.url)}`,
+                          )
                         }
                       />
                     ))}

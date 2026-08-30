@@ -25,13 +25,14 @@ export default function HighlightCard({
   onPress,
   starred,
   onToggleStar,
-  onAddToList,
+  onDetails,
 }: {
   highlight: Highlight;
   onPress: () => void;
   starred?: boolean;
   onToggleStar?: () => void;
-  onAddToList?: () => void;
+  /** Opens the lookup page for this product. */
+  onDetails?: () => void;
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -81,11 +82,16 @@ export default function HighlightCard({
       </View>
 
       {/*
-        The same two actions the per-store rows offer. A top pick is the result
-        most people act on, so making them scroll down and find the same item
-        again in its store column just to compare or save it was busywork.
+        A top pick is the result most people act on, so the actions they'd
+        otherwise scroll down and hunt for in the store column below are here.
+
+        Details rather than List, because they are answers to different
+        questions. Saving to a list is for later; a top pick is the thing
+        someone is deciding about right now, and the next thing they want is
+        the ratings, the real reviews and the price history — not another
+        place to file it away.
       */}
-      {(onToggleStar || onAddToList) && (
+      {(onToggleStar || onDetails) && (
         <View style={styles.actions}>
           {onToggleStar && (
             <Pressable
@@ -108,14 +114,21 @@ export default function HighlightCard({
               </Text>
             </Pressable>
           )}
-          {onAddToList && (
+          {onDetails && (
             <Pressable
-              onPress={onAddToList}
+              onPress={onDetails}
               hitSlop={6}
-              style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.button,
+                styles.details,
+                pressed && styles.pressed,
+              ]}
+              accessibilityRole="button"
             >
-              <Ionicons name="list-outline" size={13} color={colors.textSecondary} />
-              <Text style={styles.buttonLabel}>{t("card.list")}</Text>
+              <Ionicons name="reader-outline" size={13} color={colors.accent} />
+              <Text style={[styles.buttonLabel, styles.detailsLabel]}>
+                {t("search.details")}
+              </Text>
             </Pressable>
           )}
         </View>
@@ -187,6 +200,10 @@ const makeStyles = (colors: Palette) =>
     // Compare takes the slack so the pair fills the card's width evenly.
     compare: { flex: 1 },
     compareOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+    // Tinted rather than filled: it sits next to Compare, and two solid
+    // buttons on one card is two things shouting at each other.
+    details: { flex: 1, borderColor: colors.accent },
+    detailsLabel: { color: colors.accent },
     buttonLabel: {
       color: colors.textSecondary,
       fontSize: type.caption.fontSize,
