@@ -27,6 +27,10 @@ RUN npm ci
 
 COPY tsconfig.json ./
 COPY src ./src
+# The landing page's hero image. Not imported by any module, so nothing in the
+# build would pull it in — without this COPY it simply isn't in the image and
+# the page 404s a picture that works perfectly in development.
+COPY assets ./assets
 RUN npm run build
 
 # ---- runtime ----
@@ -40,6 +44,7 @@ ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/assets ./assets
 COPY package*.json ./
 
 # Railway provides PORT; the app falls back to 3001 when it doesn't.
