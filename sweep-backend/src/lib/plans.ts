@@ -183,6 +183,10 @@ const DIALS: {
     value: (l) => String(l.searchesPerDay),
   },
   {
+    label: "dial.reopen",
+    value: (l) => String(l.searchHistoryLimit),
+  },
+  {
     label: "dial.manual",
     value: (l, locale) =>
       l.manualChecksPerDay !== null
@@ -352,6 +356,13 @@ function featuresFor(tier: Tier, locale: Locale): PlanFeature[] {
       ),
     },
     { group: "search", included: true, label: t(locale, "plan.compareAll") },
+    {
+      group: "search",
+      included: true,
+      // "free" as in it spends no allowance, which is the part worth selling —
+      // the number alone reads as a storage limit rather than a saving.
+      label: t(locale, "plan.history", { count: l.searchHistoryLimit }),
+    },
     {
       group: "search",
       included: true,
