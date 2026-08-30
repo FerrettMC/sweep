@@ -37,7 +37,7 @@ import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import { maybeAskForReview } from "@/lib/reviewPrompt";
 import { toast } from "@/lib/toast";
-import { storeListPhrase } from "@/lib/format";
+import { retailerLabel, storeListPhrase } from "@/lib/format";
 import {
   ApiError,
   type Highlight,
@@ -60,6 +60,15 @@ import {
 import { type Retailer, pluralize, retailerColor } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
 import { isOffered, setLiveStores } from "@/lib/liveStores";
+import RecentSearches from "@/components/RecentSearches";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import {
+  type HistoryEntry,
+  clearSearchHistory,
+  forgetSearch,
+  getSearchHistory,
+  reopenSearch,
+} from "@/lib/api";
 
 interface Section {
   title: string;
@@ -125,6 +134,9 @@ export default function SearchScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [reopening, setReopening] = useState<string | null>(null);
+  const [clearingHistory, setClearingHistory] = useState(false);
   const [skipped, setSkipped] = useState<{ retailer: string; label: string }[]>([]);
 
   // Starred results, kept as a map so they survive a new search — that's what
@@ -213,6 +225,14 @@ export default function SearchScreen() {
           // A quota read failing shouldn't block searching — the server
           // enforces the real limit regardless of what we managed to display.
         });
+
+      // Guests have none, and an older server has no endpoint — both land as an
+      // empty list, which renders as nothing at all.
+      getSearchHistory()
+        .then((result) => {
+          if (!cancelled) setHistory(result.searches);
+        })
+        .catch(() => {});
 
       getRetailerStatus()
         .then((status) => {
@@ -349,6 +369,11 @@ export default function SearchScreen() {
           // A search that found something is a moment the app just worked.
           if (progress.results.some((r) => r.products.length > 0)) {
             void maybeAskForReview();
+            // The server recorded this search when the job finished; re-read so
+            // it appears in Recent without needing the screen remounted.
+            void getSearchHistory()
+              .then((result) => setHistory(result.searches))
+              .catch(() => {});
           }
           return;
         }
@@ -389,6 +414,73 @@ export default function SearchScreen() {
       }
       return { ...current, [key]: product };
     });
+  }
+
+  /**
+   * Reopen a past search.
+   *
+   * Costs no quota and hits no retailer: the server rebuilds it from products
+   * it already holds. The flat product list is regrouped into the same per-store
+   * sections a live search produces, so everything below renders it with the
+   * same code — a second results renderer is a second thing to keep in step.
+   */
+  async function onReopen(entry: HistoryEntry) {
+    if (reopening) return;
+    setReopening(entry.id);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const result = await reopenSearch(entry.id);
+
+      const byRetailer = new Map<string, SearchProduct[]>();
+      for (const product of result.products) {
+        const list = byRetailer.get(product.retailer) ?? [];
+        list.push(product);
+        byRetailer.set(product.retailer, list);
+      }
+
+      setKeyword(result.keyword);
+      setSections(
+        orderSections(
+          [...byRetailer.entries()].map(([retailer, data]) => ({
+            title: retailerLabel(retailer),
+            retailer,
+            status: "success" as const,
+            message: null,
+            data,
+          })),
+        ),
+      );
+      setHighlights(result.highlights);
+      // Said out loud, because "search" and "costs a search" are the same word
+      // to anyone who hasn't read the pricing page.
+      setNotice(result.partial ? t("search.recentGone") : t("search.reopened"));
+    } catch {
+      // Most likely it has been pruned by a newer search. Dropping it from the
+      // list is more use than an error about something that no longer exists.
+      setHistory((current) => current.filter((h) => h.id !== entry.id));
+      setError(t("search.reopenFailed"));
+    } finally {
+      setReopening(null);
+    }
+  }
+
+  async function onForgetSearch(entry: HistoryEntry) {
+    setHistory((current) => current.filter((h) => h.id !== entry.id));
+    await forgetSearch(entry.id).catch(() => {});
+  }
+
+  async function onClearHistory() {
+    setClearingHistory(false);
+    const previous = history;
+    setHistory([]);
+    try {
+      await clearSearchHistory();
+    } catch {
+      // Put it back rather than lying about what happened.
+      setHistory(previous);
+    }
   }
 
   async function onWatchAd() {
@@ -606,12 +698,21 @@ export default function SearchScreen() {
       {searching && !sections && <Loading label={t("search.checkingStores")} />}
 
       {!searching && !sections && (
-        <EmptyState
-          title={t("search.emptyTitle")}
-          // Was a hardcoded list that named Target, which Sweep doesn't
-          // support, and omitted two stores that it does.
-          body={t("search.emptyBody", { stores: storeListPhrase() })}
-        />
+        <>
+          <EmptyState
+            title={t("search.emptyTitle")}
+            // Was a hardcoded list that named Target, which Sweep doesn't
+            // support, and omitted two stores that it does.
+            body={t("search.emptyBody", { stores: storeListPhrase() })}
+          />
+          <RecentSearches
+            searches={history}
+            busyId={reopening}
+            onOpen={onReopen}
+            onForget={onForgetSearch}
+            onClear={() => setClearingHistory(true)}
+          />
+        </>
       )}
 
       {sections && (
@@ -823,6 +924,26 @@ export default function SearchScreen() {
           setShowWhy(false);
           router.push("/why-limited");
         }}
+      />
+
+      {/* Confirmed, because it is one tap and there is no undo — and unlike a
+          tracked item or a list, nothing else in the app remembers what was
+          in here. */}
+      <ConfirmDialog
+        content={
+          clearingHistory
+            ? {
+                icon: "time-outline",
+                destructive: true,
+                title: t("search.recentClearTitle"),
+                body: t("search.recentClearBody"),
+                confirmLabel: t("search.recentClear"),
+                cancelLabel: t("common.cancel"),
+              }
+            : null
+        }
+        onConfirm={onClearHistory}
+        onCancel={() => setClearingHistory(false)}
       />
     </Screen>
   );

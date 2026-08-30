@@ -184,6 +184,15 @@ export const en = {
 
   search: {
     placeholder: "Search every store at once…",
+    recent: "Recent searches",
+    recentMeta: "{{results}} results · {{when}}",
+    recentFree: "Reopening one costs no search",
+    recentClear: "Clear",
+    recentClearTitle: "Clear your recent searches?",
+    recentClearBody: "This only forgets the list. Nothing you've tracked, listed or put in your cart is affected.",
+    recentGone: "Some of these results aren't available any more.",
+    reopened: "Reopened — no search used",
+    reopenFailed: "That search isn't saved any more.",
     button: "Search",
     topPicks: "Top picks",
     byStore: "By store",
@@ -916,6 +925,15 @@ export const es: Translations = {
 
   search: {
     placeholder: "Busca en todas las tiendas a la vez…",
+    recent: "Búsquedas recientes",
+    recentMeta: "{{results}} resultados · {{when}}",
+    recentFree: "Reabrir una no gasta búsquedas",
+    recentClear: "Borrar",
+    recentClearTitle: "¿Borrar tus búsquedas recientes?",
+    recentClearBody: "Esto solo olvida la lista. No afecta a nada que sigas, tengas en una lista o en el carrito.",
+    recentGone: "Algunos de estos resultados ya no están disponibles.",
+    reopened: "Reabierta — sin gastar búsquedas",
+    reopenFailed: "Esa búsqueda ya no está guardada.",
     button: "Buscar",
     topPicks: "Destacados",
     byStore: "Por tienda",
