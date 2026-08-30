@@ -5,6 +5,7 @@
 // disagree about what "$0" or "just now" looks like.
 
 import type { Palette } from "@/constants/theme";
+import { liveStoreNames } from "@/lib/liveStores";
 
 export type Retailer =
   | "amazon"
@@ -44,7 +45,10 @@ export const RETAILER_LABELS: Record<Retailer, string> = {
  * where nobody thinks to check.
  */
 export function storeListPhrase(limit = 4): string {
-  const names = Object.values(RETAILER_LABELS);
+  // Live names when the server has told us, the full list until then. The
+  // static list includes stores that are switched off, so using it once the
+  // truth is known means advertising stores we don't search.
+  const names = liveStoreNames();
   const shown = names.slice(0, limit);
   return names.length > shown.length
     ? `${shown.join(", ")} and more`

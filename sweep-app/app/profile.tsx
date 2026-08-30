@@ -46,12 +46,21 @@ import {
   registerForPushNotifications,
 } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
+import { setLiveStores } from "@/lib/liveStores";
 
 interface RetailerStatus {
   retailer: string;
   label: string;
   available: boolean;
   successRate: number | null;
+  /**
+   * False when switched off by configuration, rather than merely failing.
+   *
+   * Optional because an older server doesn't send it — so absent means "no
+   * opinion", and every store is shown, which is how this screen behaved
+   * before the field existed.
+   */
+  enabled?: boolean;
 }
 
 export default function ProfileScreen() {
@@ -121,6 +130,9 @@ export default function ProfileScreen() {
       plansResult?.plans.find((p) => p.tier === quotaResult?.tier)?.summary ?? null,
     );
     setGrant(promoResult?.grant ?? null);
+    // The one screen that fetches this on every focus, so it keeps the
+    // app-wide list fresh for the copy on every other screen.
+    setLiveStores(statusResult?.retailers);
     setRetailers(statusResult?.retailers ?? null);
     setPushRegistered(pushResult?.registered ?? null);
     setUsernameValue(xpResult?.username ?? null);
@@ -377,7 +389,12 @@ export default function ProfileScreen() {
           <SectionTitle>{t("profile.storeStatus")}</SectionTitle>
           <Text style={styles.sectionBlurb}>{t("profile.storeStatusHint")}</Text>
           <View style={styles.card}>
-            {(retailers ?? []).map((item, index) => (
+            {/* Stores switched off server-side are not "unavailable", they
+                aren't part of the app right now — and three red rows read as
+                most of Sweep being broken. `enabled === false` rather than
+                `!enabled`, because an older server omits the field entirely
+                and the list must not empty itself against one. */}
+            {(retailers ?? []).filter((r) => r.enabled !== false).map((item, index) => (
               <View
                 key={item.retailer}
                 style={[styles.statusRow, index > 0 && styles.statusRowDivided]}

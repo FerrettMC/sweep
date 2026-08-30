@@ -19,6 +19,7 @@ import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import { setUnreadCount } from "@/lib/unreadCount";
 import StoreTroubleSheet from "@/components/StoreTroubleSheet";
+import { setLiveStores } from "@/lib/liveStores";
 import {
   getNotificationStatus,
   getQuota,
@@ -82,6 +83,9 @@ export default function HomeScreen() {
     // tab header, and Home is already fetching the number anyway, so this
     // saves the header a second request.
     setUnreadCount(notifications?.unread ?? 0);
+    // Keeps the store names in Home's own hero copy honest, and every other
+    // screen's along with it.
+    setLiveStores(stores?.retailers);
 
     if (products) {
       setTracked(products.tracked);

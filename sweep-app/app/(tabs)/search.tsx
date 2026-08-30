@@ -59,6 +59,7 @@ import {
 } from "@/lib/ads";
 import { type Retailer, pluralize, retailerColor } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
+import { setLiveStores } from "@/lib/liveStores";
 
 interface Section {
   title: string;
@@ -216,6 +217,7 @@ export default function SearchScreen() {
       getRetailerStatus()
         .then((status) => {
           if (cancelled) return;
+          setLiveStores(status.retailers);
           setStoreOptions(
             status.retailers.map((r) => ({
               retailer: r.retailer as Retailer,
