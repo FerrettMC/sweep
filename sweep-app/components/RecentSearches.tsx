@@ -15,7 +15,7 @@
 // prices. It isn't a screenshot.
 
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
@@ -54,7 +54,20 @@ export default function RecentSearches({
         </Pressable>
       </View>
 
-      <View style={styles.card}>
+      {/*
+        Bounded and scrollable. These are direct children of a plain View, not
+        of a list, so ten rows would simply run off the bottom of the screen —
+        and Ultimate keeps two hundred. flexShrink lets the box size to its
+        contents while it is short and stops it growing past the space that is
+        actually left.
+      */}
+      <ScrollView
+        style={styles.card}
+        contentContainerStyle={styles.cardContent}
+        showsVerticalScrollIndicator={false}
+        // Otherwise a scroll that starts on a row is swallowed as a tap.
+        keyboardShouldPersistTaps="handled"
+      >
         {searches.map((entry, index) => (
           <View
             key={entry.id}
@@ -100,7 +113,7 @@ export default function RecentSearches({
             </Pressable>
           </View>
         ))}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -114,6 +127,12 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.sm,
       marginTop: spacing.md,
       paddingHorizontal: spacing.md,
+      // Takes what's left rather than a fixed height, so it adapts to the
+      // screen rather than guessing at one. Shrink AND a bounded grow: the box
+      // is content-sized with two searches and capped at the available space
+      // with two hundred.
+      flexShrink: 1,
+      minHeight: 0,
     },
     head: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
     headText: { flex: 1, gap: 1 },
@@ -137,7 +156,10 @@ const makeStyles = (colors: Palette) =>
       borderWidth: 1,
       borderColor: colors.surfaceBorder,
       overflow: "hidden",
+      // Grows only to its contents; the wrap's flexShrink caps it.
+      flexGrow: 0,
     },
+    cardContent: { flexGrow: 0 },
     row: { flexDirection: "row", alignItems: "center" },
     rowDivided: { borderTopWidth: 1, borderTopColor: colors.surfaceBorder },
     main: {

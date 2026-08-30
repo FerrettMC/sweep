@@ -592,25 +592,31 @@ export default function SearchScreen() {
 
   return (
     <Screen>
-      <View style={styles.searchBar}>
-        {/* Only once there are results to back out OF. A permanent back arrow
-            on the first screen of a tab is a button that does nothing, and the
-            tab bar is already the way back to everywhere else.
+      {/* Above the bar rather than inside it. In the row it was a third
+          control competing with the field and the Search button, and it ate
+          the width the field needed on a narrow phone.
 
-            It clears the results rather than navigating: this IS the search
-            tab, so "back" means back to the empty state — and that empty state
-            is where Recent Searches lives, which is the thing most people want
-            next after looking at one set of results. */}
-        {sections && (
-          <Pressable
-            onPress={onClearResults}
-            style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
-            accessibilityRole="button"
-            accessibilityLabel={t("search.backToSearch")}
-          >
-            <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
-          </Pressable>
-        )}
+          Only once there are results to back out OF — a permanent back arrow
+          on the first screen of a tab is a button that does nothing, and the
+          tab bar is already the route to everywhere else.
+
+          It clears the results rather than navigating: this IS the search tab,
+          so "back" means back to the empty state — which is where Recent
+          Searches lives, and therefore the most useful place to land after
+          reading one set of results. */}
+      {sections && (
+        <Pressable
+          onPress={onClearResults}
+          style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
+          accessibilityRole="button"
+          accessibilityLabel={t("search.backToSearch")}
+        >
+          <Ionicons name="arrow-back" size={18} color={colors.accent} />
+          <Text style={styles.backLabel}>{t("search.backToSearch")}</Text>
+        </Pressable>
+      )}
+
+      <View style={styles.searchBar}>
         <TextInput
           style={styles.input}
           placeholder={t("search.placeholder")}
@@ -735,22 +741,32 @@ export default function SearchScreen() {
 
       {searching && !sections && <Loading label={t("search.checkingStores")} />}
 
-      {!searching && !sections && (
-        <>
-          <EmptyState
-            title={t("search.emptyTitle")}
-            // Was a hardcoded list that named Target, which Sweep doesn't
-            // support, and omitted two stores that it does.
-            body={t("search.emptyBody", { stores: storeListPhrase() })}
-          />
-          <RecentSearches
-            searches={history}
-            busyId={reopening}
-            onOpen={onReopen}
-            onForget={onForgetSearch}
-            onClear={() => setClearingHistory(true)}
-          />
-        </>
+      {/*
+        One or the other, never both. EmptyState is flex:1 — it claims the whole
+        screen — so rendering it above the list left the list no room at all.
+
+        They also answer the same question. The empty state exists to say what
+        this screen is for; someone looking at ten of their own searches has
+        already worked that out, and the list is the more useful thing to hand
+        them. A first search still gets the explanation.
+      */}
+      {!searching && !sections && history.length === 0 && (
+        <EmptyState
+          title={t("search.emptyTitle")}
+          // Was a hardcoded list that named Target, which Sweep doesn't
+          // support, and omitted two stores that it does.
+          body={t("search.emptyBody", { stores: storeListPhrase() })}
+        />
+      )}
+
+      {!searching && !sections && history.length > 0 && (
+        <RecentSearches
+          searches={history}
+          busyId={reopening}
+          onOpen={onReopen}
+          onForget={onForgetSearch}
+          onClear={() => setClearingHistory(true)}
+        />
       )}
 
       {sections && (
@@ -1057,13 +1073,23 @@ const makeStyles = (colors: Palette) =>
     },
     list: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl },
     back: {
-      width: 40,
-      height: 40,
-      borderRadius: radius.md,
+      flexDirection: "row",
       alignItems: "center",
-      justifyContent: "center",
+      gap: 6,
+      alignSelf: "flex-start",
+      // Sits on the screen's own inset so it lines up with the search bar
+      // below, and is tall enough to be a real target on its own.
+      marginLeft: spacing.md,
+      marginTop: spacing.sm,
+      paddingRight: spacing.sm,
+      paddingVertical: 8,
     },
-    backPressed: { backgroundColor: colors.surfaceRaised },
+    backPressed: { opacity: 0.6 },
+    backLabel: {
+      color: colors.accent,
+      fontSize: type.label.fontSize,
+      fontWeight: "700",
+    },
     sectionHeader: {
       flexDirection: "row",
       alignItems: "center",
