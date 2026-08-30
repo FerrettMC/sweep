@@ -41,7 +41,20 @@ check("has a doctype", html.trimStart().startsWith("<!doctype"));
 check("nothing left uninterpolated", !html.includes("${"), html.slice(html.indexOf("${"), 60));
 
 console.log("\n— the markup closes —");
-for (const tag of ["html", "head", "body", "div", "section", "footer", "svg", "style"]) {
+// Counted over the markup only. CSS and script bodies routinely contain things
+// that look like tags — a comment naming <div class="hero wrap"> was enough to
+// report the document as unbalanced when it was perfectly fine.
+const markup = html
+  .replace(/<style>[\s\S]*?<\/style>/g, "")
+  .replace(/<script>[\s\S]*?<\/script>/g, "");
+
+for (const tag of ["html", "head", "body", "div", "section", "footer", "svg", "picture"]) {
+  const open = (markup.match(new RegExp(`<${tag}[ >]`, "g")) ?? []).length;
+  const close = (markup.match(new RegExp(`</${tag}>`, "g")) ?? []).length;
+  check(`<${tag}> balances`, open === close, { open, close });
+}
+// Those two are stripped above, so count them on the original.
+for (const tag of ["style", "script"]) {
   const open = (html.match(new RegExp(`<${tag}[ >]`, "g")) ?? []).length;
   const close = (html.match(new RegExp(`</${tag}>`, "g")) ?? []).length;
   check(`<${tag}> balances`, open === close, { open, close });
@@ -69,6 +82,36 @@ check("paints its own background", /body\s*\{[^}]*background:var\(--bg\)/.test(h
 check("paints its own text colour", /body\s*\{[^}]*color:var\(--fg\)/.test(html));
 check("tells the browser chrome it is dark", html.includes('name="theme-color"'));
 check("honours reduced motion", html.includes("prefers-reduced-motion"));
+
+console.log("\n— layout classes don't clobber each other —");
+// .wrap is combined with .hero, .closing, section and footer, all of which set
+// their own padding. With the `padding` shorthand they overwrite each other in
+// whichever direction specificity and source order happen to fall — which is
+// how the text ended up flat against the edge of the screen on a phone while
+// the sections lost their vertical rhythm. Longhands cannot collide.
+const css = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+// EVERY rule mentioning the selector, not just the first one found. `footer`
+// appears three times here, and checking only the first was checking a rule
+// with no padding in it at all — a test that passed by looking somewhere else.
+const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].map((m) => ({
+  selector: m[1].trim(),
+  body: m[2],
+}));
+
+for (const name of [".wrap", ".hero", "section", ".closing", "footer"]) {
+  const touching = rules.filter((r) =>
+    new RegExp(`(^|[\\s,])${name.replace(".", "\\.")}([\\s,{]|$)`).test(`${r.selector} `),
+  );
+  check(`${name}: found its rules`, touching.length > 0, touching.length);
+  const shorthand = touching.filter((r) => /(^|[;\s])padding:/.test(r.body));
+  check(
+    `${name}: no padding shorthand anywhere`,
+    shorthand.length === 0,
+    shorthand.map((r) => r.selector),
+  );
+}
+check(".wrap insets horizontally", /\.wrap\s*\{[^}]*padding-left:/.test(css));
+check("sections space vertically", /section\s*\{[^}]*padding-top:/.test(css));
 
 console.log("\n— the page's own script runs —");
 // This page carries JavaScript inside a TypeScript template literal now, where

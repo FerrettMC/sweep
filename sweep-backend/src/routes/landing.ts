@@ -152,7 +152,23 @@ function render(stats: Stats) {
     -webkit-font-smoothing:antialiased; overflow-x:hidden;
   }
   a { color:var(--accent); text-decoration:none; }
-  .wrap { max-width:1120px; margin:0 auto; padding:0 22px; }
+  /* Longhands here, never the padding shorthand — and the same rule applies to
+     every selector below that can also land on a .wrap element.
+
+     These classes get combined: <div class="hero wrap">, <section class="wrap">.
+     With shorthands they clobber each other in both directions. .hero and
+     .closing are declared later at equal specificity, so their vertical-only
+     shorthand was winning and zeroing the horizontal inset — text sat flat
+     against the edge of the screen on a phone. And .wrap beats a bare section
+     on specificity, so its horizontal-only shorthand won there instead and ate
+     the vertical rhythm.
+
+     padding-left/right and padding-top/bottom never overwrite one another, so
+     each rule sets only the axis it means.
+
+     No backticks in here either: this whole page is a template literal, and one
+     of those ends the string. */
+  .wrap { max-width:1120px; margin:0 auto; padding-left:22px; padding-right:22px; }
 
   /* ---- the moving background -------------------------------------------
      Two blurred blobs on a slow drift. Transform and opacity only, so the
@@ -181,7 +197,7 @@ function render(stats: Stats) {
   main, header, footer { position:relative; z-index:1; }
 
   /* ---- hero ------------------------------------------------------------- */
-  .hero { padding:74px 0 40px; }
+  .hero { padding-top:74px; padding-bottom:40px; }
   .heroGrid { display:grid; gap:44px; align-items:center; }
   @media (min-width:940px) { .heroGrid { grid-template-columns:1.02fr .98fr; gap:30px; } }
 
@@ -273,7 +289,7 @@ function render(stats: Stats) {
   .rise[data-d="3"] { transition-delay:.27s; }
 
   /* ---- sections --------------------------------------------------------- */
-  section { padding:76px 0; }
+  section { padding-top:76px; padding-bottom:76px; }
   .eyebrow {
     color:var(--accent); font-size:12px; font-weight:800;
     text-transform:uppercase; letter-spacing:.16em;
@@ -346,12 +362,13 @@ function render(stats: Stats) {
   .prose p + p { margin-top:15px; }
   .prose strong { color:var(--fg); font-weight:700; }
 
-  .closing { text-align:center; padding:88px 0 96px; }
+  .closing { text-align:center; padding-top:88px; padding-bottom:96px; }
   .closing .sub { margin:0 auto 30px; }
   .closing h2 { font-size:clamp(30px,5vw,46px); }
 
   footer {
-    border-top:1px solid var(--line); padding:26px 0 46px;
+    border-top:1px solid var(--line);
+    padding-top:26px; padding-bottom:46px;
     color:var(--faint); font-size:14px;
   }
   footer a { color:var(--dim); }
