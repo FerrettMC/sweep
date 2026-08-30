@@ -107,7 +107,14 @@ export default function RecentSearches({
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
-    wrap: { gap: spacing.sm, marginTop: spacing.md },
+    // Screen supplies no horizontal padding — every child on this screen
+    // brings its own, and spacing.md is what the search bar and the results
+    // list use. Without it this sat flush against both edges.
+    wrap: {
+      gap: spacing.sm,
+      marginTop: spacing.md,
+      paddingHorizontal: spacing.md,
+    },
     head: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
     headText: { flex: 1, gap: 1 },
     title: {

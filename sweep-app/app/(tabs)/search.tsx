@@ -466,6 +466,26 @@ export default function SearchScreen() {
     }
   }
 
+  /**
+   * Back to the empty state.
+   *
+   * Deliberately keeps the keyword in the box: someone backing out of results
+   * is usually about to adjust the search rather than start a different one,
+   * and clearing the field makes them retype what they just typed.
+   */
+  function onClearResults() {
+    setSections(null);
+    setHighlights([]);
+    setNotice(null);
+    setError(null);
+    setJobId(null);
+    // Both matter. Bumping the generation makes any poll already in flight
+    // return without writing, and clearing `searching` is what lets the empty
+    // state render — leaving it true would show the spinner over nothing.
+    searchGeneration.current += 1;
+    setSearching(false);
+  }
+
   async function onForgetSearch(entry: HistoryEntry) {
     setHistory((current) => current.filter((h) => h.id !== entry.id));
     await forgetSearch(entry.id).catch(() => {});
@@ -573,6 +593,24 @@ export default function SearchScreen() {
   return (
     <Screen>
       <View style={styles.searchBar}>
+        {/* Only once there are results to back out OF. A permanent back arrow
+            on the first screen of a tab is a button that does nothing, and the
+            tab bar is already the way back to everywhere else.
+
+            It clears the results rather than navigating: this IS the search
+            tab, so "back" means back to the empty state — and that empty state
+            is where Recent Searches lives, which is the thing most people want
+            next after looking at one set of results. */}
+        {sections && (
+          <Pressable
+            onPress={onClearResults}
+            style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
+            accessibilityRole="button"
+            accessibilityLabel={t("search.backToSearch")}
+          >
+            <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
+          </Pressable>
+        )}
         <TextInput
           style={styles.input}
           placeholder={t("search.placeholder")}
@@ -1018,6 +1056,14 @@ const makeStyles = (colors: Palette) =>
       lineHeight: 19,
     },
     list: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl },
+    back: {
+      width: 40,
+      height: 40,
+      borderRadius: radius.md,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    backPressed: { backgroundColor: colors.surfaceRaised },
     sectionHeader: {
       flexDirection: "row",
       alignItems: "center",

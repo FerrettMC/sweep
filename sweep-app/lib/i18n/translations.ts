@@ -184,6 +184,7 @@ export const en = {
 
   search: {
     placeholder: "Search every store at once…",
+    backToSearch: "Back to search",
     recent: "Recent searches",
     recentMeta: "{{results}} results · {{when}}",
     recentFree: "Reopening one costs no search",
@@ -924,6 +925,7 @@ export const es: Translations = {
 
   search: {
     placeholder: "Busca en todas las tiendas a la vez…",
+    backToSearch: "Volver a la búsqueda",
     recent: "Búsquedas recientes",
     recentMeta: "{{results}} resultados · {{when}}",
     recentFree: "Reabrir una no gasta búsquedas",
