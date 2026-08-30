@@ -103,6 +103,12 @@ export async function landingRoutes(app: FastifyInstance) {
   app.get("/", async (_request, reply) => {
     const stats = await getStats();
     reply.type("text/html; charset=utf-8");
+    // Revalidate every time. The page carries live figures and changes with
+    // every deploy, and it was going out with no cache header at all — which
+    // leaves each browser to invent its own policy and makes "is this actually
+    // the new version" an unanswerable question. The assets it references are
+    // separately cached for a week, so this costs one small request.
+    reply.header("cache-control", "no-cache");
     return reply.send(render(stats));
   });
 }
