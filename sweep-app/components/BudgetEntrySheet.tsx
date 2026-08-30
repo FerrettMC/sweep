@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import {
@@ -58,6 +59,7 @@ export default function BudgetEntrySheet({
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
   const t = useTranslate();
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
@@ -119,7 +121,11 @@ export default function BudgetEntrySheet({
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
+            {/* paddingTop includes the safe-area inset: on Android a Modal renders
+          UNDER the status bar, so a fixed padding puts the sheet's top edge on
+          the clock. Matches UsernameSheet, ForgotPasswordSheet and
+          ConfirmDialog, which already did this. */}
+      <View style={[styles.backdrop, { paddingTop: insets.top + spacing.lg }]}>
         <View style={styles.sheet}>
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text style={styles.heading}>
