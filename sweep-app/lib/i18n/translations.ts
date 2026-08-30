@@ -635,6 +635,9 @@ export const en = {
   cart: {
     emptyTitle: "Your cart is empty",
     increase: "Add one more",
+    storeGroup: "{{store}} · {{count}}",
+    storeGroupOne: "{{store}}",
+    openItem: "Open",
     decrease: "Remove one",
     removeItem: "Remove from cart",
     emptyBody:
@@ -645,7 +648,6 @@ export const en = {
     up: "Up {{amount}} since you added these",
     someUnpriced: "{{count}} with no price right now",
     goBuy: "Go and buy",
-    openStore: "Open {{store}} ({{count}})",
     clear: "Empty the cart",
     clearTitle: "Empty your cart?",
     clearBody: "This removes everything in it. Nothing you've tracked or saved to a list is affected.",
@@ -1369,6 +1371,9 @@ export const es: Translations = {
   cart: {
     emptyTitle: "Tu carrito está vacío",
     increase: "Añadir uno más",
+    storeGroup: "{{store}} · {{count}}",
+    storeGroupOne: "{{store}}",
+    openItem: "Abrir",
     decrease: "Quitar uno",
     removeItem: "Quitar del carrito",
     emptyBody:
@@ -1379,7 +1384,6 @@ export const es: Translations = {
     up: "{{amount}} más desde que los añadiste",
     someUnpriced: "{{count}} sin precio ahora mismo",
     goBuy: "Ir a comprar",
-    openStore: "Abrir {{store}} ({{count}})",
     clear: "Vaciar el carrito",
     clearTitle: "¿Vaciar el carrito?",
     clearBody: "Se quitará todo. No afecta a lo que sigues ni a tus listas.",

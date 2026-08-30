@@ -25,7 +25,7 @@ import {
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { Button, EmptyState, Loading, Screen } from "@/components/ui";
+import { EmptyState, Loading, Screen } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
@@ -241,24 +241,75 @@ export default function CartScreen() {
               </View>
             ))}
 
-            {/* One button per store, because that's how buying happens — you
-                go to a shop and get everything you need from it, rather than
-                bouncing between tabs item by item. */}
+            {/*
+              Grouped by store, one row per item.
+
+              This was one button per store labelled "Open Amazon (2)", which
+              opened the FIRST Amazon item and silently dropped the other. The
+              count promised something the tap didn't do, and with two items
+              from one shop you had no way to reach the second at all.
+
+              There is no honest one-tap version: Sweep can't put anything in a
+              retailer's actual basket, so buying two things from Amazon means
+              opening two pages however it's presented. Grouping keeps the "one
+              shop at a time" idea that the store buttons were reaching for,
+              while every tap now does exactly what its row says.
+            */}
             <Text style={styles.sectionTitle}>{t("cart.goBuy")}</Text>
-            {cart.stores.map((store) => (
-              <Button
-                key={store.retailer}
-                label={t("cart.openStore", {
-                  store: store.label,
-                  count: store.count,
-                })}
-                variant="secondary"
-                onPress={() => {
-                  const first = cart.items.find((i) => i.retailer === store.retailer);
-                  if (first) void Linking.openURL(first.url).catch(() => {});
-                }}
-              />
-            ))}
+            {cart.stores.map((store) => {
+              const items = cart.items.filter((i) => i.retailer === store.retailer);
+              return (
+                <View key={store.retailer} style={styles.buyGroup}>
+                  <View style={styles.buyHead}>
+                    <View
+                      style={[
+                        styles.dot,
+                        { backgroundColor: retailerColor(colors, store.retailer) },
+                      ]}
+                    />
+                    <Text style={styles.buyStore}>
+                      {items.length === 1
+                        ? t("cart.storeGroupOne", { store: store.label })
+                        : t("cart.storeGroup", {
+                            store: store.label,
+                            count: items.length,
+                          })}
+                    </Text>
+                  </View>
+
+                  {items.map((item, index) => (
+                    <Pressable
+                      key={item.productId}
+                      style={({ pressed }) => [
+                        styles.buyRow,
+                        index > 0 && styles.buyRowDivided,
+                        pressed && styles.buyRowPressed,
+                      ]}
+                      onPress={() => void Linking.openURL(item.url).catch(() => {})}
+                      accessibilityRole="link"
+                      accessibilityLabel={`${t("cart.openItem")} — ${item.title}`}
+                    >
+                      <Text style={styles.buyTitle} numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      {/* Only when it matters. Otherwise you arrive at the shop
+                          having forgotten you wanted two, and the cart total
+                          you were shown quietly stops being the price you pay.
+                          The glyph needs no translating. */}
+                      {item.quantity > 1 && (
+                        <Text style={styles.buyQty}>&times;{item.quantity}</Text>
+                      )}
+                      <Text style={styles.buyPrice}>{formatPrice(item.price)}</Text>
+                      <Ionicons
+                        name="open-outline"
+                        size={16}
+                        color={colors.textTertiary}
+                      />
+                    </Pressable>
+                  ))}
+                </View>
+              );
+            })}
 
             <Pressable
               style={styles.clear}
@@ -394,6 +445,50 @@ const makeStyles = (colors: Palette) =>
       minWidth: 24,
       textAlign: "center",
       paddingVertical: 1,
+    },
+
+    buyGroup: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      overflow: "hidden",
+    },
+    buyHead: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 7,
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.sm,
+      paddingBottom: 6,
+    },
+    buyStore: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "800",
+      textTransform: "uppercase",
+      letterSpacing: 0.4,
+    },
+    buyRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      // 48dp of row, so every one of these is a comfortable target.
+      paddingVertical: 13,
+    },
+    buyRowDivided: { borderTopWidth: 1, borderTopColor: colors.surfaceBorder },
+    buyRowPressed: { backgroundColor: colors.surfaceRaised },
+    buyTitle: { flex: 1, color: colors.textPrimary, fontSize: type.label.fontSize },
+    buyQty: {
+      color: colors.accent,
+      fontSize: type.caption.fontSize,
+      fontWeight: "800",
+    },
+    buyPrice: {
+      color: colors.textSecondary,
+      fontSize: type.label.fontSize,
+      fontWeight: "800",
     },
 
     sectionTitle: {
