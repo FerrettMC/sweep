@@ -19,7 +19,7 @@ import {
 } from "react-native";
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSheetTopInset } from "@/lib/sheetTopInset";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import {
@@ -56,7 +56,7 @@ interface Props {
 export default function AddToListSheet({ product, onClose, onAdded }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const insets = useSafeAreaInsets();
+  const topInset = useSheetTopInset();
   const t = useTranslate();
   const [lists, setLists] = useState<GiftList[] | null>(null);
   const [limits, setLimits] = useState<{
@@ -137,7 +137,7 @@ export default function AddToListSheet({ product, onClose, onAdded }: Props) {
           UNDER the status bar, so a fixed padding puts the sheet's top edge on
           the clock. Matches UsernameSheet, ForgotPasswordSheet and
           ConfirmDialog, which already did this. */}
-      <View style={[styles.backdrop, { paddingTop: insets.top + spacing.lg }]}>
+      <View style={[styles.backdrop, { paddingTop: topInset + spacing.lg }]}>
         <View style={styles.sheet}>
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text style={styles.heading}>{t("addToList.heading")}</Text>

@@ -33,7 +33,7 @@ import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import { MIN_PASSWORD_LENGTH } from "@/lib/authErrors";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSheetTopInset } from "@/lib/sheetTopInset";
 import { supabase } from "@/lib/supabase";
 
 /** Supabase allows 6–10; don't hard-code the project's current choice. */
@@ -63,7 +63,7 @@ export default function ForgotPasswordSheet({
   const t = useTranslate();
   // Anchored near the top rather than the bottom: every field in here needs the
   // keyboard, and a bottom sheet ends up underneath it.
-  const insets = useSafeAreaInsets();
+  const topInset = useSheetTopInset();
 
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState(initialEmail);
@@ -137,7 +137,7 @@ export default function ForgotPasswordSheet({
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={[styles.backdrop, { paddingTop: insets.top + spacing.lg }]}>
+      <View style={[styles.backdrop, { paddingTop: topInset + spacing.lg }]}>
         <View style={styles.sheet}>
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text style={styles.heading}>

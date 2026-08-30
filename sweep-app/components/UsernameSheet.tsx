@@ -8,7 +8,7 @@ import { useState } from "react";
 import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import { Button } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSheetTopInset } from "@/lib/sheetTopInset";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
 import { ApiError, setUsername } from "@/lib/api";
@@ -25,7 +25,7 @@ export default function UsernameSheet({ visible, current, onClose, onSaved }: Pr
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const t = useTranslate();
-  const insets = useSafeAreaInsets();
+  const topInset = useSheetTopInset();
   const [draft, setDraft] = useState(current ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -61,7 +61,7 @@ export default function UsernameSheet({ visible, current, onClose, onSaved }: Pr
       {/* Anchored to the top, not centred: the field autofocuses, so the
           keyboard is already up when this opens and a centred dialog puts Save
           and Cancel behind it. Same treatment as ConfirmDialog's input mode. */}
-      <View style={[styles.backdrop, { paddingTop: insets.top + spacing.lg }]}>
+      <View style={[styles.backdrop, { paddingTop: topInset + spacing.lg }]}>
         <View style={styles.sheet}>
           <Text style={styles.heading}>
             {current ? t("username.change") : t("username.choose")}

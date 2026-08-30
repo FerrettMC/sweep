@@ -8,7 +8,10 @@
 //
 // It cannot be caught by the type checker and it is invisible on a simulator
 // with no notch, so it gets a file scan instead: any sheet that anchors to the
-// top must add the safe-area inset.
+// top must use useSheetTopInset, which measures the Android status bar
+// directly. useSafeAreaInsets is NOT enough here and was the first, silently
+// broken attempt at this fix: a Modal is its own native window on Android and
+// the hook can return a top inset of 0 inside one.
 //
 // Plain .mjs rather than .ts, the way i18n/checkKeys.mjs is: it reads files off
 // disk, and the app's tsconfig has no Node types — a .ts version breaks the
@@ -36,8 +39,8 @@ check("found the sheets to check", topAnchored.length >= 5, topAnchored.length);
 
 for (const { name, source } of topAnchored) {
   check(
-    `${name} uses the safe-area inset`,
-    source.includes("useSafeAreaInsets") && /paddingTop:\s*insets\.top/.test(source),
+    `${name} clears the status bar`,
+    source.includes("useSheetTopInset") && /paddingTop:\s*topInset/.test(source),
     name,
   );
 }

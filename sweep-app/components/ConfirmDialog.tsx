@@ -22,7 +22,7 @@ import {
   View,
 } from "react-native";
 import PasswordInput from "@/components/PasswordInput";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSheetTopInset } from "@/lib/sheetTopInset";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 
@@ -63,7 +63,7 @@ interface Props {
 export default function ConfirmDialog({ content, onConfirm, onCancel }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const insets = useSafeAreaInsets();
+  const topInset = useSheetTopInset();
   if (!content) return null;
 
   const {
@@ -91,7 +91,7 @@ export default function ConfirmDialog({ content, onConfirm, onCancel }: Props) {
           styles.backdrop,
           content.input && {
             justifyContent: "flex-start" as const,
-            paddingTop: insets.top + spacing.lg,
+            paddingTop: topInset + spacing.lg,
           },
         ]}
         onPress={onCancel}
