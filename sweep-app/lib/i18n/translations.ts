@@ -634,6 +634,9 @@ export const en = {
   },
   cart: {
     emptyTitle: "Your cart is empty",
+    increase: "Add one more",
+    decrease: "Remove one",
+    removeItem: "Remove from cart",
     emptyBody:
       "Add things from a search, a product page or anything you're tracking. Sweep adds up the total across every store and tells you if a price moves before you buy.",
     total: "Total",
@@ -1365,6 +1368,9 @@ export const es: Translations = {
   },
   cart: {
     emptyTitle: "Tu carrito está vacío",
+    increase: "Añadir uno más",
+    decrease: "Quitar uno",
+    removeItem: "Quitar del carrito",
     emptyBody:
       "Añade cosas desde una búsqueda, una página de producto o algo que estés siguiendo. Sweep suma el total de todas las tiendas y te avisa si un precio cambia antes de que compres.",
     total: "Total",

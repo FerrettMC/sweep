@@ -76,6 +76,12 @@ export default function CartScreen() {
     }
   }
 
+  /**
+   * Remove outright. Reached from the trash icon the minus button becomes at a
+   * quantity of one — setting the quantity to zero would do the same thing, but
+   * this is the endpoint that means it, and saying so here keeps the intent
+   * visible at the call site.
+   */
   async function drop(productId: string) {
     setBusy(productId);
     try {
@@ -173,20 +179,58 @@ export default function CartScreen() {
                 </Pressable>
 
                 <View style={styles.qty}>
+                  {/*
+                    Real buttons rather than bare icons with hitSlop. An 18px
+                    glyph plus 8 of slop is a ~34dp target, under both
+                    platforms' minimums, and invisible slop also means nothing
+                    on screen shows where to press. These are 40dp with a
+                    surface behind them, so the target is the thing you can see.
+
+                    The old slop overlapped, too: 8 either side across a 4dp gap
+                    left 12dp claimed by both buttons, where a near-miss on one
+                    silently hit the other. Sized boxes can't do that.
+                  */}
                   <Pressable
-                    hitSlop={8}
+                    style={({ pressed }) => [
+                      styles.qtyBtn,
+                      pressed && styles.qtyBtnPressed,
+                      busy === item.productId && styles.qtyBtnBusy,
+                    ]}
                     disabled={busy === item.productId}
-                    onPress={() => change(item.productId, item.quantity - 1)}
+                    onPress={() =>
+                      item.quantity === 1
+                        ? drop(item.productId)
+                        : change(item.productId, item.quantity - 1)
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      item.quantity === 1 ? t("cart.removeItem") : t("cart.decrease")
+                    }
                   >
-                    <Ionicons name="remove" size={18} color={colors.textSecondary} />
+                    {/* At one, this doesn't decrement — it removes the item. A
+                        minus sign there promises a 0 that never appears, so it
+                        says what it will actually do. */}
+                    <Ionicons
+                      name={item.quantity === 1 ? "trash-outline" : "remove"}
+                      size={19}
+                      color={item.quantity === 1 ? colors.danger : colors.textPrimary}
+                    />
                   </Pressable>
+
                   <Text style={styles.qtyNum}>{item.quantity}</Text>
+
                   <Pressable
-                    hitSlop={8}
+                    style={({ pressed }) => [
+                      styles.qtyBtn,
+                      pressed && styles.qtyBtnPressed,
+                      busy === item.productId && styles.qtyBtnBusy,
+                    ]}
                     disabled={busy === item.productId}
                     onPress={() => change(item.productId, item.quantity + 1)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("cart.increase")}
                   >
-                    <Ionicons name="add" size={18} color={colors.textSecondary} />
+                    <Ionicons name="add" size={19} color={colors.textPrimary} />
                   </Pressable>
                 </View>
               </View>
@@ -296,8 +340,28 @@ const makeStyles = (colors: Palette) =>
     downSmall: { color: colors.success, fontSize: type.caption.fontSize, fontWeight: "700" },
     upSmall: { color: colors.danger, fontSize: type.caption.fontSize, fontWeight: "700" },
 
-    qty: { alignItems: "center", gap: 4, paddingHorizontal: spacing.xs },
-    qtyNum: { color: colors.textPrimary, fontSize: type.label.fontSize, fontWeight: "800" },
+    qty: { alignItems: "center", gap: 3 },
+    qtyBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: radius.md,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surfaceRaised,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+    },
+    qtyBtnPressed: { backgroundColor: colors.accentMuted, borderColor: colors.accent },
+    qtyBtnBusy: { opacity: 0.45 },
+    qtyNum: {
+      color: colors.textPrimary,
+      fontSize: type.label.fontSize,
+      fontWeight: "800",
+      // Stops the row twitching sideways between 9 and 10.
+      minWidth: 24,
+      textAlign: "center",
+      paddingVertical: 1,
+    },
 
     sectionTitle: {
       color: colors.textSecondary,
