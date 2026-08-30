@@ -46,6 +46,13 @@ import {
   startMultiSearch,
 } from "../lib/searchJobs.js";
 import { TIER_LIMITS, effectiveTier, limitsFor } from "../lib/tiers.js";
+import {
+  clearHistory,
+  forgetSearch,
+  listHistory,
+  reopenSearch,
+  rememberSearch,
+} from "../lib/searchHistory.js";
 
 const MAX_KEYWORD_LENGTH = 120;
 /** Fallback for callers with no wallet (guests). */
@@ -147,9 +154,31 @@ export async function searchRoutes(app: FastifyInstance) {
         // the search found nothing. Charging for our own outage is not what
         // the daily allowance is for.
         async (finished) => {
-          if (productsSoFar(finished).length > 0) return;
-          if (userId) await refundUserSearch(userId, quota.resetsAt);
-          else if (deviceId) await refundGuestSearch(deviceId, quota.resetsAt);
+          const found = productsSoFar(finished);
+
+          if (found.length === 0) {
+            if (userId) await refundUserSearch(userId, quota.resetsAt);
+            else if (deviceId) await refundGuestSearch(deviceId, quota.resetsAt);
+            return;
+          }
+
+          // Recorded here rather than on each poll: this fires once, when every
+          // store has settled, so the entry holds the whole result set instead
+          // of whatever had arrived by the first poll. Guests get no history —
+          // there's no account to hang it on.
+          if (userId) {
+            // Read at completion rather than captured at the start: the tier
+            // decides how many entries are kept, and reading it here means a
+            // subscription bought mid-search counts.
+            const wallet = await prisma.wallet.findUnique({ where: { userId } });
+            await rememberSearch(
+              userId,
+              keyword,
+              found,
+              routing.retailers.length,
+              wallet ? effectiveTier(wallet) : "free",
+            );
+          }
         },
       );
 
@@ -205,6 +234,53 @@ export async function searchRoutes(app: FastifyInstance) {
       };
     },
   );
+
+  // ---- search history ----
+  //
+  // Reopening never scrapes and never spends quota: it reads Product rows we
+  // already hold. That is the entire point — a search you already paid for
+  // should not cost twice because you navigated away from it.
+
+  app.get("/search/history", { preHandler: requireAuth }, async (request) => {
+    const userId = request.userId!;
+    const wallet = await prisma.wallet.findUnique({ where: { userId } });
+    const tier = wallet ? effectiveTier(wallet) : "free";
+    return {
+      searches: await listHistory(userId, tier),
+      limit: TIER_LIMITS[tier].searchHistoryLimit,
+    };
+  });
+
+  app.get("/search/history/:id", { preHandler: requireAuth }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const reopened = await reopenSearch(request.userId!, id);
+    if (!reopened) {
+      return reply.status(404).send({ error: "That search is no longer saved" });
+    }
+
+    // Shaped like a finished job so the app can render it with the same code
+    // that renders a live search. A second result renderer is a second place
+    // for the two to drift apart.
+    return {
+      keyword: reopened.keyword,
+      searchedAt: reopened.searchedAt,
+      partial: reopened.partial,
+      originalCount: reopened.originalCount,
+      products: reopened.products,
+      highlights: pickHighlights(reopened.products),
+    };
+  });
+
+  app.delete("/search/history/:id", { preHandler: requireAuth }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const gone = await forgetSearch(request.userId!, id);
+    if (!gone) return reply.status(404).send({ error: "Not found" });
+    return { ok: true };
+  });
+
+  app.delete("/search/history", { preHandler: requireAuth }, async (request) => {
+    return { ok: true, removed: await clearHistory(request.userId!) };
+  });
 
   // ---- compiled search ----
   app.get(

@@ -87,31 +87,7 @@ export async function readSearchCache(
   const wanted = entry.productIds.slice(0, limit);
   if (wanted.length === 0) return null;
 
-  const rows = await prisma.product.findMany({
-    where: { id: { in: wanted }, currentPrice: { not: null } },
-  });
-
-  const byId = new Map(rows.map((row) => [row.id, row]));
-  const products: ScrapedProduct[] = [];
-  for (const id of wanted) {
-    const row = byId.get(id);
-    if (!row) continue;
-    products.push({
-      retailer: row.retailer as Retailer,
-      retailerId: row.retailerId,
-      title: row.title,
-      price: row.currentPrice,
-      listPrice: row.listPrice,
-      currency: row.currency,
-      imageUrl: row.imageUrl,
-      url: row.url,
-      availability: row.availability,
-      rating: row.rating,
-      ratingCount: row.ratingCount,
-      sellerRating: row.sellerRating,
-      sellerRatingCount: row.sellerRatingCount,
-    });
-  }
+  const products = await productsFromIds(wanted);
 
   if (products.length < Math.ceil(wanted.length * MIN_USABLE_SHARE)) return null;
 
@@ -135,23 +111,7 @@ export async function writeSearchCache(
   // parser returns, and caching it hides the breakage for hours.
   if (products.length === 0) return;
 
-  // The products must already be in Product for the ids to mean anything. The
-  // callers cache results there first; this reads back what that produced.
-  const rows = await prisma.product.findMany({
-    where: {
-      OR: products.map((p) => ({
-        retailer: p.retailer,
-        retailerId: p.retailerId,
-      })),
-    },
-    select: { id: true, retailer: true, retailerId: true },
-  });
-
-  const idFor = new Map(rows.map((r) => [`${r.retailer}:${r.retailerId}`, r.id]));
-  const productIds = products
-    .map((p) => idFor.get(`${p.retailer}:${p.retailerId}`))
-    .filter((id): id is string => id !== undefined);
-
+  const productIds = await idsForProducts(products);
   if (productIds.length === 0) return;
 
   const key = { keyword: normalizeKeyword(keyword), retailer };
@@ -169,4 +129,74 @@ export async function pruneSearchCache(): Promise<number> {
     where: { fetchedAt: { lt: cutoff } },
   });
   return count;
+}
+
+/**
+ * Product rows for a list of ids, in the order given, as search results.
+ *
+ * Order matters: relevance ranking is part of what a search returned, and
+ * findMany does not preserve it. Rows that have vanished or lost their price
+ * are dropped rather than rendered as blanks — the caller decides whether what
+ * survives is still enough to show.
+ *
+ * Shared with search history, which rebuilds an old result set the same way and
+ * for the same reason: prices come from the Product rows at read time, so a
+ * reopened search shows today's prices rather than a stale snapshot.
+ */
+export async function productsFromIds(ids: string[]): Promise<ScrapedProduct[]> {
+  if (ids.length === 0) return [];
+
+  const rows = await prisma.product.findMany({
+    where: { id: { in: ids }, currentPrice: { not: null } },
+  });
+
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const products: ScrapedProduct[] = [];
+  for (const id of ids) {
+    const row = byId.get(id);
+    if (!row) continue;
+    products.push({
+      retailer: row.retailer as Retailer,
+      retailerId: row.retailerId,
+      title: row.title,
+      price: row.currentPrice,
+      listPrice: row.listPrice,
+      currency: row.currency,
+      imageUrl: row.imageUrl,
+      url: row.url,
+      availability: row.availability,
+      rating: row.rating,
+      ratingCount: row.ratingCount,
+      sellerRating: row.sellerRating,
+      sellerRatingCount: row.sellerRatingCount,
+    });
+  }
+  return products;
+}
+
+/**
+ * Our Product ids for a list of scraped results, in the same order.
+ *
+ * The products must already be in Product for the ids to mean anything — the
+ * callers cache results there first and this reads back what that produced.
+ * Anything not found is dropped rather than turning into a null in the middle
+ * of an ordered list.
+ *
+ * Shared with search history, which needs exactly the same lookup to record
+ * what a search returned.
+ */
+export async function idsForProducts(products: ScrapedProduct[]): Promise<string[]> {
+  if (products.length === 0) return [];
+
+  const rows = await prisma.product.findMany({
+    where: {
+      OR: products.map((p) => ({ retailer: p.retailer, retailerId: p.retailerId })),
+    },
+    select: { id: true, retailer: true, retailerId: true },
+  });
+
+  const idFor = new Map(rows.map((r) => [`${r.retailer}:${r.retailerId}`, r.id]));
+  return products
+    .map((p) => idFor.get(`${p.retailer}:${p.retailerId}`))
+    .filter((id): id is string => id !== undefined);
 }

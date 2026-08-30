@@ -23,6 +23,7 @@ model User {
   budgetEntries    BudgetEntry[]
   budgetLimits     BudgetLimit[]
   savedSearches    SavedSearch[]
+  searchHistory    SearchHistory[]
   promoRedemptions PromoCodeRedemption[]
   pushTokens       PushToken[]
   notifications    Notification[]
@@ -284,6 +285,39 @@ model IpQuota {
 // rebuilding a cached search reads today's prices rather than replaying the
 // ones that were current when the search ran. The expensive part of a search
 // is discovering the matches; that is the part worth keeping.
+// A search someone can reopen without paying for it again.
+//
+// Distinct from SearchCache, which is shared, per-retailer and expires in hours
+// because it exists to stop us buying the same answer twice. This is per person,
+// permanent up to their tier's cap, and exists so "what was that thing I looked
+// at yesterday" doesn't cost a search.
+//
+// Only product ids are kept. Prices are read live from the Product rows on the
+// way out, so reopening a week-old search shows this week's prices rather than a
+// snapshot that has quietly gone wrong — which is the whole point of an app that
+// tracks prices.
+model SearchHistory {
+  id         String   @id @default(uuid())
+  // Normalized the same way SearchCache normalizes, so searching "AirPods  Pro"
+  // and "airpods pro" doesn't leave two entries that look identical.
+  keyword    String
+  // In the order they were shown. Relevance order is part of the result.
+  productIds String[]
+  // How many stores answered, so the list can say what it was without
+  // rebuilding the whole result set.
+  storeCount Int      @default(0)
+  searchedAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  // Searching the same thing again moves the existing entry rather than filling
+  // the list with duplicates of one keyword.
+  @@unique([userId, keyword])
+  // Drives the list, newest first, and the prune that enforces the tier cap.
+  @@index([userId, searchedAt])
+}
+
 model SearchCache {
   id         String   @id @default(uuid())
   // Normalized: lowercased, trimmed, whitespace collapsed. "AirPods  Pro" and

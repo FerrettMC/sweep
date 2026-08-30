@@ -1238,3 +1238,45 @@ export function redeemPromoCode(code: string) {
 export function getPromoStatus() {
   return request<PromoStatus>("/promo/status");
 }
+
+// ---- search history ----------------------------------------------------------
+//
+// Reopening a past search costs no quota and hits no retailer — the server
+// rebuilds it from products it already holds. Prices are read live, so a search
+// reopened a week later shows this week's prices rather than a snapshot.
+
+export interface HistoryEntry {
+  id: string;
+  keyword: string;
+  /** How many results it returned when it ran. */
+  resultCount: number;
+  storeCount: number;
+  /** ISO date. */
+  searchedAt: string;
+}
+
+export interface ReopenedSearch {
+  keyword: string;
+  searchedAt: string;
+  /** True when some results are no longer available to show. */
+  partial: boolean;
+  originalCount: number;
+  products: SearchProduct[];
+  highlights: Highlight[];
+}
+
+export function getSearchHistory() {
+  return request<{ searches: HistoryEntry[]; limit: number }>("/search/history");
+}
+
+export function reopenSearch(id: string) {
+  return request<ReopenedSearch>(`/search/history/${id}`);
+}
+
+export function forgetSearch(id: string) {
+  return request<{ ok: true }>(`/search/history/${id}`, { method: "DELETE" });
+}
+
+export function clearSearchHistory() {
+  return request<{ ok: true; removed: number }>("/search/history", { method: "DELETE" });
+}

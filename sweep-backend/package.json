@@ -45,7 +45,8 @@
     "test:promo": "tsx src/test-promo.ts",
     "test:video2": "tsx src/test-video2.ts",
     "test:adswitch": "tsx src/test-adswitch.ts",
-    "test:landing": "tsx src/test-landing.ts"
+    "test:landing": "tsx src/test-landing.ts",
+    "test:searchhistory": "tsx src/test-searchhistory.ts"
   },
   "keywords": [],
   "author": "",

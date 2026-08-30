@@ -15,6 +15,14 @@ export type Tier = (typeof TIERS)[number];
 export interface TierLimits {
   /** How many distinct products a user may track at once. */
   maxTrackedProducts: number;
+  /**
+   * How many past searches can be reopened.
+   *
+   * Reopening costs nothing to serve — it reads Product rows we already have —
+   * so this is a depth-of-memory perk rather than a cost control. The only
+   * thing it consumes is a few rows per user.
+   */
+  searchHistoryLimit: number;
   /** Compiled multi-site searches per day. */
   searchesPerDay: number;
   /** How far back price history is readable, in days. Null = everything. */
@@ -145,6 +153,7 @@ export interface TierLimits {
 export const TIER_LIMITS: Record<Tier, TierLimits> = {
   free: {
     maxTrackedProducts: 3,
+    searchHistoryLimit: 10,
     // Raised from 1, then from 5. One search a day is not a product anyone can
     // form an opinion about, and free users are ~98% of traffic — they are the
     // top of the funnel, not a cost centre to be minimised.
@@ -189,6 +198,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
   },
   pro: {
     maxTrackedProducts: 20,
+    searchHistoryLimit: 50,
     // Raised from 10. Under Bright Data a compiled search cost 4 credits (one
     // per Amazon result); amazonscraperapi bills per request, so it's 1. The
     // old cap was priced for the old billing.
@@ -224,6 +234,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
   },
   ultimate: {
     maxTrackedProducts: 100,
+    searchHistoryLimit: 200,
     // Effectively unlimited for a human — nobody runs 200 searches a day — but
     // still a number. "Unlimited" is the one knob that scales with signups
     // rather than with bounded usage, which is the trap worth avoiding.
