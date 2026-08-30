@@ -133,6 +133,55 @@ try {
 }
 check("it parses as valid JavaScript", syntaxError === null, syntaxError);
 
+console.log("\n— the motion stays cheap —");
+// Everything that moves must move with transform or opacity. Animating
+// anything else — width, top, filter — forces layout or paint on every frame,
+// and this page runs several things at once on phones.
+// Brace-matched rather than regex-matched: keyframe bodies contain nested
+// blocks, and a lazy regex stops at the first closing brace while a greedy one
+// runs into whatever rule comes next. The first version of this check did the
+// latter and reported six failures that were all its own.
+function keyframeBodies(source: string): string[] {
+  const out: string[] = [];
+  const re = /@keyframes\s+[\w-]+\s*\{/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(source))) {
+    let depth = 1;
+    let i = m.index + m[0].length;
+    const from = i;
+    while (i < source.length && depth > 0) {
+      if (source[i] === "{") depth++;
+      else if (source[i] === "}") depth--;
+      i++;
+    }
+    out.push(source.slice(from, i - 1));
+  }
+  return out;
+}
+
+const animated = keyframeBodies(css);
+check("found the keyframes", animated.length >= 5, animated.length);
+// box-shadow and stroke-dashoffset are paint-only and deliberately allowed —
+// what must never appear is anything that forces a layout on every frame.
+const banned = /(^|[;{\s])(width|height|top|left|right|bottom|margin|padding|font-size):/;
+for (const body of animated) {
+  check(
+    `keyframe animates only cheap properties: ${body.trim().slice(0, 34)}`,
+    !banned.test(body),
+    body.trim().slice(0, 80),
+  );
+}
+
+check("a single mousemove listener", (script.match(/addEventListener\("mousemove"/g) ?? []).length === 1);
+check("a single scroll listener", (script.match(/addEventListener\("scroll"/g) ?? []).length === 1);
+check("both are passive", (script.match(/passive: true/g) ?? []).length >= 2);
+check("pointer work is frame-throttled", /requestAnimationFrame\(paint\)/.test(script));
+// A touch device never fires mousemove; the resting pose in CSS is the effect
+// there, and the listener should not even be attached.
+check("pointer effects are gated on having a pointer", /matchMedia\("\(hover: hover\)"\)/.test(script));
+
+check("reduced motion disables the overlays", /prefers-reduced-motion[\s\S]*?\.spot, \.grain, \.prog \{ display:none/.test(css));
+
 console.log("\n— the hero image —");
 // Referenced but not bundled: nothing imports it, so only the Dockerfile's COPY
 // puts it in the image. Getting that wrong 404s a picture that works locally.

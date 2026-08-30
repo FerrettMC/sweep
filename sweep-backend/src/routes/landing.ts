@@ -264,13 +264,19 @@ function render(stats: Stats) {
      pointer at all — which is every phone. */
   .stage { perspective:1400px; display:flex; justify-content:center; }
   .phone {
-    --rx:6deg; --ry:-15deg;
+    --rx:6deg; --ry:-15deg; --lift:0px; --fade:1;
     position:relative; width:min(78vw,360px);
-    transform:rotateX(var(--rx)) rotateY(var(--ry));
+    /* translate3d first so the scroll lift and the pointer tilt compose
+       instead of one overwriting the other. */
+    transform:translate3d(0,var(--lift),0) rotateX(var(--rx)) rotateY(var(--ry));
+    opacity:var(--fade);
     transform-style:preserve-3d;
-    transition:transform .5s cubic-bezier(.2,.7,.3,1);
+    transition:transform .5s cubic-bezier(.2,.7,.3,1), opacity .4s linear;
     animation:float 7s ease-in-out infinite;
+    will-change:transform;
   }
+  /* Animating the separate translate property leaves the transform above
+     untouched, so the idle bob and the tilt do not fight. */
   @keyframes float { 50% { translate:0 -16px; } }
   .phone img { width:100%; height:auto; display:block; }
   /* The glow sits behind the device, in its own plane, so the 3D rotation
@@ -374,6 +380,91 @@ function render(stats: Stats) {
   footer a { color:var(--dim); }
   .footRow { display:flex; flex-wrap:wrap; gap:8px 18px; }
 
+
+  /* ---- scroll progress ---------------------------------------------------
+     A hairline at the very top. Scaled on the X axis rather than resized, so
+     it never asks the browser for a layout pass while you scroll. */
+  .prog {
+    position:fixed; top:0; left:0; right:0; height:2px; z-index:9;
+    background:linear-gradient(90deg,var(--accent2),var(--accent));
+    transform:scaleX(0); transform-origin:0 50%;
+  }
+
+  /* ---- cursor spotlight --------------------------------------------------
+     Follows the pointer as a soft warm light over the whole page. Fixed,
+     blurred and pointer-events:none, so it lights things without ever being
+     in the way of them. */
+  .spot {
+    position:fixed; width:520px; height:520px; z-index:2;
+    left:0; top:0; margin:-260px 0 0 -260px;
+    border-radius:50%; pointer-events:none; opacity:0;
+    background:radial-gradient(circle, rgba(228,115,63,.13), transparent 62%);
+    transition:opacity .5s ease;
+  }
+
+  /* ---- grain -------------------------------------------------------------
+     Fine noise over the top. Large flat gradients band on cheap panels, and a
+     little texture hides it — the same reason film grain gets added back to
+     digital footage. */
+  .grain {
+    position:fixed; inset:0; z-index:3; pointer-events:none; opacity:.032;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ---- floating chips around the phone ----------------------------------
+     Real depth rather than a drop shadow: each sits on its own Z plane inside
+     the phone's 3D context, so the tilt moves them by different amounts and
+     they read as hovering in front of it.
+
+     They are the app's own language — a drop alert, a verdict, a store row —
+     so the depth is showing something true rather than decorating nothing. */
+  .float {
+    position:absolute; z-index:2;
+    background:rgba(26,26,30,.72); backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    border:1px solid rgba(255,255,255,.09); border-radius:14px;
+    padding:11px 14px; white-space:nowrap;
+    box-shadow:0 18px 42px rgba(0,0,0,.5);
+    opacity:0; animation:floatIn .8s cubic-bezier(.2,.7,.3,1) forwards;
+  }
+  @keyframes floatIn { to { opacity:1; } }
+  .float .k { font-size:11px; color:var(--faint); font-weight:700;
+              text-transform:uppercase; letter-spacing:.08em; }
+  .float .v { font-size:15px; font-weight:800; margin-top:3px; }
+  .float .v.good { color:var(--good); }
+  .float .row { display:flex; align-items:center; gap:8px; font-size:13px; }
+  .float .row i { width:8px; height:8px; border-radius:3px; }
+
+  .f1 { top:11%; left:-16%; transform:translateZ(70px); animation-delay:.7s; }
+  .f2 { bottom:20%; right:-18%; transform:translateZ(96px); animation-delay:.9s; }
+  .f3 { bottom:5%; left:-11%; transform:translateZ(48px); animation-delay:1.1s; }
+  @media (max-width:520px) {
+    /* Off the edges of a narrow screen they would be clipped, and shrinking
+       them to fit makes three unreadable labels. Two, pulled inward. */
+    .f1 { left:-6%; top:8%; }
+    .f2 { right:-6%; }
+    .f3 { display:none; }
+    .float { padding:9px 11px; }
+    .float .v { font-size:13px; }
+  }
+
+  /* ---- cards that tilt ---------------------------------------------------
+     Each card gets its own perspective so it rotates about itself. One shared
+     perspective on the grid would swing the outer cards like a fairground
+     ride, because they sit far from its vanishing point. */
+  .feat {
+    perspective:900px;
+    transform:perspective(900px) rotateX(var(--tx,0deg)) rotateY(var(--ty,0deg)) translateY(0);
+    transform-style:preserve-3d;
+    will-change:transform;
+  }
+  .feat:hover { transform:perspective(900px) rotateX(var(--tx,0deg)) rotateY(var(--ty,0deg)) translateY(-5px); }
+  .feat .ico, .feat h3 { transform:translateZ(26px); }
+  .feat p { transform:translateZ(14px); }
+
+  /* ---- the CTA leans toward the pointer --------------------------------- */
+  .cta { will-change:transform; }
+
   /* Asked for, and meant. */
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior:auto; }
@@ -385,12 +476,19 @@ function render(stats: Stats) {
     .chip { opacity:1; transform:none; }
     .proof .line { stroke-dashoffset:0; }
     .phone { transform:rotateX(4deg) rotateY(-10deg); }
+    .float { opacity:1; }
+    .spot, .grain, .prog { display:none; }
+    .feat, .feat:hover { transform:none; }
+    .feat .ico, .feat h3, .feat p { transform:none; }
   }
 </style>
 </head>
 <body>
 
+<div class="prog" id="prog" aria-hidden="true"></div>
 <div class="aura" aria-hidden="true"><b></b><b></b></div>
+<div class="spot" id="spot" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
 
 <main>
   <div class="hero wrap">
@@ -414,6 +512,20 @@ function render(stats: Stats) {
 
       <div class="stage">
         <div class="phone" id="phone">
+          <!-- The app's own language, floating in front of the device on their
+               own Z planes. Decorative to a screen reader: everything they say
+               is said properly in the copy. -->
+          <div class="float f1" aria-hidden="true">
+            <div class="k">Price drop</div>
+            <div class="v good">&#9660; $41.00</div>
+          </div>
+          <div class="float f2" aria-hidden="true">
+            <div class="k">Is this sale real?</div>
+            <div class="v good">Lowest we have seen</div>
+          </div>
+          <div class="float f3" aria-hidden="true">
+            <div class="row"><i style="background:#0071DC"></i>Walmart<b>&nbsp;$268</b></div>
+          </div>
           <picture>
             <source srcset="/assets/hero.webp" type="image/webp">
             <img src="/assets/hero.png" width="862" height="1280"
@@ -596,33 +708,103 @@ function render(stats: Stats) {
     requestAnimationFrame(frame);
   }
 
-  // ---- the phone follows the pointer ----
-  // Only where there IS a pointer. On a touch screen this listener would never
-  // fire, and the resting tilt in the CSS is the whole effect there.
+  // ---- one pointer loop drives everything that follows the cursor ----
+  //
+  // A single listener and a single frame callback, rather than one per effect.
+  // Three listeners would each schedule their own frame and the browser would
+  // do the same work three times over for one movement of the mouse.
   var phone = document.getElementById("phone");
-  if (phone && window.matchMedia("(hover: hover)").matches) {
-    var pending = false;
-    var lastX = 0;
-    var lastY = 0;
+  var spot = document.getElementById("spot");
+  var cta = document.querySelector(".cta");
+  var cards = document.querySelectorAll(".feat");
+  var hasPointer = window.matchMedia("(hover: hover)").matches;
+
+  if (hasPointer) {
+    var queued = false;
+    var mx = 0;
+    var my = 0;
 
     window.addEventListener("mousemove", function (e) {
-      lastX = e.clientX;
-      lastY = e.clientY;
-      if (pending) return;
-      pending = true;
-      // One write per frame. Without this the handler fires far more often
-      // than the screen refreshes and every extra write is thrown away.
-      requestAnimationFrame(function () {
-        pending = false;
-        var cx = window.innerWidth / 2;
-        var cy = window.innerHeight / 2;
-        var ry = -15 + ((lastX - cx) / cx) * 9;
-        var rx = 6 - ((lastY - cy) / cy) * 6;
+      mx = e.clientX;
+      my = e.clientY;
+      if (spot && !spot.style.opacity) spot.style.opacity = "1";
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(paint);
+    }, { passive: true });
+
+    function paint() {
+      queued = false;
+      var w = window.innerWidth;
+      var h = window.innerHeight;
+
+      // The light itself.
+      if (spot) spot.style.transform = "translate3d(" + mx + "px," + my + "px,0)";
+
+      // The device leans toward the cursor, about its resting pose.
+      if (phone) {
+        var ry = -15 + ((mx - w / 2) / (w / 2)) * 9;
+        var rx = 6 - ((my - h / 2) / (h / 2)) * 6;
         phone.style.setProperty("--ry", ry.toFixed(2) + "deg");
         phone.style.setProperty("--rx", rx.toFixed(2) + "deg");
-      });
-    }, { passive: true });
+      }
+
+      // A magnetic nudge on the button, but only near it. Anything further
+      // than this and a button that drifts across the page is a button people
+      // have to chase.
+      if (cta) {
+        var b = cta.getBoundingClientRect();
+        var dx = mx - (b.left + b.width / 2);
+        var dy = my - (b.top + b.height / 2);
+        var near = Math.sqrt(dx * dx + dy * dy) < 190;
+        cta.style.transform = near
+          ? "translate(" + (dx * 0.16).toFixed(1) + "px," + (dy * 0.22).toFixed(1) + "px)"
+          : "";
+      }
+
+      // Cards tilt about themselves, and only while the cursor is over one.
+      for (var c = 0; c < cards.length; c++) {
+        var card = cards[c];
+        var r = card.getBoundingClientRect();
+        var inside = mx >= r.left && mx <= r.right && my >= r.top && my <= r.bottom;
+        if (!inside) {
+          card.style.setProperty("--tx", "0deg");
+          card.style.setProperty("--ty", "0deg");
+          continue;
+        }
+        var px = (mx - r.left) / r.width - 0.5;
+        var py = (my - r.top) / r.height - 0.5;
+        card.style.setProperty("--ty", (px * 11).toFixed(2) + "deg");
+        card.style.setProperty("--tx", (-py * 9).toFixed(2) + "deg");
+      }
+    }
   }
+
+  // ---- one scroll loop ----
+  //
+  // The progress bar, and a slow lift on the phone as the hero leaves. Reading
+  // scrollY inside the frame rather than in the listener keeps the handler to
+  // a single boolean write, which is what makes it cheap enough to leave on.
+  var prog = document.getElementById("prog");
+  var scrollQueued = false;
+
+  window.addEventListener("scroll", function () {
+    if (scrollQueued) return;
+    scrollQueued = true;
+    requestAnimationFrame(function () {
+      scrollQueued = false;
+      var y = window.scrollY || 0;
+      var max = document.documentElement.scrollHeight - window.innerHeight;
+      if (prog) prog.style.transform = "scaleX(" + (max > 0 ? y / max : 0).toFixed(4) + ")";
+      if (phone) {
+        // Eases out over the first screenful and then stops, so it is a
+        // departure rather than something still moving three sections down.
+        var p = Math.min(1, y / (window.innerHeight * 0.9));
+        phone.style.setProperty("--lift", (-p * 42).toFixed(1) + "px");
+        phone.style.setProperty("--fade", (1 - p * 0.45).toFixed(3));
+      }
+    });
+  }, { passive: true });
 })();
 </script>
 </body>
