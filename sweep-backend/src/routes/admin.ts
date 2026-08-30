@@ -133,6 +133,26 @@ const PAGE = `<!doctype html>
   .ok { color: #16a34a; } .bad { color: #dc2626; } .warn { color: #d97706; }
   .msg { padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); margin-bottom: 12px; font-size: 14px; }
   .hide { display: none; }
+
+  /* Provider credit bars. Colour is the whole message — you should be able to
+     tell whether you are fine from across the room. */
+  .prov { border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; margin-bottom: 8px; }
+  .provTop { display: flex; align-items: baseline; gap: 8px; font-size: 14px; }
+  .provTop b { font-weight: 800; }
+  .provTop .who { color: var(--dim); font-size: 12px; }
+  .provTop .num { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; }
+  .bar { height: 7px; border-radius: 4px; background: #8882; margin-top: 8px; overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 4px; background: #16a34a; }
+  .bar i.warn { background: #d97706; }
+  .bar i.bad { background: #dc2626; }
+
+  /* Seven bars. Enough to see a direction, which is all a week can tell you. */
+  .spark { display: flex; align-items: flex-end; gap: 6px; height: 96px; }
+  .spark div { flex: 1; display: flex; flex-direction: column; justify-content: flex-end;
+               align-items: center; gap: 4px; height: 100%; }
+  .spark span.col { display: block; width: 100%; background: #4f46e5; border-radius: 4px 4px 0 0; min-height: 2px; }
+  .spark span.lab { font-size: 10px; color: var(--dim); }
+  .spark span.val { font-size: 11px; font-weight: 800; }
 </style>
 </head>
 <body>
@@ -150,6 +170,14 @@ const PAGE = `<!doctype html>
 </div>
 
 <div id="app" class="hide">
+
+  <h2>Provider credits</h2>
+  <p class="sub">What the metered stores are spending. Running out takes the
+  store down, so this is a deadline rather than a gauge.</p>
+  <div id="providers"></div>
+
+  <h2>Last 7 days</h2>
+  <div class="spark" id="trend"></div>
 
   <h2>People</h2>
   <div class="grid" id="people"></div>
@@ -311,10 +339,37 @@ async function load() {
   // shouldn't stop the stats that just arrived from rendering.
   loadPromo();
 
+  document.getElementById("providers").innerHTML = s.providers.map(function (p) {
+    var pct = p.percent;
+    var cls = pct === null ? "" : pct >= 90 ? "bad" : pct >= 70 ? "warn" : "";
+    var right = p.allowance === null
+      ? p.used.toLocaleString() + " calls"
+      : p.used.toLocaleString() + " / " + p.allowance.toLocaleString() + " (" + pct + "%)";
+    var bar = p.allowance === null
+      ? '<div class="sub" style="margin:6px 0 0;font-size:12px">Set ' +
+        (p.name === "Decodo" ? "DECODO_CREDITS" : "BRIGHTDATA_CREDITS") +
+        " to see how much is left.</div>"
+      : '<div class="bar"><i class="' + cls + '" style="width:' + Math.max(pct, 2) + '%"></i></div>';
+    return '<div class="prov"><div class="provTop"><b>' + p.name +
+      '</b><span class="who">' + p.serves + " &middot; " + p.window +
+      '</span><span class="num">' + right + "</span></div>" + bar + "</div>";
+  }).join("");
+
+  var peak = Math.max.apply(null, s.trend.map(function (d) { return d.checks; }).concat([1]));
+  document.getElementById("trend").innerHTML = s.trend.map(function (d) {
+    var h = Math.round((d.checks / peak) * 100);
+    var day = new Date(d.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" });
+    return '<div title="' + d.checks + ' checks, ' + d.signups + ' signups">' +
+      '<span class="val">' + (d.signups ? "+" + d.signups : "") + "</span>" +
+      '<span class="col" style="height:' + Math.max(h, 2) + '%"></span>' +
+      '<span class="lab">' + day + "</span></div>";
+  }).join("");
+
   document.getElementById("people").innerHTML =
     card("Users", s.users.total) + card("New today", s.users.newToday) +
     card("New this week", s.users.newThisWeek) + card("Tracking", s.usage.tracked) +
-    card("Pro", s.tiers.pro) + card("Ultimate", s.tiers.ultimate);
+    card("Pro", s.tiers.pro) + card("Ultimate", s.tiers.ultimate) +
+    card("Est. MRR", "$" + s.revenue.monthly.toFixed(2));
 
   document.getElementById("today").innerHTML =
     card("Searches", s.usage.searchesToday) + card("Lookups", s.usage.lookupsToday) +

@@ -172,6 +172,39 @@ try {
     "the metered ceiling is searches plus lookups",
     stats.usage.meteredCeiling === stats.usage.searchesToday + stats.usage.lookupsToday,
   );
+  console.log("\n— provider credits —");
+  check("every metered provider is reported", stats.providers.length >= 2, stats.providers.length);
+  for (const p of stats.providers) {
+    check(`${p.name} names the store it serves`, Boolean(p.serves));
+    check(`${p.name} usage is a real count`, Number.isInteger(p.used) && p.used >= 0, p.used);
+    // An unset allowance must read as "unknown", never as zero left.
+    check(
+      `${p.name} percent is null or 0-100`,
+      p.percent === null || (p.percent >= 0 && p.percent <= 100),
+      p.percent,
+    );
+    check(
+      `${p.name} has no percent without an allowance`,
+      (p.allowance === null) === (p.percent === null),
+      { allowance: p.allowance, percent: p.percent },
+    );
+  }
+
+  console.log("\n— the week —");
+  check("seven days, always", stats.trend.length === 7, stats.trend.length);
+  check("oldest first", stats.trend[0].date < stats.trend[6].date, stats.trend.map((d) => d.date));
+  // Quiet days must be zeroes rather than gaps: a missing bar reads as "no
+  // data", which is the opposite news from "no signups".
+  check("no gaps", stats.trend.every((d) => Number.isInteger(d.signups) && Number.isInteger(d.checks)));
+  const days = new Set(stats.trend.map((d) => d.date));
+  check("no duplicate days", days.size === 7, [...days]);
+
+  console.log("\n— revenue —");
+  check("MRR is tiers times list price",
+    Math.abs(stats.revenue.monthly - (stats.tiers.pro * stats.revenue.pro + stats.tiers.ultimate * stats.revenue.ultimate)) < 0.001,
+    stats.revenue);
+  check("prices match the pricing table", stats.revenue.pro === 5.99 && stats.revenue.ultimate === 11.99, stats.revenue);
+
   check("heaviest list is bounded", stats.heaviest.length <= 8, stats.heaviest.length);
 } finally {
   await app.close();

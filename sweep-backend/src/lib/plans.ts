@@ -84,7 +84,12 @@ export interface Plan {
   highlighted: boolean;
 }
 
-const PRICING: Record<Tier, PlanPricing> = {
+/**
+ * Exported so the admin dashboard can estimate revenue from the same numbers
+ * the pricing screen shows. Two copies of a price is how a dashboard ends up
+ * quietly reporting last quarter's figures.
+ */
+export const PRICING: Record<Tier, PlanPricing> = {
   free: { monthly: 0, yearly: 0, yearlySavingPercent: null, yearlyPerMonth: null },
   pro: {
     monthly: 5.99,
