@@ -269,18 +269,17 @@ console.log("\n— scrolling does something —");
 check("panels lean with scroll position", /--sx/.test(script) && /--sx/.test(css));
 check("scroll tilt composes with pointer tilt, not replaces it",
   /rotateX\(calc\(var\(--sx,0deg\) \+ var\(--tx,0deg\)\)\)/.test(css));
-check("headings split into words", /className = "w"/.test(script));
-check("the split walks text nodes, keeping the gradient span",
-  /createTreeWalker/.test(script) && /SHOW_TEXT/.test(script));
-check("words are staggered", /--w/.test(css) && /setProperty\("--w"/.test(script));
 check("reveals repeat on the way back", /classList\.remove\("in"\)/.test(script));
 check("but the numbers only count once", /counted\.has/.test(script));
 
 // The headline is split too, and split words start hidden — so the hero must
 // be a .rise or it never receives the class that reveals them. This one is
 // worth pinning: getting it wrong makes the h1 invisible, not merely static.
-check("the hero is a reveal target", /<div class="rise">\s*\n?\s*<span class="badge"/.test(html));
-check("words have a visible fallback", /\.w > i \{ opacity:1; transform:none; \}/.test(css));
+check("the hero reveals on load", /<div class="rise">\s*\n?\s*<span class="badge"/.test(html));
+// Headings are plain text again. Wrapping each word in an overflow:hidden
+// inline-block collapsed the spaces between them — a nice effect is not worth
+// a heading that reads as onewordrunintoanother.
+check("headings are left alone", !/class="w"/.test(html) && !/createTreeWalker/.test(script));
 check("the scroll pass runs at load", /dispatchEvent\(new Event\("scroll"\)\)/.test(script));
 
 console.log("\n— the hero image —");

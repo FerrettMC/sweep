@@ -296,26 +296,6 @@ function render(stats: Stats) {
     filter:blur(52px); transform:translateZ(-60px); z-index:-1;
   }
 
-  /* ---- headings arrive a word at a time ---------------------------------
-     Split by script at load. Each word is its own inline-block so it can be
-     transformed; the wrapper keeps overflow hidden so they rise out of a
-     clean edge rather than fading in place.
-
-     This is what stops a heading reading as flat: it has a direction and an
-     order, where a block that simply appears has neither. */
-  .w { display:inline-block; overflow:hidden; vertical-align:top; }
-  /* A backstop. If the split runs but the reveal never arrives — an observer
-     that failed, a class that got cleared — a heading that is merely un-animated
-     is recoverable, and one that is invisible is not. */
-  .w > i { opacity:1; transform:none; }
-  .rise .w > i {
-    display:inline-block; font-style:inherit;
-    transform:translateY(105%) rotate(4deg); opacity:0;
-    transition:transform .72s cubic-bezier(.16,.84,.3,1), opacity .5s ease;
-    transition-delay:calc(var(--w) * 55ms);
-  }
-  .rise.in .w > i, .in .w > i { transform:none; opacity:1; }
-
   /* ---- scroll reveal, in three dimensions --------------------------------
      Sections arrive laid back and set into the page, rather than sliding up it.
      The perspective is per element: one shared scene would swing anything far
@@ -570,11 +550,9 @@ function render(stats: Stats) {
 <main>
   <div class="hero wrap">
     <div class="heroGrid">
-      <!-- .rise is not decoration here: the headings are split into words that
-           start hidden and are revealed by .in, which only ever arrives on a
-           .rise element. Without it the h1 would be invisible. It is in view at
-           load, and IntersectionObserver reports that immediately, so it plays
-           its entrance rather than waiting for a scroll that never comes. -->
+      <!-- In view at load, and IntersectionObserver reports that immediately,
+           so the hero plays its entrance rather than waiting for a scroll that
+           never comes. -->
       <div class="rise">
         <span class="badge"><i></i>Live on Google Play</span>
         <h1>Know whether that sale <span>is really a sale.</span></h1>
@@ -758,47 +736,6 @@ function render(stats: Stats) {
       nums[n].textContent = Number(nums[n].getAttribute("data-count")).toLocaleString("en-US");
     }
     return;
-  }
-
-  // ---- split every heading into words ----
-  //
-  // Walks text nodes rather than rewriting innerHTML, so the gradient span
-  // inside the h1 survives — replacing the markup wholesale would flatten it
-  // back to plain text and lose the one piece of colour on the page.
-  var headings = document.querySelectorAll("h1, h2");
-  for (var hI = 0; hI < headings.length; hI++) splitWords(headings[hI]);
-
-  function splitWords(el) {
-    var index = 0;
-    var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
-    var texts = [];
-    var node;
-    while ((node = walker.nextNode())) texts.push(node);
-
-    for (var t = 0; t < texts.length; t++) {
-      var textNode = texts[t];
-      var words = textNode.nodeValue.split(/(\s+)/);
-      var frag = document.createDocumentFragment();
-
-      for (var wI = 0; wI < words.length; wI++) {
-        var word = words[wI];
-        if (!word) continue;
-        if (!word.trim()) {
-          frag.appendChild(document.createTextNode(word));
-          continue;
-        }
-        var outer = document.createElement("span");
-        outer.className = "w";
-        var inner = document.createElement("i");
-        inner.textContent = word;
-        // Staggered by position across the whole heading, not per text node,
-        // so a heading broken up by a coloured span still reads left to right.
-        inner.style.setProperty("--w", String(index++));
-        outer.appendChild(inner);
-        frag.appendChild(outer);
-      }
-      textNode.parentNode.replaceChild(frag, textNode);
-    }
   }
 
   // ---- reveal on scroll ----
