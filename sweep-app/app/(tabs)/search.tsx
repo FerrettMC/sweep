@@ -78,6 +78,15 @@ interface Section {
   data: SearchProduct[];
 }
 
+/**
+ * How long a notice stays up before clearing itself.
+ *
+ * Longer than the cart toast's 2200ms, which confirms an action in two words.
+ * These are sentences — "Reopened — no search used" — and a line that leaves
+ * before it has been read is the same as no line at all.
+ */
+const NOTICE_MS = 3800;
+
 /** How often to ask whether Amazon has finished. */
 /**
  * Fast enough that a store appearing feels immediate, slow enough that a
@@ -131,7 +140,28 @@ export default function SearchScreen() {
   const [quota, setQuota] = useState<Quota | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  /**
+   * A confirmation, not state. Carries an id so setting the same words twice
+   * running still counts as a new notice — reopening two searches both say
+   * "Reopened", and without this the second one would inherit the first one's
+   * nearly-expired timer and blink straight back out.
+   */
+  const [notice, setNotice] = useState<
+    { text: string; id: number; sticky?: boolean } | null
+  >(null);
+  const noticeId = useRef(0);
+
+  /**
+   * Say what just happened, then get out of the way.
+   *
+   * `sticky` is for the one message that reports work still in progress rather
+   * than work that finished — dismissing that one on a timer would leave a
+   * blank screen through the rest of the wait.
+   */
+  const showNotice = useCallback((text: string, sticky = false) => {
+    noticeId.current += 1;
+    setNotice({ text, id: noticeId.current, sticky });
+  }, []);
   const [jobId, setJobId] = useState<string | null>(null);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -455,7 +485,7 @@ export default function SearchScreen() {
       setHighlights(result.highlights);
       // Said out loud, because "search" and "costs a search" are the same word
       // to anyone who hasn't read the pricing page.
-      setNotice(result.partial ? t("search.recentGone") : t("search.reopened"));
+      showNotice(result.partial ? t("search.recentGone") : t("search.reopened"));
     } catch {
       // Most likely it has been pruned by a newer search. Dropping it from the
       // list is more use than an error about something that no longer exists.
@@ -519,7 +549,7 @@ export default function SearchScreen() {
       const outcome = await showRewardedAd(userId);
 
       if (outcome.status === "dismissed") {
-        setNotice(t("search.adClosedEarly"));
+        showNotice(t("search.adClosedEarly"));
         return;
       }
 
@@ -536,7 +566,7 @@ export default function SearchScreen() {
           try {
             const { quota: updated } = await claimRewardedSearch();
             setQuota(updated);
-            setNotice(t("search.adDev"));
+            showNotice(t("search.adDev"));
             return;
           } catch {
             // The fallback is refused when a dev build talks to production,
@@ -554,14 +584,14 @@ export default function SearchScreen() {
       // Reward earned. The server credits it from AdMob's verification
       // callback, which can land a moment after the ad closes — so poll the
       // quota briefly rather than assuming it's already there.
-      setNotice(t("search.adFinishing"));
+      showNotice(t("search.adFinishing"), true);
       const updated = await waitForBonus(quota?.bonus ?? 0);
 
       if (updated) {
         setQuota(updated);
-        setNotice(t("search.adUnlocked"));
+        showNotice(t("search.adUnlocked"));
       } else {
-        setNotice(t("search.adPending"));
+        showNotice(t("search.adPending"));
       }
     } catch (err) {
       setError((err as ApiError).message);
@@ -587,6 +617,15 @@ export default function SearchScreen() {
     }
     return null;
   }
+
+  // Keyed on the notice object, whose identity changes on every showNotice —
+  // so an identical message repeated restarts the clock rather than inheriting
+  // the previous one's remaining time.
+  useEffect(() => {
+    if (!notice || notice.sticky) return;
+    const timer = setTimeout(() => setNotice(null), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   const outOfSearches = quota !== null && quota.remaining <= 0;
 
@@ -723,7 +762,7 @@ export default function SearchScreen() {
         </View>
       )}
 
-      {notice && <Text style={styles.notice}>{notice}</Text>}
+      {notice && <Text style={styles.notice}>{notice.text}</Text>}
 
       {error && <ErrorBanner message={error} onRetry={outOfSearches ? undefined : onSearch} />}
 
@@ -942,7 +981,7 @@ export default function SearchScreen() {
       <AddToListSheet
         product={listTarget}
         onClose={() => setListTarget(null)}
-        onAdded={(name) => setNotice(`Added to ${name}.`)}
+        onAdded={(name) => showNotice(`Added to ${name}.`)}
       />
 
       <StorePicker
