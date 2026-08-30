@@ -1,4 +1,4 @@
-// lib/sheetInsets.test.ts — top-anchored sheets clear the status bar.
+// lib/sheetInsets.check.mjs — top-anchored sheets clear the status bar.
 //   npm run test:sheets
 //
 // On Android a Modal renders UNDER the status bar, so a sheet anchored to the
@@ -9,13 +9,18 @@
 // It cannot be caught by the type checker and it is invisible on a simulator
 // with no notch, so it gets a file scan instead: any sheet that anchors to the
 // top must add the safe-area inset.
+//
+// Plain .mjs rather than .ts, the way i18n/checkKeys.mjs is: it reads files off
+// disk, and the app's tsconfig has no Node types — a .ts version breaks the
+// app's own typecheck, which is a worse problem than the one it solves.
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const dir = join(import.meta.dirname, "..", "components");
+const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "components");
 
 let pass = 0, fail = 0;
-const check = (label: string, ok: boolean, detail?: unknown) => {
+const check = (label, ok, detail) => {
   ok ? pass++ : fail++;
   console.log(`  ${ok ? "✅" : "❌"} ${label}`);
   if (!ok && detail !== undefined) console.log("     ", JSON.stringify(detail));

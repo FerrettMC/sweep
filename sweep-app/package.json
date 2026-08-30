@@ -53,7 +53,7 @@
     "test:linkify": "npx tsx lib/linkify.test.ts",
     "lint": "expo lint",
     "test:stores": "npx tsx lib/liveStores.test.ts",
-    "test:sheets": "npx tsx lib/sheetInsets.test.ts"
+    "test:sheets": "node lib/sheetInsets.check.mjs"
   },
   "private": true
 }
