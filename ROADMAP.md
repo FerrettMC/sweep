@@ -317,9 +317,38 @@ official API or a paid residential proxy.
 
 | Who | Sent | Status | Chase when |
 | --- | ---- | ------ | ---------- |
-| **Best Buy** | Sat 15 Aug, from `support@` | On the phone 21 Aug they said review completes by **Wed 26 Aug** | Call back Thu 27 Aug if nothing |
+| **Best Buy** | Sat 15 Aug from `support@`, 28 Aug to `developer@` | Four contacts, no ticket ever created. See below | **5 Sept**, then treat silence as the answer |
 | **Walmart** | 20 Aug to `affiliates@walmart.com`, 21 Aug to `affiliates-help-ext@wal-mart.com` | No reply to either | ~**3 Sept**, then treat silence as the answer |
 | **AdMob** | Payment details entered 20 Aug | Account under review; ads return `no-fill: account not approved` | Recheck at public launch |
+
+### Best Buy — four contacts, no ticket
+
+Recorded because the pattern is the answer, and it is easy to keep re-dialling
+into it.
+
+| Date | What happened |
+| --- | --- |
+| 15 Aug | Emailed `support@` asking for developer API access. No reply. |
+| 21 Aug | Phoned. Told the request was in review and would complete by Wed 26 Aug. |
+| 28 Aug | Phoned back as instructed. **No record of the request existed.** Sent to `developer@bestbuy.com`. |
+| 28 Aug | Emailed `developer@bestbuy.com`. No reply. |
+| 31 Aug | Phoned. Transferred to the business department. 30 minutes, everything reviewed, told it would go to "the higher ups" — and to submit the website form again. |
+
+**Nobody has ever created a ticket.** That is the whole finding: every contact
+starts from zero because nothing from the previous one was written down, so a
+fifth call would begin exactly where the first did.
+
+"Try the form again" after half an hour is a soft no. It may still come good —
+he said he would escalate — but it cannot be planned around.
+
+**The decision: 5 Sept.** Submit the form once more, keep a screenshot of the
+confirmation, and if nothing has arrived by then, Best Buy is a post-launch
+nice-to-have rather than a thing being waited on. Four stores including Walmart
+is already a real comparison.
+
+**If it is a no, the next candidate is Zappos** — the only survivor of the
+23-store scraper sweep above. It needs verifying from Railway first, because a
+home IP proved nothing for Newegg and ASOS and will prove nothing here either.
 
 **Walmart has no phone support for affiliates** — checked their own contact
 page. The corporate lines are retail customer service. There are two email
