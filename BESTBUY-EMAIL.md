@@ -1,73 +1,97 @@
-# Best Buy — developer API access
+# Best Buy — developer API request form
 
-## Send this from your Gmail, not from support@
+For the form at **developer.bestbuy.com**, which is what the business department
+asked you to resubmit on 31 Aug.
 
-**`support@sweepshopping.com` may not be reaching them at all.** Checked 31 Aug:
+Field names vary, so these are written to be pasted into whatever boxes it has.
+
+---
+
+## Use a Gmail address, not support@
+
+Whatever address you put in the form is where the reply goes — and
+`support@sweepshopping.com` may not be able to receive-and-be-replied-to
+reliably. Checked 31 Aug:
 
 | Record | What it says |
 | --- | --- |
-| SPF on `sweepshopping.com` | `include:_spf.mx.cloudflare.net` — Cloudflare Email Routing, which only **receives** |
-| SPF on `send.sweepshopping.com` | `include:amazonses.com` — Resend, for the app's transactional mail |
+| SPF on `sweepshopping.com` | `include:_spf.mx.cloudflare.net` — Cloudflare Email Routing, receive only |
+| SPF on `send.sweepshopping.com` | `include:amazonses.com` — Resend, the app's transactional mail |
 | DKIM | `resend._domainkey` only, scoped to that subdomain |
 | DMARC | none |
 
-If you send as `support@sweepshopping.com` from Gmail, Google's servers are not
-in your SPF record, so SPF fails and DKIM doesn't align. With no DMARC policy,
-each receiver guesses — and a young domain failing authentication into a
-corporate filter is exactly what gets junked without a bounce.
+Inbound forwarding works, but anything you SEND as `support@` from Gmail fails
+SPF and doesn't align DKIM — so if this ever turns into a thread, your side of
+it may be getting junked silently. **Put `ferretonyt@gmail.com` in the form.**
 
-**So send this one from `ferretonyt@gmail.com`.** Plain Gmail to a corporate
-address has excellent deliverability and nothing to misalign. Put the domain in
-the signature so it still reads as a real product.
-
-Worth fixing properly afterwards either way — add `include:_spf.google.com` to
-the root SPF record if you use send-as, and add a DMARC record. That matters for
-every company you email from here on, not just this one.
+Worth fixing regardless: add `include:_spf.google.com` to the root SPF record if
+you use Gmail send-as, and add a DMARC record. That affects every company you
+contact from here, Walmart's affiliate team included.
 
 ---
 
-## The email
+## Name / contact
 
-**To:** developer@bestbuy.com
-**Subject:** Developer API request — phone call 31 Aug, form resubmitted
+    Jude
+    ferretonyt@gmail.com
+
+## Company or organisation
+
+    Sweep (independent developer, not incorporated)
+
+## Website
+
+    https://sweepshopping.com
+
+## What are you building?
+
+Short version, if the box is small:
+
+    Sweep, a free Android shopping app that compares prices across several
+    retailers in one search and tracks price history so users can tell a real
+    discount from a permanent one. Live on Google Play. I would use the API for
+    read-only product, price and availability data, displayed alongside other
+    retailers with a link through to Best Buy.
+
+## Describe your use case
+
+Longer version, if the box is big:
+
+    Sweep is a free Android app that searches several retailers at once and
+    shows the results side by side, so someone can see who is actually cheapest
+    before they buy. It also records price history over time, which lets it tell
+    a genuine discount from a struck-through price an item has always had.
+
+    It currently supports Amazon, Walmart, eBay and Etsy. Best Buy is the store
+    users ask for most, and the obvious gap in electronics comparisons.
+
+    I would use the Products API for read-only product, price and availability
+    data. No ordering, no cart, no customer accounts, no checkout — listings are
+    shown alongside other retailers with a link through to Best Buy to complete
+    the purchase.
+
+    The app is built and maintained by one independent developer. It is live on
+    Google Play with a free tier and paid subscriptions.
+
+## Expected volume, if asked
+
+    Low. Results are cached and shared across users, so requests scale with
+    distinct products rather than with signups — comfortably within any
+    standard rate limit.
 
 ---
 
-Hello,
+## Before you close the tab
 
-I spoke to your business department by phone this morning, 31 August, about
-developer API access. We went through everything for about half an hour and I
-was told it would be raised internally and that I should submit the website form
-again — which I have now done.
+- **Screenshot the confirmation page**, including any reference number. This is
+  the one thing four contacts have never produced, and it is what turns the next
+  call into a continuation instead of another cold start.
+- Note the date and time you submitted.
+- If the form gives no confirmation at all, screenshot the submitted form itself
+  — some record beats none.
 
-I'm writing so there is something in writing to attach that to.
+## If nothing comes back
 
-The reason I keep following up is that **no reference number has ever been
-created**, so each contact starts from nothing:
-
-- **15 Aug** — emailed `support@`. No reply.
-- **21 Aug** — phoned. Told the review would complete by Wed 26 Aug.
-- **28 Aug** — phoned back as instructed. No record of the request existed. Sent to this address.
-- **28 Aug** — emailed this address. No reply.
-- **31 Aug** — phoned. Half an hour, escalated verbally, told to resubmit the form.
-
-**What I'm asking for:** a Best Buy Developer API key (developer.bestbuy.com) —
-read-only product, price and availability data.
-
-**What it's for:** Sweep (sweepshopping.com), a free Android shopping app I build
-independently. It searches several retailers at once so people can compare
-prices, and keeps price history so they can tell a real discount from a sticker.
-It already supports Amazon, Walmart, eBay and Etsy. No ordering, no cart, no
-customer accounts — product and price data shown alongside other retailers, with
-a link through to Best Buy.
-
-**Three things would help, in order:**
-
-1. A reference number I can quote, so the next contact continues this one.
-2. Whoever owns developer API approvals, or a realistic timeframe.
-3. If Best Buy no longer issues these keys, please just say so. A clear no is
-   more useful than another fortnight of following up, and I'll build around it.
-
-Thank you,
-Jude
-Sweep — sweepshopping.com
+The roadmap says **5 Sept**. After that Best Buy is a post-launch nice-to-have
+rather than something being waited on. You are shipping with four stores
+including Walmart, which is a real comparison on its own.
