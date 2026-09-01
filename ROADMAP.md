@@ -333,10 +333,12 @@ into it.
 | 28 Aug | Phoned back as instructed. **No record of the request existed.** Sent to `developer@bestbuy.com`. |
 | 28 Aug | Emailed `developer@bestbuy.com`. No reply. |
 | 31 Aug | Phoned. Transferred to the business department. 30 minutes, everything reviewed, told it would go to "the higher ups" — and to submit the website form again. |
+| 31 Aug | Resubmitted the developer contact form. **No confirmation and no reference number** — just "you submitted the form". |
 
-**Nobody has ever created a ticket.** That is the whole finding: every contact
-starts from zero because nothing from the previous one was written down, so a
-fifth call would begin exactly where the first did.
+**Nobody has ever created a ticket, and the form does not issue one either.**
+That is the whole finding: every contact starts from zero because nothing from
+the previous one was written down, so a sixth attempt begins exactly where the
+first did. There is no channel here that produces a thing to follow up ON.
 
 "Try the form again" after half an hour is a soft no. It may still come good —
 he said he would escalate — but it cannot be planned around.
