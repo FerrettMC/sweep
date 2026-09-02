@@ -317,11 +317,11 @@ official API or a paid residential proxy.
 
 | Who | Sent | Status | Chase when |
 | --- | ---- | ------ | ---------- |
-| **Best Buy** | Sat 15 Aug from `support@`, 28 Aug to `developer@` | Four contacts, no ticket ever created. See below | **5 Sept**, then treat silence as the answer |
+| ~~**Best Buy**~~ | Six contacts, 15–31 Aug | **The developer programme is closed.** See below | Done — stop chasing |
 | **Walmart** | 20 Aug to `affiliates@walmart.com`, 21 Aug to `affiliates-help-ext@wal-mart.com` | No reply to either | ~**3 Sept**, then treat silence as the answer |
 | **AdMob** | Payment details entered 20 Aug | Account under review; ads return `no-fill: account not approved` | Recheck at public launch |
 
-### Best Buy — four contacts, no ticket
+### Best Buy — the programme is closed. Stop.
 
 Recorded because the pattern is the answer, and it is easy to keep re-dialling
 into it.
@@ -348,9 +348,14 @@ confirmation, and if nothing has arrived by then, Best Buy is a post-launch
 nice-to-have rather than a thing being waited on. Four stores including Walmart
 is already a real comparison.
 
-**If it is a no, the next candidate is Zappos** — the only survivor of the
-23-store scraper sweep above. It needs verifying from Railway first, because a
-home IP proved nothing for Newegg and ASOS and will prove nothing here either.
+**The next candidate is Zappos** — the only survivor of the 23-store scraper
+sweep above. Verify it from Railway with the admin probe first: a home IP proved
+nothing for Newegg and ASOS and will prove nothing here either.
+
+**The Best Buy adapter stays written and disabled.** It scrapes rather than
+using the dead API, so it is worth one probe from production to see whether the
+page is even reachable from a datacenter — that is now a one-minute question
+rather than a deploy.
 
 **Walmart has no phone support for affiliates** — checked their own contact
 page. The corporate lines are retail customer service. There are two email
