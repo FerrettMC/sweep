@@ -9,7 +9,7 @@
 // So the refusals get tested harder than the happy path. The happy path failing
 // is an inconvenience; a refusal failing is a credential leak.
 import "./testEnv.js";
-import { _internal, probe } from "./lib/probe.js";
+import { _internal, probe, probeAdapter } from "./lib/probe.js";
 
 let pass = 0, fail = 0;
 const check = (label: string, ok: boolean, detail?: unknown) => {
@@ -89,6 +89,29 @@ if (store.status === 200) {
   check("and says whether a parser would find anything",
     Array.isArray(store.markers) && typeof store.priceish === "number");
 }
+
+console.log("\n— running a real adapter is a different question —");
+// A url probe proves the page loads. It cannot tell "200 with products" from
+// "200 with a degraded payload the parser finds nothing in", and those look
+// identical from outside. eBay is used here because it is a free official API:
+// no scraping, no cost, and it works from anywhere the tests run.
+const live = await probeAdapter("ebay", "wireless headphones");
+check("runs the adapter", live.status === "success", { status: live.status, detail: live.detail });
+check("reports how long it took", live.ms > 0);
+check("counts what came back", live.count > 0, live.count);
+check("shows a sample, so zero results cannot hide", live.sample.length > 0);
+check("and the sample has real data",
+  live.sample.every((p) => typeof p.title === "string" && p.title.length > 0), live.sample[0]);
+check("says whether it costs money", live.metered === false);
+
+// Disabled stores must still be testable — the entire point is checking one
+// before switching it on.
+const off = await probeAdapter("bestbuy", "headphones");
+check("works on a switched-off retailer", off.status !== undefined && off.error === null, off);
+
+const nonsense = await probeAdapter("notastore", "x");
+check("rejects an unknown retailer", nonsense.error !== null, nonsense);
+check("and names the real ones", (nonsense.error ?? "").includes("ebay"), nonsense.error);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

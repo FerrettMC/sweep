@@ -272,3 +272,84 @@ function bouncedToRoot(from: string, to: string): boolean {
 
 /** Exported for the tests, which check the refusals rather than the network. */
 export const _internal = { isForbiddenAddress, refuse, bouncedToRoot, MARKERS };
+
+// ---- running a real adapter from here ---------------------------------------
+//
+// Fetching a url proves the PAGE is reachable. It does not prove the adapter
+// works, and the two have already been confused once: a probe found Best Buy
+// returning 200 with the right markers, which is not the same as the parser
+// finding products in it. A site can serve a degraded page to a suspicious
+// client — right shape, no contents — and every signal a url probe looks at
+// would still be green.
+//
+// So this runs the actual adapter, through the actual rate gate, from wherever
+// the server is. It is the only measurement that answers "will this work in the
+// app", which is the question that matters.
+
+import { adapters } from "./scrapers/index.js";
+import { RETAILERS, type Retailer } from "./scrapers/types.js";
+
+export interface AdapterProbeResult {
+  retailer: string;
+  keyword: string;
+  status: string;
+  ms: number;
+  count: number;
+  /** A few results, so "success with nothing in it" is visible rather than implied. */
+  sample: { title: string; price: number | null; url: string }[];
+  detail: string | null;
+  /** True when this retailer costs money per call. */
+  metered: boolean;
+  error: string | null;
+}
+
+export async function probeAdapter(
+  retailer: string,
+  keyword: string,
+  limit = 3,
+): Promise<AdapterProbeResult> {
+  const base: AdapterProbeResult = {
+    retailer,
+    keyword,
+    status: "failed",
+    ms: 0,
+    count: 0,
+    sample: [],
+    detail: null,
+    metered: false,
+    error: null,
+  };
+
+  if (!RETAILERS.includes(retailer as Retailer)) {
+    return { ...base, error: `Unknown retailer. Try one of: ${RETAILERS.join(", ")}` };
+  }
+
+  // Deliberately the gated adapter, and deliberately NOT checking
+  // DISABLED_RETAILERS: the entire point is to test a store before switching it
+  // on, and the rate gate is part of what is being tested.
+  const adapter = adapters[retailer as Retailer];
+  const started = Date.now();
+
+  try {
+    const result = await adapter.search(keyword, limit);
+    const ok = result.status === "success";
+    return {
+      ...base,
+      metered: adapter.metered,
+      status: result.status,
+      ms: Date.now() - started,
+      count: ok ? result.data.length : 0,
+      sample: ok
+        ? result.data.slice(0, 3).map((p) => ({ title: p.title, price: p.price, url: p.url }))
+        : [],
+      detail: ok ? null : (result.detail ?? null)?.slice(0, 300) ?? null,
+    };
+  } catch (err) {
+    return {
+      ...base,
+      metered: adapter.metered,
+      ms: Date.now() - started,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}

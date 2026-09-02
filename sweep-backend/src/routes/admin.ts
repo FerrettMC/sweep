@@ -27,7 +27,7 @@ import type { FastifyInstance } from "fastify";
 import { requireAdmin } from "../lib/adminAuth.js";
 import { getAdminStats } from "../lib/adminStats.js";
 import { createPromoCode, deletePromoCode, listPromoCodes } from "../lib/promoAdmin.js";
-import { probe } from "../lib/probe.js";
+import { probe, probeAdapter } from "../lib/probe.js";
 
 export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin", async (_request, reply) => {
@@ -54,6 +54,26 @@ export async function adminRoutes(app: FastifyInstance) {
     request.log.info(
       { url: result.finalUrl, status: result.status, refused: result.refused },
       "admin probe",
+    );
+    return result;
+  });
+
+  // Runs a real adapter from here, which is a different question from whether
+  // the page loads: a store can serve a 200 with all the right markers and a
+  // payload the parser finds nothing in.
+  app.post("/admin/probe/adapter", { preHandler: requireAdmin }, async (request, reply) => {
+    const { retailer, keyword } = (request.body ?? {}) as {
+      retailer?: string;
+      keyword?: string;
+    };
+    if (typeof retailer !== "string" || !retailer.trim()) {
+      return reply.status(400).send({ error: "Which retailer?" });
+    }
+
+    const result = await probeAdapter(retailer.trim(), (keyword || "wireless headphones").trim());
+    request.log.info(
+      { retailer: result.retailer, status: result.status, count: result.count },
+      "admin adapter probe",
     );
     return result;
   });
@@ -228,6 +248,22 @@ const PAGE = `<!doctype html>
   <input id="probeUrl" placeholder="https://www.zappos.com/..." autocomplete="off">
   <button onclick="runProbe()">Probe</button>
   <div id="probeOut"></div>
+
+  <h2>Run a retailer from here</h2>
+  <p class="sub">The other probe proves a page loads. This runs the actual
+  adapter through the actual rate gate, which is the only thing that answers
+  whether it will work in the app. Works on stores that are switched off &mdash;
+  that is the point.</p>
+  <div class="row">
+    <select id="adRetailer">
+      <option>amazon</option><option>walmart</option><option>bestbuy</option>
+      <option>ebay</option><option>newegg</option><option>asos</option>
+      <option>etsy</option>
+    </select>
+    <input id="adKeyword" value="wireless headphones" placeholder="Search term">
+  </div>
+  <button onclick="runAdapter()">Run it</button>
+  <div id="adOut"></div>
 
   <h2>Promo codes</h2>
   <p class="sub">Grants time on a paid tier. It never touches a real subscription —
@@ -491,6 +527,50 @@ async function runProbe() {
     row("What that means",
       "You asked for a page and got the front door. The markers below are the " +
       "homepage's, not your page's.");
+  }
+
+  out.innerHTML = '<div class="probe"><div class="big" style="color:' + colour + '">' +
+    headline + "</div><dl>" + rows + "</dl></div>";
+}
+
+async function runAdapter() {
+  var retailer = document.getElementById("adRetailer").value;
+  var keyword = document.getElementById("adKeyword").value.trim();
+
+  // Amazon and Walmart bill per call. Nothing here should quietly spend money.
+  if (retailer === "amazon" || retailer === "walmart") {
+    if (!confirm(retailer + " costs real money per request. Run it anyway?")) return;
+  }
+
+  var out = document.getElementById("adOut");
+  out.innerHTML = '<div class="probe">Running&hellip;</div>';
+
+  var res = await fetch("/admin/probe/adapter", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-admin-key": key() },
+    body: JSON.stringify({ retailer: retailer, keyword: keyword }),
+  });
+  var d = await res.json().catch(function () { return {}; });
+  if (!res.ok) { out.innerHTML = ""; return say(d.error || "Failed.", true); }
+
+  var headline, colour;
+  if (d.error) { headline = "Threw"; colour = "#dc2626"; }
+  else if (d.status !== "success") { headline = "Adapter says: " + d.status; colour = "#dc2626"; }
+  else if (d.count === 0) {
+    // The case a url probe cannot see: it worked, and found nothing.
+    headline = "Succeeded with zero results"; colour = "#d97706";
+  }
+  else { headline = "Working - " + d.count + " results"; colour = "#16a34a"; }
+
+  var rows = "";
+  function row(k, v) { rows += "<dt>" + k + "</dt><dd>" + v + "</dd>"; }
+  row("Took", (d.ms / 1000).toFixed(1) + "s");
+  if (d.metered) row("Cost", "billed per request");
+  if (d.detail) row("Detail", d.detail);
+  if (d.error) row("Error", d.error);
+  for (var i = 0; i < d.sample.length; i++) {
+    var p = d.sample[i];
+    row(p.price === null ? "no price" : "$" + (p.price / 100).toFixed(2), p.title);
   }
 
   out.innerHTML = '<div class="probe"><div class="big" style="color:' + colour + '">' +
