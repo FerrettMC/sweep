@@ -18,6 +18,7 @@ import { recordCheck } from "./health.js";
 import { cacheSearchResults } from "./priceChecker.js";
 import { adapters } from "./scrapers/index.js";
 import type { Retailer, ScrapedProduct } from "./scrapers/types.js";
+import { RETAILER_LABELS } from "./scrapers/types.js";
 
 export type SearchJobStatus = "pending" | "success" | "failed" | "blocked";
 
@@ -68,6 +69,7 @@ async function run(job: SearchJob, limit: number) {
     const result = await withTimeout(
       adapters.amazon.search(job.keyword, limit),
       JOB_TIMEOUT_MS,
+      RETAILER_LABELS.amazon,
     );
 
     if (result.status === "success") {
@@ -107,11 +109,21 @@ export function getSearchJob(id: string): SearchJob | null {
   return jobs.get(id) ?? null;
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+/**
+ * Race a search against a deadline.
+ *
+ * `label` is not decoration. This used to hardcode "Amazon", from when Amazon
+ * was the only thing slow enough to need a timeout — so every store that timed
+ * out afterwards reported itself as Amazon, in the health log and in the alert
+ * email. Best Buy timing out from a datacenter arrived as "Amazon search timed
+ * out", which is the kind of message that costs an hour of looking in the wrong
+ * place.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`Amazon search timed out after ${ms / 1000}s`)), ms),
+      setTimeout(() => reject(new Error(`${label} search timed out after ${ms / 1000}s`)), ms),
     ),
   ]);
 }
@@ -213,6 +225,7 @@ async function runSlot(job: MultiSearchJob, retailer: Retailer, limit: number) {
     const result = await withTimeout(
       adapters[retailer].search(job.keyword, limit),
       slotTimeout(retailer),
+      RETAILER_LABELS[retailer],
     );
 
     if (result.status === "success") {
