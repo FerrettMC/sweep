@@ -352,7 +352,7 @@ is already a real comparison.
 sweep above. Verify it from Railway with the admin probe first: a home IP proved
 nothing for Newegg and ASOS and will prove nothing here either.
 
-### Best Buy works anyway — the API was never needed
+### Best Buy — reachable, but not reliably, from a datacenter
 
 Probed from Railway on 31 Aug, immediately after establishing the programme was
 closed:
@@ -379,8 +379,27 @@ at stays green through that. Which is why `/admin` now runs the ADAPTER from
 production too: same code path, same rate gate, and it shows a sample so
 "succeeded with zero results" cannot hide behind a success.
 
-**Run that before switching it on.** If it comes back with results, then: free —
-no API, no proxy, nothing metered. It
+**Switched on 31 Aug and it did not hold up.** Production reported a 33% success
+rate over its first three searches: two of three timed out at 30 seconds. From a
+home connection the same adapter answers in 2.4 seconds, every time.
+
+So the url probe and the adapter disagree, on the same machine, minutes apart —
+200 in 2.6s for a plain fetch, a hang for the adapter. The difference is the
+request, not the network. http.ts already recorded this behaviour from before:
+"Best Buy served a 1.7MB search page fine, then timed out on the next product
+request." It is intermittent rather than blocked, which is the harder kind of
+broken: no challenge page, no status code, just silence some of the time.
+
+**A store that fails two searches in three is worse than no store at all** — it
+puts a failed column in front of users and makes the app look broken rather than
+incomplete. Switched back off.
+
+Three attempts is far too small a sample to conclude from, though. Once the
+adapter probe is deployed, run `bestbuy` through it a dozen times: that gives a
+real number, from production, without a deploy or a user seeing any of it. If it
+settles above roughly 90% it is worth another go; below that it is not.
+
+If it does hold up, it is free — no API, no proxy, nothing metered. It
 is registered as an `electronics` specialist, so routing only calls it when the
 query matches. Remove `bestbuy` from `DISABLED_RETAILERS` and redeploy; the app
 already ships its label and brand colour, so no release is needed.
