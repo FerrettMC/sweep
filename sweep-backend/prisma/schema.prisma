@@ -246,6 +246,11 @@ model ScrapeCheck {
   productId String?
 
   @@index([retailer, checkedAt])
+  // Time alone, without a retailer. The composite index above leads on
+  // retailer, so anything asking "what happened in the last N days" across all
+  // stores — the admin trend, the health sweep — cannot use it and falls back
+  // to scanning every check ever recorded.
+  @@index([checkedAt])
 }
 
 // Tracks when we last alerted about a given retailer, so a sustained outage

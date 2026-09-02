@@ -1,0 +1,15 @@
+-- An index on time alone.
+--
+-- ScrapeCheck already has (retailer, checkedAt), which serves "how is this one
+-- store doing lately". It cannot serve "what happened across all stores in the
+-- last week" — the admin trend, the hourly health sweep — because the leading
+-- column is retailer. Those queries scan the whole table, and the whole table
+-- grows with every price check forever.
+--
+-- Plain CREATE INDEX, deliberately, NOT CONCURRENTLY. Prisma runs each
+-- migration inside a transaction and CONCURRENTLY cannot run in one, so it
+-- would fail — and `migrate deploy` is chained ahead of the server start in the
+-- Dockerfile, which means a failed migration is not a failed migration, it is a
+-- container that never boots. A brief write lock while this builds is the
+-- cheaper problem by a wide margin.
+CREATE INDEX IF NOT EXISTS "ScrapeCheck_checkedAt_idx" ON "ScrapeCheck"("checkedAt");

@@ -378,12 +378,24 @@ function card(k, n) { return '<div class="card"><div class="k">' + k + '</div><d
 
 async function load() {
   let res;
+  var began = Date.now();
   try {
-    res = await fetch("/admin/stats", { headers: { "x-admin-key": key() } });
+    // A deadline of our own. Without one a slow query looks identical to being
+    // offline — the browser eventually gives up and the only thing on screen
+    // is "check your connection", which sends you looking at your wifi while
+    // the actual problem is a query on the server.
+    res = await fetch("/admin/stats", {
+      headers: { "x-admin-key": key() },
+      signal: AbortSignal.timeout(20000),
+    });
   } catch (e) {
-    // Offline, or the request never left. Previously this threw out of the
-    // handler and the button appeared dead.
-    say("Couldn't reach the server. Check your connection.", true);
+    var waited = Math.round((Date.now() - began) / 1000);
+    say(
+      waited >= 19
+        ? "The server took more than 20s to answer. It is up, but /admin/stats is slow — check the Railway logs."
+        : "Couldn't reach the server after " + waited + "s. Check your connection.",
+      true,
+    );
     return;
   }
 
