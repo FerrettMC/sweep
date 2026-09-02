@@ -27,7 +27,7 @@ import type { FastifyInstance } from "fastify";
 import { requireAdmin } from "../lib/adminAuth.js";
 import { getAdminStats } from "../lib/adminStats.js";
 import { createPromoCode, deletePromoCode, listPromoCodes } from "../lib/promoAdmin.js";
-import { probe, probeAdapter, stress } from "../lib/probe.js";
+import { probe, probeAdapter, recentStress, stress } from "../lib/probe.js";
 
 export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin", async (_request, reply) => {
@@ -96,6 +96,12 @@ export async function adminRoutes(app: FastifyInstance) {
       "admin stress test",
     );
     return result;
+  });
+
+  // The last few stress runs. Cleared by a redeploy, which is fine — this
+  // exists so a result outlives the tab that asked for it, not forever.
+  app.get("/admin/probe/stress", { preHandler: requireAdmin }, async () => {
+    return { recent: recentStress() };
   });
 
   app.get("/admin/promo", { preHandler: requireAdmin }, async () => {
@@ -299,6 +305,7 @@ const PAGE = `<!doctype html>
   </div>
   <button onclick="runStress()">Run it</button>
   <div id="stOut"></div>
+  <div id="stRecent"></div>
 
   <h2>Promo codes</h2>
   <p class="sub">Grants time on a paid tier. It never touches a real subscription —
@@ -452,9 +459,10 @@ async function load() {
   document.getElementById("stamp").textContent =
     "Updated " + new Date(s.generatedAt).toLocaleTimeString();
 
-  // Separate request, deliberately not awaited: a failure to list codes
-  // shouldn't stop the stats that just arrived from rendering.
+  // Separate requests, deliberately not awaited: a failure in either shouldn't
+  // stop the stats that just arrived from rendering.
   loadPromo();
+  loadRecentStress();
 
   document.getElementById("providers").innerHTML = s.providers.map(function (p) {
     var pct = p.percent;
@@ -624,6 +632,26 @@ async function runAdapter() {
     headline + "</div><dl>" + rows + "</dl></div>";
 }
 
+// Drawn on sign-in as well as after a run, so walking away mid-run does not
+// lose the answer.
+async function loadRecentStress() {
+  var res = await fetch("/admin/probe/stress", { headers: { "x-admin-key": key() } });
+  if (!res.ok) return;
+  var d = await res.json();
+  var out = document.getElementById("stRecent");
+  if (!d.recent.length) { out.innerHTML = ""; return; }
+
+  out.innerHTML = '<p class="sub" style="margin:14px 0 6px">Earlier runs (cleared on deploy)</p>' +
+    '<table><tbody>' + d.recent.map(function (r) {
+      var when = new Date(r.at).toLocaleTimeString();
+      var colour = r.successRate >= 90 ? "#16a34a" : r.successRate >= 70 ? "#d97706" : "#dc2626";
+      return "<tr><td>" + when + "</td><td>" + r.retailer + "</td><td>" + r.runs +
+        ' runs</td><td style="color:' + colour + ';font-weight:800">' + r.successRate +
+        "%</td><td>" + (r.medianMs === null ? "-" : (r.medianMs / 1000).toFixed(1) + "s median") +
+        "</td></tr>";
+    }).join("") + "</tbody></table>";
+}
+
 async function runStress() {
   var retailer = document.getElementById("stRetailer").value;
   var runs = parseInt(document.getElementById("stRuns").value, 10) || 8;
@@ -685,6 +713,7 @@ async function runStress() {
     d.successRate + "% success over " + d.runs + " runs</div>" +
     "<div style='margin-bottom:10px'>" +
     strip + "</div><dl>" + rows + "</dl></div>";
+  loadRecentStress();
 }
 
 async function dropCode(el) {

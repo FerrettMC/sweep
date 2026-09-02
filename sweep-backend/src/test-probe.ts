@@ -9,7 +9,7 @@
 // So the refusals get tested harder than the happy path. The happy path failing
 // is an inconvenience; a refusal failing is a credential leak.
 import "./testEnv.js";
-import { _internal, probe, probeAdapter, stress } from "./lib/probe.js";
+import { _internal, probe, probeAdapter, recentStress, stress } from "./lib/probe.js";
 
 let pass = 0, fail = 0;
 const check = (label: string, ok: boolean, detail?: unknown) => {
@@ -133,6 +133,16 @@ check("the cache is bypassed", /fresh: true/.test(
   (await import("node:fs")).readFileSync(new URL("./lib/probe.ts", import.meta.url), "utf8"),
 ));
 
+console.log("\n— a result outlives the tab that asked for it —");
+// 28 searches were run and the answer was unrecoverable, because the result
+// existed only in one HTTP response and the page was never looked at.
+const kept = recentStress();
+check("the run just made is remembered", kept.length > 0, kept.length);
+check("newest first", kept[0]?.retailer === "ebay", kept[0]?.retailer);
+check("with a timestamp", Boolean(kept[0]?.at) && !Number.isNaN(Date.parse(kept[0].at)));
+check("and the numbers, not just the fact of it",
+  kept[0]?.runs === 4 && typeof kept[0]?.successRate === "number", kept[0]);
+
 console.log("\n— it will not spend money by accident —");
 // Fifteen Amazon searches is fifteen Bright Data records. That should never
 // happen because someone picked the wrong dropdown entry.
@@ -143,6 +153,9 @@ check("the refusal says why", (paid.error ?? "").includes("bills per request"));
 
 const capped = await stress("notastore", 999);
 check("unknown retailers are refused", capped.error !== null);
+// A refusal is not a run, so it must not take up a slot in the history.
+check("refusals are not remembered",
+  !recentStress().some((r) => r.retailer === "notastore"), recentStress().map((r) => r.retailer));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

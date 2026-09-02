@@ -418,6 +418,25 @@ const TERMS = [
   "vacuum cleaner", "printer", "microwave", "webcam", "router",
 ];
 
+/**
+ * The last few runs, so a result outlives the tab that asked for it.
+ *
+ * These are deliberately not written to ScrapeCheck — see the note above — but
+ * that left them existing only in one HTTP response, which is no use to anyone
+ * who started a two-minute run and walked away from it. Twenty-eight searches
+ * happened and the answer was unrecoverable.
+ *
+ * In memory, so a redeploy clears them. That is the right trade: it survives a
+ * closed tab, which is the thing that actually happens, without adding a table
+ * for diagnostics nobody reads twice.
+ */
+const RECENT_LIMIT = 10;
+const recent: (StressResult & { at: string })[] = [];
+
+export function recentStress(): (StressResult & { at: string })[] {
+  return recent;
+}
+
 export async function stress(
   retailer: string,
   runs: number,
@@ -474,7 +493,7 @@ export async function stress(
   const blocked = sequence.filter((r) => r.status === "blocked").length;
   const sorted = [...okMs].sort((a, b) => a - b);
 
-  return {
+  const result: StressResult = {
     retailer,
     runs: count,
     ok,
@@ -491,4 +510,10 @@ export async function stress(
     metered: adapter.metered,
     error: null,
   };
+
+  // Newest first, oldest dropped.
+  recent.unshift({ ...result, at: new Date().toISOString() });
+  if (recent.length > RECENT_LIMIT) recent.length = RECENT_LIMIT;
+
+  return result;
 }
