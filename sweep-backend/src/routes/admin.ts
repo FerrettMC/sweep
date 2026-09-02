@@ -467,6 +467,10 @@ async function runProbe() {
   if (d.refused) { headline = "Refused before sending"; colour = "#d97706"; }
   else if (d.error) { headline = "Never completed"; colour = "#dc2626"; }
   else if (d.challenges.length) { headline = "Blocked - challenge page"; colour = "#dc2626"; }
+  // Before the success cases, deliberately. A bounce to the homepage carries
+  // every marker a real page does, so checked afterwards it reads as a clean
+  // success — which is exactly how it was misread the first time.
+  else if (d.bounced) { headline = "Blocked - bounced to the homepage"; colour = "#dc2626"; }
   else if (d.markers.length || d.priceish > 0) { headline = "Reachable, with product data"; colour = "#16a34a"; }
   else if (d.status === 200) { headline = "200, but nothing a parser wants"; colour = "#d97706"; }
   else { headline = "HTTP " + d.status; colour = "#dc2626"; }
@@ -483,6 +487,11 @@ async function runProbe() {
   if (d.priceish) row("Price-shaped values", d.priceish);
   if (d.challenges.length) row("Challenge text", d.challenges.join(", "));
   if (d.redirects.length) row("Redirects", d.redirects.length + " &rarr; " + d.finalUrl);
+  if (d.bounced) {
+    row("What that means",
+      "You asked for a page and got the front door. The markers below are the " +
+      "homepage's, not your page's.");
+  }
 
   out.innerHTML = '<div class="probe"><div class="big" style="color:' + colour + '">' +
     headline + "</div><dl>" + rows + "</dl></div>";

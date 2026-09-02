@@ -18,7 +18,7 @@ const check = (label: string, ok: boolean, detail?: unknown) => {
   if (!ok && detail !== undefined) console.log("     ", JSON.stringify(detail));
 };
 
-const { isForbiddenAddress, refuse } = _internal;
+const { isForbiddenAddress, refuse, bouncedToRoot } = _internal;
 
 console.log("\n— addresses the server must never fetch —");
 for (const ip of [
@@ -60,6 +60,23 @@ check("and no status comes back", blocked.status === null);
 // The distinction matters when reading the result: refused is our guard,
 // error is the network, and a challenge is the store.
 check("refusal is not reported as an error", blocked.error === null);
+
+console.log("\n— a bounce to the homepage is a block, not a success —");
+// The failure this was written for: Walmart answered a product url with its
+// homepage, which carries __NEXT_DATA__ and a handful of carousel prices, so
+// the probe called it "reachable, with product data". It was a soft block.
+check("product url to root is a bounce",
+  bouncedToRoot("https://www.walmart.com/ip/12345", "https://www.walmart.com/"));
+check("search url to root is a bounce",
+  bouncedToRoot("https://www.newegg.com/p/pl?d=ssd", "https://www.newegg.com/"));
+// And the cases that are NOT a bounce, which matter just as much — flagging a
+// normal redirect as a block sends you chasing a proxy you do not need.
+check("homepage to homepage is not", !bouncedToRoot("https://x.com/", "https://x.com/"));
+check("a trailing slash is not", !bouncedToRoot("https://x.com/a/b", "https://x.com/a/b/"));
+check("adding a locale is not", !bouncedToRoot("https://x.com/shoes", "https://x.com/us/shoes"));
+// A query string on the root does not make it a destination.
+check("root with a query is still a bounce",
+  bouncedToRoot("https://x.com/p/1", "https://x.com/?ref=home"));
 
 console.log("\n— a store that is actually blocked reads as blocked —");
 // Newegg refuses datacenters, which is the whole reason this exists. From a

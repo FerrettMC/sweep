@@ -73,6 +73,17 @@ export interface ProbeResult {
   error: string | null;
   /** Set when the url was refused before any request was made. */
   refused: string | null;
+  /**
+   * True when the request ended somewhere meaningfully different from where it
+   * was pointed — in practice, bounced to the site root.
+   *
+   * This is a soft block and it is the easy one to misread. There is no
+   * challenge page and no error status: the store simply serves its homepage
+   * instead of the page you asked for. Everything a parser looks for is
+   * present, because a homepage is still a page, so without this the result
+   * reads as a clean success. Walmart does exactly this to datacenter IPs.
+   */
+  bounced: boolean;
 }
 
 /**
@@ -149,6 +160,7 @@ export async function probe(rawUrl: string): Promise<ProbeResult> {
     redirects: [],
     error: null,
     refused: null,
+    bounced: false,
   };
 
   let current = rawUrl;
@@ -222,6 +234,7 @@ export async function probe(rawUrl: string): Promise<ProbeResult> {
       redirects,
       error: null,
       refused: null,
+      bounced: bouncedToRoot(rawUrl, current),
     };
   }
 
@@ -234,5 +247,28 @@ export async function probe(rawUrl: string): Promise<ProbeResult> {
   };
 }
 
+/**
+ * Did we ask for a page and land on the front door?
+ *
+ * Only counts when the request actually had a path to lose — asking for the
+ * homepage and receiving the homepage is not a bounce, and a redirect that
+ * merely adds a locale or a trailing slash is not one either.
+ */
+function bouncedToRoot(from: string, to: string): boolean {
+  try {
+    const wanted = new URL(from);
+    const landed = new URL(to);
+    const wantedPath = wanted.pathname.replace(/\/+$/, "");
+    const landedPath = landed.pathname.replace(/\/+$/, "");
+    if (!wantedPath) return false;
+    // The query is irrelevant. Being sent to /?from=blocked is landing on the
+    // homepage just as much as being sent to / is, and an earlier version
+    // treated the parameter as evidence it was a real destination.
+    return landedPath === "";
+  } catch {
+    return false;
+  }
+}
+
 /** Exported for the tests, which check the refusals rather than the network. */
-export const _internal = { isForbiddenAddress, refuse, MARKERS };
+export const _internal = { isForbiddenAddress, refuse, bouncedToRoot, MARKERS };
