@@ -12,7 +12,7 @@ if you drift.
 | At       | On screen                              | Say                                                                           |
 | -------- | -------------------------------------- | ----------------------------------------------------------------------------- |
 | **0:00** | Six browser tabs piling up             | "When I online shop, it usually takes six tabs just to buy one thing."        |
-| **0:06** | Sweep search + four stores             | "So Sweep searches them all at once, and shows you who's actually cheapest."  |
+| **0:06** | Sweep search + five stores             | "So Sweep searches them all at once, and shows you who's actually cheapest."  |
 | **0:11** | Cheapest / Best reviewed / Big claim   | "It picks out the good ones — and flags the fake deals."                      |
 | **0:16** | Lookup page: reviews, shipping         | "Open anything and you get the ratings, what buyers actually said, shipping." |
 | **0:21** | Flat graph, "just the normal price"    | "Plus its real price history, which the store can't rewrite."                 |

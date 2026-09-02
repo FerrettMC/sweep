@@ -18,7 +18,9 @@
 //
 // The stores shown are the ones actually live, checked against
 // /search/retailers rather than remembered. Demoing a store nobody can use is
-// the kind of detail people notice.
+// the kind of detail people notice — and this file is hand-written rather than
+// generated, so switching a store on or off means editing it. The test asserts
+// this list matches the live one for exactly that reason.
 //
 // The inflated discount belongs to a "Marketplace seller" and no named brand.
 // Inflated list prices are overwhelmingly a third-party-seller behaviour, so
@@ -250,6 +252,10 @@ const PAGE = `<!doctype html>
     <div class="title">Sony WH-1000XM5</div><div class="price best">$239</div>
   </div>
   <div class="row" style="animation-delay:1.45s">
+    <div class="dot" style="background:#FFE000"></div><div class="store">Best Buy</div>
+    <div class="title">Sony WH-1000XM5</div><div class="price">$278</div>
+  </div>
+  <div class="row" style="animation-delay:1.9s">
     <div class="dot" style="background:#F1641E"></div><div class="store">Etsy</div>
     <div class="title">Headphone stand, walnut</div><div class="price">$34</div>
   </div>

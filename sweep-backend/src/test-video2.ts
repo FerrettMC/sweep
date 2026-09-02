@@ -78,11 +78,23 @@ check('"is just the normal price" is the real verdict', verdicts.includes("is ju
 console.log("\n— it only shows stores that are live —");
 // Walmart included deliberately: it was switched on. Best Buy is not, and a
 // demo of a store nobody can use is the kind of thing people notice.
-for (const live of ["Amazon", "Walmart", "eBay", "Etsy"]) {
-  check(`${live} appears`, source.includes(`>${live}<`));
+// Derived from the retailer config rather than typed out, with production's
+// DISABLED_RETAILERS applied — so switching a store on or off makes this fail
+// until the video is updated, instead of the video quietly going stale.
+process.env.DISABLED_RETAILERS = "newegg,asos";
+const { disabledRetailers } = await import("./lib/scrapers/index.js");
+const { RETAILERS, RETAILER_LABELS } = await import("./lib/scrapers/types.js");
+
+const off = disabledRetailers();
+const shouldShow = RETAILERS.filter((r) => !off.includes(r)).map((r) => RETAILER_LABELS[r]);
+const shouldNot = RETAILERS.filter((r) => off.includes(r)).map((r) => RETAILER_LABELS[r]);
+
+check("there are stores to check", shouldShow.length > 0, shouldShow);
+for (const live of shouldShow) {
+  check(`${live} appears`, source.includes(`>${live}<`), live);
 }
-for (const off of ["Best Buy", "Newegg", "ASOS"]) {
-  check(`${off} does not`, !source.includes(off));
+for (const dead of shouldNot) {
+  check(`${dead} does not`, !source.includes(dead), dead);
 }
 
 console.log("\n— no fabricated discount is pinned on a named store —");

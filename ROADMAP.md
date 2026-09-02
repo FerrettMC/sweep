@@ -390,9 +390,15 @@ request, not the network. http.ts already recorded this behaviour from before:
 request." It is intermittent rather than blocked, which is the harder kind of
 broken: no challenge page, no status code, just silence some of the time.
 
-**A store that fails two searches in three is worse than no store at all** — it
-puts a failed column in front of users and makes the app look broken rather than
-incomplete. Switched back off.
+**Shipping with it anyway, at ~75%.** The first three attempts were the worst of
+it; the five after them all succeeded, and when it works it answers in about 3
+seconds. A failed store sorts to the bottom of the results and says so, and it
+can be pulled with one environment variable if the rate drops.
+
+That is a judgement call made on a thin sample, and it should be revisited with
+a real one: `/admin` can now stress a retailer — a dozen back-to-back searches
+from production, different keyword each time so nothing comes from cache. Run
+that before trusting the number in either direction.
 
 Three attempts is far too small a sample to conclude from, though. Once the
 adapter probe is deployed, run `bestbuy` through it a dozen times: that gives a
