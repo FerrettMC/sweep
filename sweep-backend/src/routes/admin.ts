@@ -27,7 +27,7 @@ import type { FastifyInstance } from "fastify";
 import { requireAdmin } from "../lib/adminAuth.js";
 import { getAdminStats } from "../lib/adminStats.js";
 import { createPromoCode, deletePromoCode, listPromoCodes } from "../lib/promoAdmin.js";
-import { probe, probeAdapter } from "../lib/probe.js";
+import { probe, probeAdapter, stress } from "../lib/probe.js";
 
 export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin", async (_request, reply) => {
@@ -74,6 +74,26 @@ export async function adminRoutes(app: FastifyInstance) {
     request.log.info(
       { retailer: result.retailer, status: result.status, count: result.count },
       "admin adapter probe",
+    );
+    return result;
+  });
+
+  // Runs the adapter repeatedly and reports the spread. One run says almost
+  // nothing about a store that fails intermittently.
+  app.post("/admin/probe/stress", { preHandler: requireAdmin }, async (request, reply) => {
+    const { retailer, runs, spendMoney } = (request.body ?? {}) as {
+      retailer?: string;
+      runs?: number;
+      spendMoney?: boolean;
+    };
+    if (typeof retailer !== "string" || !retailer.trim()) {
+      return reply.status(400).send({ error: "Which retailer?" });
+    }
+
+    const result = await stress(retailer.trim(), Number(runs) || 8, spendMoney === true);
+    request.log.info(
+      { retailer: result.retailer, runs: result.runs, successRate: result.successRate },
+      "admin stress test",
     );
     return result;
   });
@@ -264,6 +284,21 @@ const PAGE = `<!doctype html>
   </div>
   <button onclick="runAdapter()">Run it</button>
   <div id="adOut"></div>
+
+  <h2>Stress a retailer</h2>
+  <p class="sub">Runs the adapter over and over from this server, with a
+  different search term each time so nothing is served from cache. This is how
+  you tell a store that is genuinely flaky from one that had a bad minute.</p>
+  <div class="row">
+    <select id="stRetailer">
+      <option>bestbuy</option><option>ebay</option><option>etsy</option>
+      <option>newegg</option><option>asos</option>
+      <option>amazon</option><option>walmart</option>
+    </select>
+    <input id="stRuns" type="number" min="1" max="15" value="10">
+  </div>
+  <button onclick="runStress()">Run it</button>
+  <div id="stOut"></div>
 
   <h2>Promo codes</h2>
   <p class="sub">Grants time on a paid tier. It never touches a real subscription —
@@ -587,6 +622,69 @@ async function runAdapter() {
 
   out.innerHTML = '<div class="probe"><div class="big" style="color:' + colour + '">' +
     headline + "</div><dl>" + rows + "</dl></div>";
+}
+
+async function runStress() {
+  var retailer = document.getElementById("stRetailer").value;
+  var runs = parseInt(document.getElementById("stRuns").value, 10) || 8;
+  var spend = false;
+
+  if (retailer === "amazon" || retailer === "walmart") {
+    if (!confirm(runs + " x " + retailer + " costs real money, once per run. Continue?")) return;
+    spend = true;
+  }
+
+  var out = document.getElementById("stOut");
+  out.innerHTML = '<div class="probe">Running ' + runs + " searches, one at a time&hellip; this takes a minute.</div>";
+
+  var res;
+  try {
+    res = await fetch("/admin/probe/stress", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-admin-key": key() },
+      body: JSON.stringify({ retailer: retailer, runs: runs, spendMoney: spend }),
+      // Long, deliberately: fifteen sequential searches against a slow store is
+      // minutes, and the default would abandon it halfway with no result.
+      signal: AbortSignal.timeout(240000),
+    });
+  } catch (e) {
+    out.innerHTML = "";
+    return say("The run did not finish in four minutes.", true);
+  }
+
+  var d = await res.json().catch(function () { return {}; });
+  if (!res.ok || d.error) { out.innerHTML = ""; return say(d.error || "Failed.", true); }
+
+  var colour = d.successRate >= 90 ? "#16a34a" : d.successRate >= 70 ? "#d97706" : "#dc2626";
+
+  // The run-by-run strip. A store that failed three in a row and then settled
+  // is a different problem from one failing every fourth request, and an
+  // average hides which you have.
+  var strip = "";
+  for (var i = 0; i < d.sequence.length; i++) {
+    var s = d.sequence[i];
+    strip += '<span title="run ' + s.n + ": " + s.status + ", " + s.ms + 'ms" style="display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:3px;background:' +
+      (s.status === "success" ? "#16a34a" : s.status === "blocked" ? "#dc2626" : "#d97706") + '"></span>';
+  }
+
+  var rows = "";
+  function row(k, v) { rows += "<dt>" + k + "</dt><dd>" + v + "</dd>"; }
+  row("Runs", d.runs);
+  row("Succeeded", d.ok);
+  if (d.failed) row("Failed", d.failed);
+  if (d.blocked) row("Blocked", d.blocked);
+  if (d.medianMs !== null) {
+    row("Time", "fastest " + (d.fastestMs / 1000).toFixed(1) + "s, median " +
+      (d.medianMs / 1000).toFixed(1) + "s, slowest " + (d.slowestMs / 1000).toFixed(1) + "s");
+  }
+  for (var r = 0; r < d.reasons.length; r++) {
+    row(d.reasons[r].count + "x", d.reasons[r].reason);
+  }
+
+  out.innerHTML = '<div class="probe"><div class="big" style="color:' + colour + '">' +
+    d.successRate + "% success over " + d.runs + " runs</div>" +
+    "<div style='margin-bottom:10px'>" +
+    strip + "</div><dl>" + rows + "</dl></div>";
 }
 
 async function dropCode(el) {

@@ -9,7 +9,7 @@
 // So the refusals get tested harder than the happy path. The happy path failing
 // is an inconvenience; a refusal failing is a credential leak.
 import "./testEnv.js";
-import { _internal, probe, probeAdapter } from "./lib/probe.js";
+import { _internal, probe, probeAdapter, stress } from "./lib/probe.js";
 
 let pass = 0, fail = 0;
 const check = (label: string, ok: boolean, detail?: unknown) => {
@@ -112,6 +112,37 @@ check("works on a switched-off retailer", off.status !== undefined && off.error 
 const nonsense = await probeAdapter("notastore", "x");
 check("rejects an unknown retailer", nonsense.error !== null, nonsense);
 check("and names the real ones", (nonsense.error ?? "").includes("ebay"), nonsense.error);
+
+console.log("\n— stressing a retailer —");
+// eBay: free official API, so repeating it costs nothing and works wherever the
+// tests run.
+const run = await stress("ebay", 4);
+check("does the runs asked for", run.runs === 4, run.runs);
+check("counts successes", run.ok > 0, run);
+check("reports a rate", run.successRate >= 0 && run.successRate <= 100, run.successRate);
+check("records every run in order", run.sequence.length === 4, run.sequence.length);
+check("numbers them from one", run.sequence[0]?.n === 1);
+check("times only the successes", run.medianMs === null || run.medianMs > 0);
+
+// The trap this had to avoid: the same keyword twice is served from cache
+// without touching the retailer, so a naive loop reports a flawless 100% having
+// made one real request.
+const terms = new Set(run.sequence.map((r) => r.n));
+check("each run is its own attempt", terms.size === 4);
+check("the cache is bypassed", /fresh: true/.test(
+  (await import("node:fs")).readFileSync(new URL("./lib/probe.ts", import.meta.url), "utf8"),
+));
+
+console.log("\n— it will not spend money by accident —");
+// Fifteen Amazon searches is fifteen Bright Data records. That should never
+// happen because someone picked the wrong dropdown entry.
+const paid = await stress("amazon", 5);
+check("metered retailers are refused by default", paid.error !== null, paid.error);
+check("and nothing ran", paid.runs === 0, paid.runs);
+check("the refusal says why", (paid.error ?? "").includes("bills per request"));
+
+const capped = await stress("notastore", 999);
+check("unknown retailers are refused", capped.error !== null);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

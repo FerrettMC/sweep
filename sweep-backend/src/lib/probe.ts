@@ -353,3 +353,128 @@ export async function probeAdapter(
     };
   }
 }
+
+// ---- stress ------------------------------------------------------------------
+//
+// One run tells you almost nothing about a retailer that fails intermittently.
+// Best Buy read 33% over three attempts and 75% over eight, and neither number
+// was worth a decision. This runs the adapter repeatedly from the server and
+// reports the spread.
+//
+// TWO THINGS MAKE OR BREAK THIS.
+//
+// It must bypass the keyword cache. Searching the same term twice serves the
+// second from cache without touching the retailer, so a naive loop would report
+// a flawless 100% having made exactly one real request.
+//
+// And it must go through the rate gate, not around it. The gate's pacing is
+// part of what is being tested — a store that only fails under the concurrency
+// the app actually uses is a store that fails in production.
+
+/** Enough to see a pattern; short enough that the request completes. */
+const MAX_RUNS = 15;
+
+export interface StressResult {
+  retailer: string;
+  runs: number;
+  ok: number;
+  failed: number;
+  blocked: number;
+  successRate: number;
+  /** Milliseconds, of the successful runs only — a timeout is not a speed. */
+  fastestMs: number | null;
+  medianMs: number | null;
+  slowestMs: number | null;
+  /** Failure reasons and how often each occurred. */
+  reasons: { reason: string; count: number }[];
+  /** Every run in order, so a cluster of failures is visible as a cluster. */
+  sequence: { n: number; status: string; ms: number }[];
+  metered: boolean;
+  error: string | null;
+}
+
+/**
+ * Distinct keywords, so the cache cannot serve a repeat even if `fresh` were
+ * ever to stop working. Belt and braces: the whole measurement is worthless if
+ * a single request gets counted fifteen times.
+ */
+const TERMS = [
+  "wireless headphones", "laptop", "coffee maker", "4k tv", "office chair",
+  "bluetooth speaker", "air fryer", "monitor", "keyboard", "smart watch",
+  "vacuum cleaner", "printer", "microwave", "webcam", "router",
+];
+
+export async function stress(
+  retailer: string,
+  runs: number,
+  spendMoney = false,
+): Promise<StressResult> {
+  const base: StressResult = {
+    retailer, runs: 0, ok: 0, failed: 0, blocked: 0, successRate: 0,
+    fastestMs: null, medianMs: null, slowestMs: null,
+    reasons: [], sequence: [], metered: false, error: null,
+  };
+
+  if (!RETAILERS.includes(retailer as Retailer)) {
+    return { ...base, error: `Unknown retailer. Try one of: ${RETAILERS.join(", ")}` };
+  }
+
+  const adapter = adapters[retailer as Retailer];
+
+  // Fifteen Amazon searches is fifteen Bright Data records, and fifteen Walmart
+  // searches is fifteen billed Decodo requests. Neither should happen because
+  // someone picked the wrong entry in a dropdown.
+  if (adapter.metered && !spendMoney) {
+    return {
+      ...base,
+      metered: true,
+      error: `${retailer} bills per request. Confirm before stress testing it.`,
+    };
+  }
+
+  const count = Math.max(1, Math.min(MAX_RUNS, Math.floor(runs) || 5));
+  const sequence: StressResult["sequence"] = [];
+  const okMs: number[] = [];
+  const reasons = new Map<string, number>();
+
+  for (let n = 0; n < count; n++) {
+    const started = Date.now();
+    let status = "failed";
+    let reason = "";
+
+    try {
+      const result = await adapter.search(TERMS[n % TERMS.length], 3, { fresh: true });
+      status = result.status;
+      if (result.status === "success") okMs.push(Date.now() - started);
+      else reason = (result.detail ?? result.status).slice(0, 120);
+    } catch (err) {
+      status = "threw";
+      reason = err instanceof Error ? err.message.slice(0, 120) : String(err);
+    }
+
+    if (reason) reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
+    sequence.push({ n: n + 1, status, ms: Date.now() - started });
+  }
+
+  const ok = sequence.filter((r) => r.status === "success").length;
+  const blocked = sequence.filter((r) => r.status === "blocked").length;
+  const sorted = [...okMs].sort((a, b) => a - b);
+
+  return {
+    retailer,
+    runs: count,
+    ok,
+    failed: count - ok - blocked,
+    blocked,
+    successRate: Math.round((ok / count) * 100),
+    fastestMs: sorted[0] ?? null,
+    medianMs: sorted.length ? sorted[Math.floor(sorted.length / 2)] : null,
+    slowestMs: sorted[sorted.length - 1] ?? null,
+    reasons: [...reasons.entries()]
+      .map(([reason, c]) => ({ reason, count: c }))
+      .sort((a, b) => b.count - a.count),
+    sequence,
+    metered: adapter.metered,
+    error: null,
+  };
+}
