@@ -63,7 +63,7 @@ spend real provider quota.
 | Walmart | `__NEXT_DATA__` via Decodo | **Metered** — per request | Live |
 | eBay | Official Buy Browse API | Free, 5k calls/day | Live |
 | Etsy | Official Open API v3 | Free, plain API key | Live |
-| Best Buy | Apollo SSR payload, self-written | Free | Off — their developer programme is closed |
+| Best Buy | Apollo SSR payload, self-written | Free | Ready — works without the API, see ROADMAP |
 | Newegg | Inline JSON blob, self-written | Free | Off — blocked from datacenter IPs |
 | ASOS | Inline JSON island, self-written | Free | Off — blocked from datacenter IPs |
 
@@ -202,10 +202,9 @@ promo codes, guest mode, and an admin portal.
 
 **Waiting on other people, not on code:**
 
-- ~~**Best Buy**~~ — closed. Their developer programme no longer issues keys,
-  which took six contacts over sixteen days to establish because the site, the
-  docs and the contact form are all still live. Not worth another hour; see
-  ROADMAP.md.
+- ~~**Best Buy**~~ — their developer programme is closed and never needed. The
+  adapter scrapes the search page Apollo payload, which is reachable from
+  Railway; verified end to end. One environment variable away from live.
 - **AdMob** — integrated and server-verified, but the account isn't approved,
   and AdMob generally won't approve an app that isn't publicly listed. Set
   `REWARDED_ADS_ENABLED=false` until it is, which hides the button without a

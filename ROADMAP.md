@@ -352,10 +352,34 @@ is already a real comparison.
 sweep above. Verify it from Railway with the admin probe first: a home IP proved
 nothing for Newegg and ASOS and will prove nothing here either.
 
-**The Best Buy adapter stays written and disabled.** It scrapes rather than
-using the dead API, so it is worth one probe from production to see whether the
-page is even reachable from a datacenter — that is now a one-minute question
-rather than a deploy.
+### Best Buy works anyway — the API was never needed
+
+Probed from Railway on 31 Aug, immediately after establishing the programme was
+closed:
+
+    Status 200 - 2.6s - 2360 KB - Apollo SSR present - 62 price-shaped values
+    no challenge, no bounce
+
+The adapter parses that same Apollo payload, and it does not fetch product pages
+at all — it recovers a keyword from the url and searches, because Best Buy times
+product pages out from a datacenter. Search pages it serves happily, which is
+exactly what the probe confirms and exactly what the adapter uses.
+
+Verified end to end: search 2.4s with real prices, refresh 1.4s, twice,
+consistent.
+
+**So it can be switched on now.** Free — no API, no proxy, nothing metered. It
+is registered as an `electronics` specialist, so routing only calls it when the
+query matches. Remove `bestbuy` from `DISABLED_RETAILERS` and redeploy; the app
+already ships its label and brand colour, so no release is needed.
+
+**One thing to watch:** every fetch is ~2.4MB, and a product refresh costs a
+whole search page. That is Railway bandwidth rather than money, and the rate
+gate is already conservative for it (concurrency 2, 800ms apart), but it is the
+reason to leave it as a specialist rather than making it a general store.
+
+Sixteen days chasing a key that does not exist, for a store that was reachable
+without one the whole time.
 
 **Walmart has no phone support for affiliates** — checked their own contact
 page. The corporate lines are retail customer service. There are two email
