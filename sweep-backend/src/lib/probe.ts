@@ -370,9 +370,23 @@ export async function probeAdapter(
 // And it must go through the rate gate, not around it. The gate's pacing is
 // part of what is being tested — a store that only fails under the concurrency
 // the app actually uses is a store that fails in production.
+//
+// It calls the adapter directly rather than going through searchJobs, which
+// means these runs are NOT written to ScrapeCheck. That is deliberate and worth
+// keeping: /health/scrapers drives the failure-rate alert emails, and an admin
+// running sixty synthetic searches should not move a number that exists to
+// describe what real users are getting. If someone later "fixes" this by adding
+// recordCheck here, a stress test on a broken store will start paging you about
+// an outage you caused yourself.
 
-/** Enough to see a pattern; short enough that the request completes. */
-const MAX_RUNS = 15;
+/**
+ * Enough to see a pattern; short enough that the request completes.
+ *
+ * Raised from 15 once Best Buy measured a 2.1s median — thirty runs is about a
+ * minute there, which is a reasonable thing to wait for. A slower store will
+ * take longer, which is why the page allows four minutes before giving up.
+ */
+const MAX_RUNS = 30;
 
 export interface StressResult {
   retailer: string;

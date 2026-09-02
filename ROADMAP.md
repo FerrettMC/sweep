@@ -390,22 +390,23 @@ request, not the network. http.ts already recorded this behaviour from before:
 request." It is intermittent rather than blocked, which is the harder kind of
 broken: no challenge page, no status code, just silence some of the time.
 
-**Shipping with it anyway, at ~75%.** The first three attempts were the worst of
-it; the five after them all succeeded, and when it works it answers in about 3
-seconds. A failed store sorts to the bottom of the results and says so, and it
-can be pulled with one environment variable if the rate drops.
+**Measured properly, it is fine.** Four stress runs from production, fifteen
+searches each, a different keyword every time so nothing came from cache:
 
-That is a judgement call made on a thin sample, and it should be revisited with
-a real one: `/admin` can now stress a retailer — a dozen back-to-back searches
-from production, different keyword each time so nothing comes from cache. Run
-that before trusting the number in either direction.
+    100% success over 15 runs
+    fastest 1.8s - median 2.1s - slowest 2.7s
 
-Three attempts is far too small a sample to conclude from, though. Once the
-adapter probe is deployed, run `bestbuy` through it a dozen times: that gives a
-real number, from production, without a deploy or a user seeing any of it. If it
-settles above roughly 90% it is worth another go; below that it is not.
+Sixty consecutive searches, no failures, and a tight spread — the slowest is
+nowhere near the 30s slot timeout, which is the thing that would have made a
+high success rate misleading.
 
-If it does hold up, it is free — no API, no proxy, nothing metered. It
+So the 33% and the 75% were both artefacts of a tiny sample taken minutes after
+the store was switched on. The two failures behind them are still in the health
+window and will age out. This is what the stress test was built for: three
+attempts and eight attempts were both worth nothing, and neither was worth a
+decision.
+
+It is free — no API, no proxy, nothing metered. It
 is registered as an `electronics` specialist, so routing only calls it when the
 query matches. Remove `bestbuy` from `DISABLED_RETAILERS` and redeploy; the app
 already ships its label and brand colour, so no release is needed.

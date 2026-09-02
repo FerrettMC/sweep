@@ -295,7 +295,7 @@ const PAGE = `<!doctype html>
       <option>newegg</option><option>asos</option>
       <option>amazon</option><option>walmart</option>
     </select>
-    <input id="stRuns" type="number" min="1" max="15" value="10">
+    <input id="stRuns" type="number" min="1" max="30" value="12">
   </div>
   <button onclick="runStress()">Run it</button>
   <div id="stOut"></div>
