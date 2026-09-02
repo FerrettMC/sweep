@@ -368,7 +368,19 @@ exactly what the probe confirms and exactly what the adapter uses.
 Verified end to end: search 2.4s with real prices, refresh 1.4s, twice,
 consistent.
 
-**So it can be switched on now.** Free — no API, no proxy, nothing metered. It
+**Not proven yet.** The probe fetched the page with a plain browser user-agent;
+the adapter builds its own url and sends its own headers, and the end-to-end run
+above was from a home connection. Those are two different measurements, and
+conflating them is exactly what went wrong with Newegg and ASOS.
+
+A site can also serve a degraded page to a client it distrusts — right status,
+right markers, no products in the payload — and every signal a url probe looks
+at stays green through that. Which is why `/admin` now runs the ADAPTER from
+production too: same code path, same rate gate, and it shows a sample so
+"succeeded with zero results" cannot hide behind a success.
+
+**Run that before switching it on.** If it comes back with results, then: free —
+no API, no proxy, nothing metered. It
 is registered as an `electronics` specialist, so routing only calls it when the
 query matches. Remove `bestbuy` from `DISABLED_RETAILERS` and redeploy; the app
 already ships its label and brand colour, so no release is needed.
