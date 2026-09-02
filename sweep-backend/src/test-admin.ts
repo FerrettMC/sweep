@@ -62,7 +62,7 @@ try {
 
   // The handlers wired to onclick must actually exist, or the buttons are
   // decoration. A parse error is one way to lose them; a rename is another.
-  for (const fn of ["signIn", "signOut", "announce", "useTemplate", "counts", "load", "makeCode", "loadPromo", "dropCode"]) {
+  for (const fn of ["signIn", "signOut", "announce", "useTemplate", "counts", "load", "makeCode", "loadPromo", "dropCode", "runProbe"]) {
     check(`${fn}() is defined`, new RegExp(`function ${fn}\\s*\\(`).test(script));
   }
 
@@ -142,6 +142,28 @@ try {
   if (createdCode) {
     await prisma.promoCode.deleteMany({ where: { code: createdCode } });
   }
+
+  console.log("\n— the probe is guarded —");
+  const probeNoKey = await app.inject({
+    method: "POST", url: "/admin/probe", payload: { url: "https://example.com/" },
+  });
+  check("needs the key", probeNoKey.statusCode === 401, probeNoKey.statusCode);
+
+  const probeNoUrl = await app.inject({
+    method: "POST", url: "/admin/probe", headers: { "x-admin-key": KEY }, payload: {},
+  });
+  check("needs a url", probeNoUrl.statusCode === 400, probeNoUrl.statusCode);
+
+  // The one that matters. Behind the admin key sits the cloud metadata service,
+  // which hands credentials to anything that can reach it.
+  const probeMeta = await app.inject({
+    method: "POST",
+    url: "/admin/probe",
+    headers: { "x-admin-key": KEY },
+    payload: { url: "http://169.254.169.254/latest/meta-data/" },
+  });
+  check("refuses the metadata service even WITH the key", probeMeta.json().refused !== null, probeMeta.json());
+  check("and never sends the request", probeMeta.json().status === null);
 
   console.log("\n— refuses when unconfigured —");
   delete process.env.ADMIN_API_KEY;

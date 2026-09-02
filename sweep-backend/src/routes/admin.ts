@@ -27,6 +27,7 @@ import type { FastifyInstance } from "fastify";
 import { requireAdmin } from "../lib/adminAuth.js";
 import { getAdminStats } from "../lib/adminStats.js";
 import { createPromoCode, deletePromoCode, listPromoCodes } from "../lib/promoAdmin.js";
+import { probe } from "../lib/probe.js";
 
 export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin", async (_request, reply) => {
@@ -36,6 +37,25 @@ export async function adminRoutes(app: FastifyInstance) {
 
   app.get("/admin/stats", { preHandler: requireAdmin }, async () => {
     return getAdminStats();
+  });
+
+  // Fetch a url from wherever this server is, and report what came back.
+  //
+  // The whole point is the vantage point: a page that loads perfectly from a
+  // laptop can be refused outright from a datacenter, and that difference has
+  // been the answer three times now while being impossible to check.
+  app.post("/admin/probe", { preHandler: requireAdmin }, async (request, reply) => {
+    const { url } = (request.body ?? {}) as { url?: string };
+    if (typeof url !== "string" || !url.trim()) {
+      return reply.status(400).send({ error: "Give it a url." });
+    }
+
+    const result = await probe(url.trim());
+    request.log.info(
+      { url: result.finalUrl, status: result.status, refused: result.refused },
+      "admin probe",
+    );
+    return result;
   });
 
   app.get("/admin/promo", { preHandler: requireAdmin }, async () => {
@@ -123,6 +143,12 @@ const PAGE = `<!doctype html>
   /* An inline action inside a table row, not a page-level button. */
   button.link { background: none; border: 0; color: #dc2626; font-weight: 600;
                 width: auto; margin: 0; padding: 2px 0; font-size: 13px; }
+  .probe { border: 1px solid var(--line); border-radius: 10px; padding: 12px 13px;
+           margin-top: 8px; font-size: 13px; }
+  .probe .big { font-size: 15px; font-weight: 800; margin-bottom: 6px; }
+  .probe dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; }
+  .probe dt { color: var(--dim); }
+  .probe dd { margin: 0; word-break: break-all; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
   .card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
   .n { font-size: 22px; font-weight: 800; }
@@ -194,6 +220,14 @@ const PAGE = `<!doctype html>
   This answers who is driving the Amazon bill.</p>
   <table><thead><tr><th>Account</th><th>Tier</th><th>Searches</th><th>Lookups</th></tr></thead>
   <tbody id="heaviest"></tbody></table>
+
+  <h2>Reach a page from here</h2>
+  <p class="sub">Fetches from this server, not your laptop. A store that answers
+  a home connection and refuses a datacenter looks identical from a browser —
+  this is the only way to tell them apart.</p>
+  <input id="probeUrl" placeholder="https://www.zappos.com/..." autocomplete="off">
+  <button onclick="runProbe()">Probe</button>
+  <div id="probeOut"></div>
 
   <h2>Promo codes</h2>
   <p class="sub">Grants time on a paid tier. It never touches a real subscription —
@@ -411,6 +445,47 @@ async function loadPromo() {
   }).join("");
   document.getElementById("promo").innerHTML = rows ||
     '<tr><td colspan="5" class="dim">No codes yet.</td></tr>';
+}
+
+async function runProbe() {
+  var url = document.getElementById("probeUrl").value.trim();
+  if (!url) return say("Give it a url.", true);
+
+  var out = document.getElementById("probeOut");
+  out.innerHTML = '<div class="probe">Fetching&hellip;</div>';
+
+  var res = await fetch("/admin/probe", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-admin-key": key() },
+    body: JSON.stringify({ url: url }),
+  });
+  var d = await res.json().catch(function () { return {}; });
+  if (!res.ok) { out.innerHTML = ""; return say(d.error || "Probe failed.", true); }
+
+  // The verdict first. Everything under it is the evidence for it.
+  var headline, colour;
+  if (d.refused) { headline = "Refused before sending"; colour = "#d97706"; }
+  else if (d.error) { headline = "Never completed"; colour = "#dc2626"; }
+  else if (d.challenges.length) { headline = "Blocked - challenge page"; colour = "#dc2626"; }
+  else if (d.markers.length || d.priceish > 0) { headline = "Reachable, with product data"; colour = "#16a34a"; }
+  else if (d.status === 200) { headline = "200, but nothing a parser wants"; colour = "#d97706"; }
+  else { headline = "HTTP " + d.status; colour = "#dc2626"; }
+
+  var rows = "";
+  function row(k, v) { rows += "<dt>" + k + "</dt><dd>" + v + "</dd>"; }
+
+  if (d.refused) row("Reason", d.refused);
+  if (d.error) row("Error", d.error);
+  if (d.status !== null) row("Status", d.status);
+  row("Took", (d.ms / 1000).toFixed(1) + "s");
+  if (d.bytes) row("Size", Math.round(d.bytes / 1024) + " KB" + (d.truncated ? " (capped)" : ""));
+  if (d.markers.length) row("Markers", d.markers.join(", "));
+  if (d.priceish) row("Price-shaped values", d.priceish);
+  if (d.challenges.length) row("Challenge text", d.challenges.join(", "));
+  if (d.redirects.length) row("Redirects", d.redirects.length + " &rarr; " + d.finalUrl);
+
+  out.innerHTML = '<div class="probe"><div class="big" style="color:' + colour + '">' +
+    headline + "</div><dl>" + rows + "</dl></div>";
 }
 
 async function dropCode(el) {
