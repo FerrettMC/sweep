@@ -756,15 +756,15 @@ needs the app publicly listed. Nothing further to debug.
 
 ### What's left, in order
 
-1. **Enter payment details in AdMob** — required for account verification, and
-   it takes time to process, so start it now. Independent of everything else.
-2. **Launch publicly on Play.** This is the gate. AdMob limits ad serving until
-   an app is listed on a supported store and reviewed, and a closed test is not
-   a public listing — there is no store URL to give them.
+1. ~~**Enter payment details in AdMob**~~ — done 20 Aug.
+2. ~~**Launch publicly on Play.**~~ Approved. This was the gate.
 3. **Add the store link in AdMob**, which triggers the app review that lifts
-   the serving limits.
-4. **Build with the production profile.** That's the switch: it's the only
-   profile carrying the real unit id, so this is when real ads first appear.
+   the serving limits. Do this once the listing is live.
+4. ~~**Build with the production profile.**~~ The real unit id is in that
+   profile as of the launch build.
+5. **Remove `REWARDED_ADS_ENABLED` from Railway** when AdMob approves. That is
+   the last step, and it needs no build: the installed app already carries the
+   real unit, and the server is the only thing withholding the button.
 5. **Verify one real reward end to end** — watch an ad on a real device, confirm
    the search is credited. The credit comes from Google calling
    `/ads/admob/ssv`, not from the app, so this tests the half that can't be

@@ -60,7 +60,9 @@ worth doing at the same time as creating the unit.
 Both IDs are recorded. The app id is already live in `app.json` — it identifies
 the app and requests nothing on its own.
 
-The **rewarded unit id is deliberately NOT set anywhere yet**:
+The **rewarded unit id is now set** in `eas.json` under `build.production.env`,
+as of the public launch build. What follows is why it was held back until then,
+which is worth keeping — the same reasoning applies to any future ad unit.
 
 ```
 ca-app-pub-5462924462242718/3650952420
@@ -74,19 +76,25 @@ tap by you or a tester is invalid traffic, which suspends accounts.
 While it's unset, every profile falls back to Google's test units. That is the
 safe default and it needs no discipline to maintain.
 
-**At public launch**, add it to `eas.json` → `build.production.env`:
+**Done at public launch**, as planned:
 
 ```json
 "EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID": "ca-app-pub-5462924462242718/3650952420"
 ```
 
-then build with the production profile. That build is the first one that serves
-real ads.
+Note what this does and does not mean. The build carries the real unit, but
+nothing requests it while `REWARDED_ADS_ENABLED=false` on Railway — the server
+hides the button and refuses to credit a bonus either way.
+
+That ordering is deliberate and saves a build. When AdMob approves, remove that
+one environment variable and ads start working on the copy people already have
+installed. Had the unit id been left out of this build, approval would have
+meant a fresh build, a fresh upload and another review wait.
 
 ## 4. The two IDs, for reference
 
 - App ID — `ca-app-pub-5462924462242718~3822342819` — **live in `app.json`**
-- Rewarded unit ID — `ca-app-pub-5462924462242718/3650952420` — **held back until launch, see above**
+- Rewarded unit ID — `ca-app-pub-5462924462242718/3650952420` — **in `eas.json` production, since the launch build**
 
 Neither is a secret; both are safe to commit.
 
