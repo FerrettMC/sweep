@@ -740,21 +740,28 @@ android.enableMinifyInReleaseBuilds=true
 android.enableShrinkResourcesInReleaseBuilds=true
 ```
 
-**Not during the launch.** R8 strips and renames code it believes is unused, and
-React Native resolves a great deal by reflection — so it removes things that are
-used, and the app crashes. Those crashes exist ONLY in release builds: they
-cannot be reproduced in development, which is exactly what makes this dangerous
-to ship untested. Reanimated, Sentry, RevenueCat, Google Mobile Ads and Supabase
-are all in the usual suspects list.
+**Enabled 3 Sept**, along with per-library keep rules in
+`android/app/proguard-rules.pro`. Safe to do at that moment specifically because
+the launch build was already uploaded and in review — an uploaded artifact is
+immutable, so a repo change could not reach it.
 
-**Do it as the first post-launch update**, on its own, with nothing else in the
-build. Then install it and actually exercise: a search across all five stores,
-tracking an item, opening a product page, a purchase flow, push arriving, and a
-rewarded ad once AdMob is live. A crash here is silent until a user hits it.
+Worth being clear about what the linked Android doc does and does not say. It
+has no deadline, no enforcement date, and no mention of visibility penalties: it
+is a performance best-practice page. The deadline language is Play Console's
+own, and only the console shows the date.
 
-If something does break, `extraProguardRules` in expo-build-properties is where
-keep rules go — but reach for a library's documented consumer rules first,
-since most ship their own and a hand-written `-keep class **` defeats the point.
+**The risk is real even though the urgency is unclear.** R8 removes code it
+believes unused, React Native resolves a great deal by reflection, and the
+resulting crashes exist ONLY in release builds — unreproducible in development
+and invisible until a user hits one. The rules file covers React Native core,
+Hermes, Reanimated, Expo modules, Sentry, RevenueCat and Google Mobile Ads,
+narrowly and per library. A blanket `-keep class **` would silence every crash
+AND turn obfuscation back off, clearing the warning while optimising nothing.
+
+**Do not ship this without installing it first.** Build a preview — those do not
+go to Play — install it, and exercise: a search across all five stores, tracking
+an item, a product page, the purchase flow, push arriving, and a rewarded ad
+once AdMob is live. Only then should it go into a production build.
 
 ---
 
