@@ -48,7 +48,8 @@
     "test:landing": "tsx src/test-landing.ts",
     "test:searchhistory": "tsx src/test-searchhistory.ts",
     "test:plans": "tsx src/test-plans.ts",
-    "test:probe": "tsx src/test-probe.ts"
+    "test:probe": "tsx src/test-probe.ts",
+    "purge:accounts": "tsx src/purge-accounts.ts"
   },
   "keywords": [],
   "author": "",
