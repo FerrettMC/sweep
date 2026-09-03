@@ -725,6 +725,39 @@ honest slide last, and skippable from frame one.
 
 ---
 
+## Play wants R8 turned on
+
+Play Console reports "App optimization is below our threshold — Obfuscation
+(2%)", and warns that anything under 25% may affect visibility and publishing.
+There is a deadline rather than an immediate penalty.
+
+The cause is simple: `android.enableMinifyInReleaseBuilds` defaults to false and
+is not set, so release builds ship unminified. The fix is two lines in
+`android/gradle.properties`:
+
+```properties
+android.enableMinifyInReleaseBuilds=true
+android.enableShrinkResourcesInReleaseBuilds=true
+```
+
+**Not during the launch.** R8 strips and renames code it believes is unused, and
+React Native resolves a great deal by reflection — so it removes things that are
+used, and the app crashes. Those crashes exist ONLY in release builds: they
+cannot be reproduced in development, which is exactly what makes this dangerous
+to ship untested. Reanimated, Sentry, RevenueCat, Google Mobile Ads and Supabase
+are all in the usual suspects list.
+
+**Do it as the first post-launch update**, on its own, with nothing else in the
+build. Then install it and actually exercise: a search across all five stores,
+tracking an item, opening a product page, a purchase flow, push arriving, and a
+rewarded ad once AdMob is live. A crash here is silent until a user hits it.
+
+If something does break, `extraProguardRules` in expo-build-properties is where
+keep rules go — but reach for a library's documented consumer rules first,
+since most ship their own and a hand-written `-keep class **` defeats the point.
+
+---
+
 ## Sequencing
 
 **AdMob — code done, waiting on a public launch.**
