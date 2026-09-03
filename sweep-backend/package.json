@@ -49,7 +49,8 @@
     "test:searchhistory": "tsx src/test-searchhistory.ts",
     "test:plans": "tsx src/test-plans.ts",
     "test:probe": "tsx src/test-probe.ts",
-    "purge:accounts": "tsx src/purge-accounts.ts"
+    "purge:accounts": "tsx src/purge-accounts.ts",
+    "test:appads": "tsx src/test-appads.ts"
   },
   "keywords": [],
   "author": "",
