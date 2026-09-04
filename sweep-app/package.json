@@ -8,6 +8,7 @@
     "@sentry/react-native": "~7.11.0",
     "@supabase/supabase-js": "^2.112.2",
     "expo": "~57.0.13",
+    "expo-build-properties": "~57.0.17",
     "expo-clipboard": "~57.0.1",
     "expo-constants": "~57.0.10",
     "expo-device": "~57.0.1",
