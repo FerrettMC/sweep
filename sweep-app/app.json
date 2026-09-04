@@ -54,7 +54,7 @@
       [
         "react-native-google-mobile-ads",
         {
-          "androidAppId": "ca-app-pub-5462924462242718~3822342819"
+          "androidAppId": "ca-app-pub-2345829541721635~6256385722"
         }
       ],
       [
@@ -81,7 +81,7 @@
     "backgroundColor": "#0D0D0D"
   },
   "react-native-google-mobile-ads": {
-    "android_app_id": "ca-app-pub-5462924462242718~3822342819",
+    "android_app_id": "ca-app-pub-2345829541721635~6256385722",
     "delay_app_measurement_init": true
   }
 }
