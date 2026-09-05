@@ -75,7 +75,8 @@ export default function HomeScreen() {
       getNotificationStatus().catch(() => null),
       getRetailerStatus().catch(() => null),
       // Guests have no feed, and a server that predates it has no endpoint —
-      // both land here as "nothing unread", which hides the bell.
+      // both land here as "nothing unread", which drops the badge. The bell
+      // itself stays put either way.
       getNotifications().catch(() => null),
     ]);
 

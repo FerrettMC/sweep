@@ -1017,6 +1017,23 @@ export function markNotificationsRead() {
   return request<{ cleared: number }>("/notifications/read", { method: "POST" });
 }
 
+/**
+ * Delete one, for good.
+ *
+ * Nothing else removes a notification — they no longer expire — so this is the
+ * only way the list ever gets shorter.
+ */
+export function deleteNotification(id: string) {
+  return request<{ ok: true }>(`/notifications/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
+/** Delete the lot. */
+export function clearNotifications() {
+  return request<{ deleted: number }>("/notifications", { method: "DELETE" });
+}
+
 // ---- cart ----------------------------------------------------------------
 //
 // Not a checkout — Sweep sells nothing. A staging area for what you've decided

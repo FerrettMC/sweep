@@ -6,7 +6,9 @@
 import "./testEnv.js";
 import { prisma } from "./lib/prisma.js";
 import {
+  clearNotifications,
   countUnread,
+  deleteNotification,
   listNotifications,
   markAllRead,
   pruneNotifications,
@@ -97,15 +99,60 @@ try {
   check("a bad user id is swallowed, not thrown", !threw);
   check("nothing is filed for it", (await prisma.notification.count({ where: { userId: "does-not-exist" } })) === 0);
 
-  console.log("\n— old notifications are pruned —");
+  console.log("\n— age alone removes nothing —");
+  // The behaviour this replaced deleted anything older than thirty days, so a
+  // feed emptied itself while its owner was doing nothing wrong. A price drop
+  // is the only lasting evidence that tracking a product did something.
+  const beforeAging = (await listNotifications(user)).length;
   await prisma.notification.updateMany({
     where: { userId: user },
-    data: { createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000) },
+    data: { createdAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000) },
   });
-  const pruned = await pruneNotifications();
-  check("two-month-old rows are removed", pruned >= 3, pruned);
-  check("that user's feed is empty", (await listNotifications(user)).length === 0);
-  check("recent ones survive", (await listNotifications(a)).length === 1);
+  await pruneNotifications();
+  check(
+    "a year-old feed is still there",
+    (await listNotifications(user)).length === beforeAging,
+    { beforeAging, now: (await listNotifications(user)).length },
+  );
+
+  console.log("\n— only its owner removes one —");
+  const feed = await listNotifications(user);
+  check("delete reports it deleted something", await deleteNotification(user, feed[0].id));
+  check("and it is gone", (await listNotifications(user)).length === beforeAging - 1);
+  // The client removes the row on tap and needs to know when it was already
+  // gone, rather than being told yes twice.
+  check("deleting the same one twice says no", !(await deleteNotification(user, feed[0].id)));
+  // An id alone must not be enough. This is the check that stops one account
+  // clearing another's bell.
+  check("another account cannot delete it", !(await deleteNotification(other, feed[1].id)));
+  check("so it survives", (await listNotifications(user)).length === beforeAging - 1);
+
+  console.log("\n— clearing all is scoped to one account —");
+  const cleared = await clearNotifications(user);
+  check("reports how many went", cleared === beforeAging - 1, cleared);
+  check("that feed is empty", (await listNotifications(user)).length === 0);
+  check("and nobody else's is", (await listNotifications(a)).length === 1);
+
+  console.log("\n— but one account cannot grow without bound —");
+  const hoarder = await makeUser();
+  await prisma.notification.createMany({
+    data: Array.from({ length: 305 }, (_, i) => ({
+      userId: hoarder,
+      kind: "price-drop",
+      title: `Drop ${i}`,
+      body: "b",
+      // Distinct timestamps, oldest first, so "trims oldest" is actually
+      // testable rather than depending on insertion order.
+      createdAt: new Date(Date.now() - (305 - i) * 60_000),
+    })),
+  });
+  const trimmed = await pruneNotifications();
+  check("trims the overflow", trimmed === 5, trimmed);
+  const kept = await listNotifications(hoarder, 400);
+  check("keeps the cap exactly", kept.length === 300, kept.length);
+  check("and keeps the NEWEST", kept[0].title === "Drop 304", kept[0].title);
+  check("dropping the oldest", !kept.some((n) => n.title === "Drop 0"));
+  check("an account under the cap is untouched", (await listNotifications(a)).length === 1);
   console.log("\n— the announcement endpoint is guarded —");
   // It writes to every user's screen, so the failure mode of getting this
   // wrong is worse than for anything else in the app.

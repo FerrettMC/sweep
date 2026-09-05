@@ -70,9 +70,11 @@ export function startScheduler() {
     try {
       const removed = await pruneSearchCache();
       if (removed > 0) console.log(`[scheduler] pruned ${removed} search-cache entries`);
-      const oldNotifications = await pruneNotifications();
-      if (oldNotifications > 0) {
-        console.log(`[scheduler] pruned ${oldNotifications} old notifications`);
+      // Only trims accounts past the per-user cap. Nothing is deleted by age:
+      // the bell is a record, and its owner is the one who clears it.
+      const overCap = await pruneNotifications();
+      if (overCap > 0) {
+        console.log(`[scheduler] trimmed ${overCap} notifications over the cap`);
       }
     } catch (err) {
       console.error("[scheduler] search-cache prune threw:", err);

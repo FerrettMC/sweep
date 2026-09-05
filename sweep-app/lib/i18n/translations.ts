@@ -670,6 +670,14 @@ export const en = {
     emptyBody:
       "Price drops and Deal Radar finds show up here, so you can catch up on anything you missed — even with notifications switched off.",
     unread: "{{count}} unread",
+    kept: "Kept until you delete them",
+    delete: "Delete",
+    clearAll: "Clear all",
+    clearTitle: "Delete every notification?",
+    clearBody:
+      "This erases your record of past price drops and Deal Radar finds. Nothing you're tracking changes, and new alerts still arrive.",
+    clearConfirm: "Delete all",
+    cancel: "Cancel",
   },
   nav: {
     notifications: "Notifications",
@@ -1415,6 +1423,14 @@ export const es: Translations = {
     emptyBody:
       "Las bajadas de precio y lo que encuentre el Radar aparecen aquí, para que veas lo que te perdiste, aunque tengas las notificaciones desactivadas.",
     unread: "{{count}} sin leer",
+    kept: "Se guardan hasta que las borres",
+    delete: "Borrar",
+    clearAll: "Borrar todo",
+    clearTitle: "¿Borrar todas las notificaciones?",
+    clearBody:
+      "Esto borra tu historial de bajadas de precio y hallazgos del Radar. No afecta a nada que sigas, y las nuevas alertas seguirán llegando.",
+    clearConfirm: "Borrar todo",
+    cancel: "Cancelar",
   },
   nav: {
     notifications: "Notificaciones",

@@ -10,6 +10,11 @@
 //
 // This is the record. It exists for everyone, including people push never
 // reaches at all.
+//
+// It also does not expire. These used to be deleted after thirty days, which
+// meant the record quietly emptied itself — someone who tracked a price for a
+// season came back to a bell that had thrown away the drops it caught. The
+// only thing that removes one now is its owner deleting it.
 
 import { useCallback, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,11 +28,18 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
+import ConfirmDialog, { type ConfirmContent } from "@/components/ConfirmDialog";
 import { EmptyState, Loading, Screen } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
 import { useTranslate } from "@/lib/i18n";
-import { type AppNotification, getNotifications, markNotificationsRead } from "@/lib/api";
+import {
+  type AppNotification,
+  clearNotifications,
+  deleteNotification,
+  getNotifications,
+  markNotificationsRead,
+} from "@/lib/api";
 import { formatRelativeTime } from "@/lib/format";
 import { linkify } from "@/lib/linkify";
 import { setUnreadCount } from "@/lib/unreadCount";
@@ -69,6 +81,7 @@ export default function Notifications() {
 
   const [items, setItems] = useState<AppNotification[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [confirmingClear, setConfirmingClear] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -92,6 +105,34 @@ export default function Notifications() {
     }, [load]),
   );
 
+  /**
+   * Remove the row first, then tell the server.
+   *
+   * Deleting is the only thing that shortens this list, so it has to feel
+   * immediate. If the request fails the row comes back — better a row that
+   * reappears than one that looks deleted and returns on the next refresh.
+   */
+  async function onDelete(item: AppNotification) {
+    const previous = items ?? [];
+    setItems(previous.filter((n) => n.id !== item.id));
+    try {
+      await deleteNotification(item.id);
+    } catch {
+      setItems(previous);
+    }
+  }
+
+  async function onClearAll() {
+    setConfirmingClear(false);
+    const previous = items ?? [];
+    setItems([]);
+    try {
+      await clearNotifications();
+    } catch {
+      setItems(previous);
+    }
+  }
+
   if (items === null) return <Loading />;
 
   return (
@@ -110,6 +151,22 @@ export default function Notifications() {
           />
         }
       >
+        {/* Says the quiet part out loud: this is a record, not an inbox that
+            drains. Without it, "clear all" reads as the only way the list is
+            ever meant to end up empty. */}
+        {items.length > 0 && (
+          <View style={styles.head}>
+            <Text style={styles.kept}>{t("notifications.kept")}</Text>
+            <Pressable
+              onPress={() => setConfirmingClear(true)}
+              hitSlop={10}
+              accessibilityRole="button"
+            >
+              <Text style={styles.clearText}>{t("notifications.clearAll")}</Text>
+            </Pressable>
+          </View>
+        )}
+
         {items.length === 0 ? (
           <EmptyState
             title={t("notifications.emptyTitle")}
@@ -152,6 +209,18 @@ export default function Notifications() {
                 {item.href && (
                   <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
                 )}
+                {/* Its own target, set well apart from the row's: on a card
+                    that opens a product, a stray tap must never be the
+                    difference between looking at a deal and erasing it. */}
+                <Pressable
+                  onPress={() => void onDelete(item)}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.delete, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t("notifications.delete")} ${item.title}`}
+                >
+                  <Ionicons name="close" size={16} color={colors.textTertiary} />
+                </Pressable>
               </View>
             );
 
@@ -171,6 +240,23 @@ export default function Notifications() {
           })
         )}
       </ScrollView>
+
+      <ConfirmDialog
+        content={
+          confirmingClear
+            ? {
+                title: t("notifications.clearTitle"),
+                body: t("notifications.clearBody"),
+                icon: "trash-outline",
+                confirmLabel: t("notifications.clearConfirm"),
+                cancelLabel: t("notifications.cancel"),
+                destructive: true,
+              }
+            : null
+        }
+        onConfirm={() => void onClearAll()}
+        onCancel={() => setConfirmingClear(false)}
+      />
     </Screen>
   );
 }
@@ -178,6 +264,24 @@ export default function Notifications() {
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
     content: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.xl },
+    head: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.xs,
+    },
+    kept: { color: colors.textTertiary, fontSize: type.caption.fontSize },
+    clearText: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "700",
+    },
+    delete: {
+      paddingLeft: spacing.sm,
+      paddingVertical: spacing.xs,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     card: {
       backgroundColor: colors.surface,
       borderRadius: radius.lg,

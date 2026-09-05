@@ -66,21 +66,44 @@ export async function recordNotifications(
 }
 
 /**
- * How long a notification is worth keeping.
+ * How many notifications one account keeps.
  *
- * A price drop from two months ago is not news, and the row is the only thing
- * making the list long enough to need paging. Pruned rather than archived
- * because nothing reads them after the fact.
+ * Deliberately a count and not an age. These used to be deleted after thirty
+ * days, which meant the record quietly emptied itself: someone who tracked a
+ * price for a season would come back to a bell that had thrown away the drops
+ * it caught. A notification is the only lasting evidence that tracking a
+ * product did anything, so it stays until its owner decides otherwise.
+ *
+ * The cap exists solely so one account cannot grow without bound. It is set
+ * far above what anyone accumulates in normal use, and it discards oldest
+ * first, so in practice it is a backstop rather than a policy.
  */
-const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_PER_USER = 300;
 
 /** Newest first, bounded. */
-export async function listNotifications(userId: string, limit = 50) {
+export async function listNotifications(userId: string, limit = 100) {
   return prisma.notification.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
     take: limit,
   });
+}
+
+/**
+ * Delete one, on the owner's instruction.
+ *
+ * Scoped by userId as well as id: an id is guessable enough that deleting on
+ * id alone would let one account clear another's bell.
+ */
+export async function deleteNotification(userId: string, id: string): Promise<boolean> {
+  const { count } = await prisma.notification.deleteMany({ where: { id, userId } });
+  return count > 0;
+}
+
+/** Delete all of one account's, on its owner's instruction. */
+export async function clearNotifications(userId: string): Promise<number> {
+  const { count } = await prisma.notification.deleteMany({ where: { userId } });
+  return count;
 }
 
 export async function countUnread(userId: string): Promise<number> {
@@ -102,9 +125,27 @@ export async function markAllRead(userId: string): Promise<number> {
   return count;
 }
 
+/**
+ * Trim any account that has gone past the cap, oldest first.
+ *
+ * Raw SQL because the alternative is a query per user, and this runs against
+ * every account on a schedule. The window function ranks each account's rows
+ * newest-first and deletes everything past the cap in one statement.
+ *
+ * Note this deletes nothing at all until an account is over the cap — unlike
+ * the age-based prune it replaces, an idle account never loses a row.
+ */
 export async function pruneNotifications(): Promise<number> {
-  const { count } = await prisma.notification.deleteMany({
-    where: { createdAt: { lt: new Date(Date.now() - RETENTION_MS) } },
-  });
-  return count;
+  return prisma.$executeRaw`
+    DELETE FROM "Notification"
+    WHERE id IN (
+      SELECT id FROM (
+        SELECT id, ROW_NUMBER() OVER (
+          PARTITION BY "userId" ORDER BY "createdAt" DESC, id DESC
+        ) AS rn
+        FROM "Notification"
+      ) ranked
+      WHERE rn > ${MAX_PER_USER}
+    )
+  `;
 }

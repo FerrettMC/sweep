@@ -17,7 +17,9 @@ import { prisma } from "../lib/prisma.js";
 import { lastPushOutcomes, notifyPriceDrop, pushAnnouncement } from "../lib/push.js";
 import { timingSafeEqual } from "node:crypto";
 import {
+  clearNotifications,
   countUnread,
+  deleteNotification,
   listNotifications,
   markAllRead,
   recordNotification,
@@ -124,6 +126,34 @@ export async function notificationRoutes(app: FastifyInstance) {
   app.post("/notifications/read", { preHandler: requireAuth }, async (request) => {
     return { cleared: await markAllRead(request.userId!) };
   });
+
+  // ---- deleting, which is the ONLY way one goes away ----
+  //
+  // Nothing expires these any more. A price drop is the only lasting evidence
+  // that tracking a product did something, and an alert that deletes itself
+  // after a month makes the feature look like it never fired. So the record
+  // stays until the person it belongs to says otherwise.
+  //
+  // "Clear all" comes first in the file so Fastify never matches the literal
+  // path as an :id — a DELETE of the whole feed must not depend on route
+  // ordering luck.
+  app.delete("/notifications", { preHandler: requireAuth }, async (request) => {
+    return { deleted: await clearNotifications(request.userId!) };
+  });
+
+  app.delete<{ Params: { id: string } }>(
+    "/notifications/:id",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const deleted = await deleteNotification(request.userId!, request.params.id);
+      // 404 rather than a cheerful 200: the client removes the row optimistically,
+      // and it should be told when the thing it removed was never there.
+      if (!deleted) {
+        return reply.status(404).send({ error: "No such notification" });
+      }
+      return { ok: true };
+    },
+  );
 
   // ---- sending an announcement ----
   //

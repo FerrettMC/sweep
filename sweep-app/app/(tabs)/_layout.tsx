@@ -41,9 +41,19 @@ function tabIcon(active: IoniconName, inactive: IoniconName) {
 /**
  * The bell, beside the profile button on every tab.
  *
- * Hidden at zero rather than shown empty: a bell with nothing behind it
- * invites a tap that leads nowhere, and a permanent icon that is usually inert
- * stops being looked at.
+ * Always here, whether or not anything is waiting. It used to hide at zero, on
+ * the theory that a bell with nothing behind it invites a pointless tap — but
+ * the feed is not an inbox that empties, it is the record of every price drop
+ * we caught. Hiding the way in means the only moment you can reach your own
+ * history is the moment a new alert happens to be unread, and going back to
+ * check a drop from last week becomes impossible.
+ *
+ * A control that moves in and out of the header is also its own problem: the
+ * profile button shifts sideways depending on unread count, so the thing you
+ * were reaching for is not where it was last time.
+ *
+ * Empty still looks different from waiting — outline versus filled, and the
+ * badge only when there is a number to show.
  */
 function BellButton() {
   const { colors } = useTheme();
@@ -60,16 +70,20 @@ function BellButton() {
     return () => subscription.remove();
   }, []);
 
-  if (unread === 0) return null;
-
   return (
     <Link href="/notifications" asChild>
       <Pressable hitSlop={12} style={({ pressed }) => pressed && styles.pressed}>
         <View style={styles.profileButton}>
-          <Ionicons name="notifications" size={17} color={colors.textSecondary} />
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{unread > 9 ? "9+" : unread}</Text>
-          </View>
+          <Ionicons
+            name={unread > 0 ? "notifications" : "notifications-outline"}
+            size={17}
+            color={colors.textSecondary}
+          />
+          {unread > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unread > 9 ? "9+" : unread}</Text>
+            </View>
+          )}
         </View>
       </Pressable>
     </Link>
