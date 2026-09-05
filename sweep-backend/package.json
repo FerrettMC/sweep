@@ -50,7 +50,8 @@
     "test:plans": "tsx src/test-plans.ts",
     "test:probe": "tsx src/test-probe.ts",
     "purge:accounts": "tsx src/purge-accounts.ts",
-    "test:appads": "tsx src/test-appads.ts"
+    "test:appads": "tsx src/test-appads.ts",
+    "test:admobssv": "tsx src/test-admobssv.ts"
   },
   "keywords": [],
   "author": "",

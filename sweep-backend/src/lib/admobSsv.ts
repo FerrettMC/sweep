@@ -12,6 +12,14 @@
 // ECDSA `signature` over everything before `&signature=`. Google publishes the
 // matching public keys at a well-known endpoint, keyed by `key_id`.
 //
+// The part Google's own documentation does not tell you: it signs the DECODED
+// content, not the percent-encoded bytes it puts on the wire. A reward item
+// named "Extra Search" is signed as `reward_item=Extra Search` and sent as
+// `reward_item=Extra%20Search`. Verifying the bytes as received fails, and it
+// fails invisibly — the reward is simply never credited. Every callback with
+// no encodable character in it verifies either way, so this stays hidden until
+// somebody names a reward with a space in it.
+//
 // Verifying that signature is what turns "the client says so" into proof.
 
 import { createVerify } from "node:crypto";
@@ -40,6 +48,34 @@ async function getVerifierKeys(): Promise<Map<string, string>> {
 
   cache = { keys, fetchedAt: Date.now() };
   return keys;
+}
+
+/**
+ * Percent-decode each key and value in place, keeping the separators.
+ *
+ * Deliberately NOT `decodeURIComponent(whole)`: a value legitimately holding
+ * an encoded `&` or `=` would decode into a separator, so the string we verify
+ * would have a different shape from the one we parsed the reward out of. Going
+ * pair by pair keeps the two readings structurally identical.
+ */
+function decodeInPlace(query: string): string {
+  const decode = (part: string) => {
+    try {
+      return decodeURIComponent(part);
+    } catch {
+      // A stray "%" is not a decoding failure worth throwing over.
+      return part;
+    }
+  };
+
+  return query
+    .split("&")
+    .map((pair) => {
+      const eq = pair.indexOf("=");
+      if (eq === -1) return decode(pair);
+      return `${decode(pair.slice(0, eq))}=${decode(pair.slice(eq + 1))}`;
+    })
+    .join("&");
 }
 
 export type SsvResult =
@@ -96,12 +132,27 @@ export async function verifySsvCallback(rawQuery: string): Promise<SsvResult> {
 
   if (!pem) return { valid: false, reason: `unknown key_id ${keyId}` };
 
-  const verifier = createVerify("SHA256");
-  verifier.update(signedPortion);
-  verifier.end();
-
   // AdMob sends the signature base64url-encoded.
-  const ok = verifier.verify(pem, Buffer.from(signature, "base64url"));
+  const signatureBytes = Buffer.from(signature, "base64url");
+
+  // Both readings of the same received bytes. Accepting either is not a
+  // weakness: forging a signature over EITHER form still needs Google's
+  // private key, and both parse to the same reward. It does mean we keep
+  // working if Google ever changes which one it signs.
+  const decoded = decodeInPlace(signedPortion);
+  const candidates = decoded === signedPortion ? [signedPortion] : [signedPortion, decoded];
+
+  const ok = candidates.some((content) => {
+    const verifier = createVerify("SHA256");
+    verifier.update(content);
+    verifier.end();
+    try {
+      return verifier.verify(pem, signatureBytes);
+    } catch {
+      // A malformed DER signature throws rather than returning false.
+      return false;
+    }
+  });
   if (!ok) {
     // The raw query, when and only when verification fails.
     //
