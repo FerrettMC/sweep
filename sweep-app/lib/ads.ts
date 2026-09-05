@@ -52,6 +52,25 @@ export const ADS_ENABLED = Platform.OS === "android";
 
 let initialised = false;
 
+/**
+ * Devices that must never generate real impressions.
+ *
+ * Watching your own ads is invalid traffic, and AdMob disables accounts over
+ * it — the earnings are trivial, the account is not. A registered device is
+ * served test ads instead, through the REAL ad unit, so the whole reward loop
+ * including the server-side callback still runs and can still be tested. That
+ * is the only way to exercise it without generating traffic we'd be billed for
+ * in a way that looks like fraud.
+ *
+ * Set EXPO_PUBLIC_ADMOB_TEST_DEVICE_IDS to a comma-separated list. Shipping a
+ * device id in the production build is harmless: it names one phone, and the
+ * only thing it changes is that that phone stops earning money.
+ */
+const TEST_DEVICE_IDS = (process.env.EXPO_PUBLIC_ADMOB_TEST_DEVICE_IDS ?? "")
+  .split(",")
+  .map((id) => id.trim())
+  .filter(Boolean);
+
 async function ensureInitialised() {
   if (initialised) return;
   initialised = true;
@@ -62,6 +81,7 @@ async function ensureInitialised() {
       maxAdContentRating: MaxAdContentRating.G,
       tagForChildDirectedTreatment: false,
       tagForUnderAgeOfConsent: false,
+      ...(TEST_DEVICE_IDS.length > 0 && { testDeviceIdentifiers: TEST_DEVICE_IDS }),
     })
     .then(() => mobileAds().initialize());
 }
