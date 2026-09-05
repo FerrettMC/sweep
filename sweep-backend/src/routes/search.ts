@@ -537,12 +537,16 @@ export async function searchRoutes(app: FastifyInstance) {
   app.get("/ads/admob/ssv", async (request, reply) => {
     // Verify against the RAW query string. Rebuilding it from parsed params can
     // reorder or re-encode values, and the signature covers the exact bytes.
-    const rawQuery = request.raw.url?.split("?")[1] ?? "";
+    // slice, not split("?") — a literal "?" is legal inside a query string and
+    // split would silently truncate the callback at the second one.
+    const url = request.raw.url ?? "";
+    const queryStart = url.indexOf("?");
+    const rawQuery = queryStart === -1 ? "" : url.slice(queryStart + 1);
     const result = await verifySsvCallback(rawQuery);
 
     if (!result.valid) {
       request.log.warn(
-        { reason: result.reason },
+        { reason: result.reason, ...(result.debug ?? {}) },
         "rejected AdMob SSV callback",
       );
       // 200 regardless: a non-2xx makes Google retry a callback that will

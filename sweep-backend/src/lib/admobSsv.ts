@@ -44,7 +44,12 @@ async function getVerifierKeys(): Promise<Map<string, string>> {
 
 export type SsvResult =
   | { valid: true; userId: string; transactionId: string; amount: number }
-  | { valid: false; reason: string };
+  | {
+      valid: false;
+      reason: string;
+      /** Only on a signature failure, to make one diagnosable. */
+      debug?: { rawQuery: string; signedPortion: string; signature: string; keyId: string };
+    };
 
 /**
  * Verify a raw SSV callback query string.
@@ -97,7 +102,19 @@ export async function verifySsvCallback(rawQuery: string): Promise<SsvResult> {
 
   // AdMob sends the signature base64url-encoded.
   const ok = verifier.verify(pem, Buffer.from(signature, "base64url"));
-  if (!ok) return { valid: false, reason: "signature did not verify" };
+  if (!ok) {
+    // The raw query, when and only when verification fails.
+    //
+    // Everything in an SSV callback is signed public data — nothing here is a
+    // secret — and without it a failure is unfixable: the signature covers an
+    // exact byte sequence, so the only way to find out which bytes are wrong is
+    // to look at them. Google's format has changed before and will again.
+    return {
+      valid: false,
+      reason: "signature did not verify",
+      debug: { rawQuery, signedPortion, signature, keyId },
+    };
+  }
 
   return {
     valid: true,
