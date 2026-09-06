@@ -74,7 +74,7 @@ user controls.
 
 ## The rest, in the order they land
 
-1. **The free tier is genuinely usable.** 5 searches and 12 product lookups a
+1. **The free tier is genuinely usable.** 10 searches and 12 product lookups a
    day, 3 tracked products, price history, lists, budget. No card, no trial, no
    expiry. Say "free" without an asterisk, because there isn't one.
 2. **Real reviews, not a summary we wrote.** What buyers actually said, split
