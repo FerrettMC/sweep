@@ -55,7 +55,7 @@ weekly thread first.
 
 | Sub | Size | Notes |
 | --- | --- | --- |
-| r/androidapps | ~400k | Has a recurring dev/self-promo thread |
+| r/droidappshowcase | small | Where r/androidapps sends all self-promo. Purpose-built, no rule friction. |
 | r/androiddev | ~200k | Weekly feedback thread. Dev talk, not promotion. |
 | r/startups | ~1.5M | Weekly share thread only |
 | r/Entrepreneur | ~4M | Weekly thread only. Low return; skip if short on time. |
@@ -112,6 +112,9 @@ Sweep. Somebody asks what you use, and then you can say.
 - **r/apphookup**, **r/googleplaydeals** — for paid apps going temporarily free.
   Sweep is free permanently, so there's no "deal" to post.
 - **r/Android** — enormous and ruthless about app promotion.
+- **r/androidapps** (~400k) — bans self-promotion, tester requests, app ideas and
+  feedback outright. Their rule text sends all of it to r/droidappshowcase, which
+  is in section B. Checked 6 Sep 2026, after a promotion guide claimed otherwise.
 - Anything that offers to post for you, or charges for a "feature".
 
 ---
@@ -123,7 +126,7 @@ Sweep. Somebody asks what you use, and then you can say.
 3. **r/alphaandbetausers** and **r/buildinpublic** — next day
 4. **r/reactnative** — the build story, once you can write it up
 5. **r/roastmystartup** — when you can take it
-6. **r/androidapps** dev thread
+6. **r/droidappshowcase**
 7. **r/blackfriday** — as the season starts
 8. Everything in D — slowly, forever, as a normal member
 
