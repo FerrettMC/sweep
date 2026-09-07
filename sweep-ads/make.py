@@ -197,9 +197,13 @@ def build_slideshow(spec: dict, out: Path) -> None:
     audio_index = len(slides)
     args += audio_input(spec)
 
+    total = sum(float(s.get("seconds", 2.5)) for s in slides)
+    chain, encode = audio_chain(spec, audio_index, total)
+    steps.append(chain)
+
     filtergraph = ";".join(steps)
     args += ["-filter_complex", filtergraph, "-map", f"[{last}]"]
-    args += audio_output(spec, audio_index)
+    args += encode
     args += ["-r", "30", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
              "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out)]
     run(args)
@@ -227,10 +231,19 @@ def build_reel(spec: dict, out: Path) -> None:
         steps.append(f"[{last}]{drawn}[t{i}]")
         last = f"t{i}"
 
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(source)],
+        capture_output=True, text=True,
+    )
+    total = float(probe.stdout.strip() or 10) / speed
+
     args = ["ffmpeg", "-y", "-i", str(source)]
     args += audio_input(spec)
+    chain, encode = audio_chain(spec, 1, total)
+    steps.append(chain)
     args += ["-filter_complex", ";".join(steps), "-map", f"[{last}]"]
-    args += audio_output(spec, 1)
+    args += encode
     args += ["-r", "30", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
              "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out)]
     run(args)
@@ -257,10 +270,28 @@ def audio_input(spec: dict) -> list[str]:
     return ["-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]
 
 
-def audio_output(spec: dict, index: int) -> list[str]:
-    """Map and encode whatever audio_input added, by input index."""
-    bitrate = "192k" if spec.get("music") else "128k"
-    return ["-map", f"{index}:a", "-c:a", "aac", "-b:a", bitrate, "-shortest"]
+def audio_chain(spec: dict, index: int, duration: float) -> tuple[str, list[str]]:
+    """Audio filter chain plus the args to encode it.
+
+    Music gets a fade at both ends. Without the fade-out a track stops dead the
+    instant the video does, which sounds like the file is broken rather than
+    like the video ended, and it is the single most obvious tell of something
+    assembled by a script.
+
+    Volume defaults below unity because these play under captions people are
+    reading, and because TikTok normalises loud uploads anyway.
+    """
+    if not spec.get("music"):
+        return f"[{index}:a]anull[aud]", ["-map", "[aud]", "-c:a", "aac", "-b:a", "128k", "-shortest"]
+
+    volume = float(spec.get("music_volume", 0.7))
+    fade = min(1.0, duration / 6)
+    chain = (
+        f"[{index}:a]volume={volume},"
+        f"afade=t=in:st=0:d={fade:.2f},"
+        f"afade=t=out:st={max(0.0, duration - fade):.2f}:d={fade:.2f}[aud]"
+    )
+    return chain, ["-map", "[aud]", "-c:a", "aac", "-b:a", "192k", "-shortest"]
 
 
 def main() -> None:
