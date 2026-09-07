@@ -1,0 +1,5 @@
+# Recordings and renders. Big, regenerable, and not worth versioning.
+out/
+shots/*.png
+shots/*.jpg
+*.mp4

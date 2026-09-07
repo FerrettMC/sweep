@@ -1,0 +1,15 @@
+{
+  "name": "dupe",
+  "kind": "slideshow",
+  "crossfade": 0.35,
+  "_capture": [
+    "01  an expensive item on its product page, price visible",
+    "02  Sweep's similar products section for it",
+    "03  the cheaper match, price visible"
+  ],
+  "slides": [
+    { "image": "shots/01.png", "caption": "This, but I am not paying that.", "seconds": 2.0 },
+    { "image": "shots/02.png", "caption": "Sweep finds the same thing elsewhere.", "seconds": 2.4 },
+    { "image": "shots/03.png", "caption": "Same thing. Cheaper.", "seconds": 2.2, "position": "bottom" }
+  ]
+}

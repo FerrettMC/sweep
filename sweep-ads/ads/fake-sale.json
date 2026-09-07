@@ -1,0 +1,17 @@
+{
+  "name": "fake-sale",
+  "kind": "slideshow",
+  "crossfade": 0.35,
+  "_capture": [
+    "01  a product page in a store app showing a big red % off badge",
+    "02  the same product in Sweep, results row",
+    "03  Sweep's price history chart, flat line across the 'sale'",
+    "04  the search screen with the five store names visible"
+  ],
+  "slides": [
+    { "image": "shots/01.png", "caption": "40% off.", "seconds": 1.6 },
+    { "image": "shots/02.png", "caption": "Let me check that.", "seconds": 1.8 },
+    { "image": "shots/03.png", "caption": "It has been that price all month.", "seconds": 2.6 },
+    { "image": "shots/04.png", "caption": "Sweep keeps its own price history.", "seconds": 2.4, "position": "bottom" }
+  ]
+}

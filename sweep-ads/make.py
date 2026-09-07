@@ -1,0 +1,210 @@
+#!/usr/bin/env python3
+"""make.py — turn shots or a recording into a vertical post.
+
+    ./make.py ads/fake-sale.json
+
+Everything comes out 1080x1920, which is what TikTok, Reels and Shorts all
+want. A phone screenshot is taller and narrower than that, so it gets scaled to
+fit and padded with the app's own background colour rather than blurred bars.
+Blur is the default look everywhere and it makes screen recordings of text
+harder to read, which is the one thing this has to get right.
+
+Two kinds:
+
+  slideshow  a run of stills with a caption on each, crossfaded
+  reel       one recording, optionally sped up, with captions over the top
+
+Captions are burned in on purpose. TikTok and Instagram both strip text
+overlays when a video is downloaded and reposted, and burned-in text survives.
+"""
+import json
+import shlex
+import subprocess
+import sys
+from pathlib import Path
+
+W, H = 1080, 1920
+BG = "0x0D0D0D"          # colours.background, so padding looks intentional
+ACCENT = "0xD85A30"      # colours.accent
+FONT = "/usr/share/fonts/noto/NotoSans-Bold.ttf"
+
+HERE = Path(__file__).parent
+
+
+def run(args: list[str]) -> None:
+    print("+", " ".join(shlex.quote(a) for a in args[:6]), "...")
+    result = subprocess.run(args, capture_output=True, text=True)
+    if result.returncode != 0:
+        # ffmpeg's real error is always in the last few lines, never the first.
+        print("\n".join(result.stderr.strip().splitlines()[-15:]), file=sys.stderr)
+        raise SystemExit(f"ffmpeg failed ({result.returncode})")
+
+
+def escape(text: str) -> str:
+    """Escape for drawtext, which has its own parser and is fussy about it.
+
+    Note what is NOT escaped: "%". drawtext expands %{...} sequences by default,
+    so a lone percent warns "Stray %" and the text silently fails to draw. The
+    filter below sets expansion=none, which makes % an ordinary character and is
+    the actual fix. Escaping it as \\% does not work and looks like it should.
+    """
+    for old, new in [("\\", "\\\\"), (":", "\\:"), ("'", "’")]:
+        text = text.replace(old, new)
+    return text
+
+
+def caption_filter(text: str, position: str = "top") -> str:
+    """A caption with a slab behind it, so it stays readable over anything."""
+    if not text:
+        return ""
+    y = "140" if position == "top" else f"{H - 400}"
+    safe = escape(text)
+    return (
+        f"drawtext=fontfile={FONT}:text='{safe}':expansion=none:fontcolor=white:"
+        f"fontsize=64:line_spacing=14:x=(w-text_w)/2:y={y}:box=1:"
+        f"boxcolor={BG}@0.82:boxborderw=28:borderw=0"
+    )
+
+
+def fit(label_in: str, label_out: str) -> str:
+    """Scale to fit inside the frame, pad the rest with the app background."""
+    return (
+        f"[{label_in}]scale={W}:{H}:force_original_aspect_ratio=decrease,"
+        f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color={BG},setsar=1[{label_out}]"
+    )
+
+
+def build_slideshow(spec: dict, out: Path) -> None:
+    slides = spec["slides"]
+    if not slides:
+        raise SystemExit("slideshow needs at least one slide")
+
+    fade = float(spec.get("crossfade", 0.4))
+    args = ["ffmpeg", "-y"]
+    for slide in slides:
+        image = HERE / slide["image"]
+        if not image.exists():
+            raise SystemExit(f"missing image: {image}")
+        # Each still becomes a clip of its own length. The extra `fade` is
+        # eaten by the crossfade into the next one.
+        seconds = float(slide.get("seconds", 2.5)) + fade
+        args += ["-loop", "1", "-t", f"{seconds:.3f}", "-i", str(image)]
+
+    steps = []
+    for i, slide in enumerate(slides):
+        steps.append(fit(f"{i}:v", f"s{i}"))
+        caption = caption_filter(slide.get("caption", ""), slide.get("position", "top"))
+        if caption:
+            steps.append(f"[s{i}]{caption}[c{i}]")
+        else:
+            steps.append(f"[s{i}]null[c{i}]")
+
+    # Chain the crossfades. Each xfade's offset is measured from the start of
+    # the whole chain so far, not from the clip, which is the part that trips
+    # everyone up.
+    if len(slides) == 1:
+        last = "c0"
+    else:
+        elapsed = float(slides[0].get("seconds", 2.5))
+        last = "c0"
+        for i in range(1, len(slides)):
+            nxt = f"x{i}"
+            steps.append(
+                f"[{last}][c{i}]xfade=transition=fade:duration={fade}:"
+                f"offset={elapsed:.3f}[{nxt}]"
+            )
+            last = nxt
+            elapsed += float(slides[i].get("seconds", 2.5))
+
+    audio_index = len(slides)
+    args += audio_input(spec)
+
+    filtergraph = ";".join(steps)
+    args += ["-filter_complex", filtergraph, "-map", f"[{last}]"]
+    args += audio_output(spec, audio_index)
+    args += ["-r", "30", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+             "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out)]
+    run(args)
+
+
+def build_reel(spec: dict, out: Path) -> None:
+    source = HERE / spec["source"]
+    if not source.exists():
+        raise SystemExit(f"missing recording: {source}")
+
+    speed = float(spec.get("speed", 1.0))
+    steps = [fit("0:v", "fitted")]
+    last = "fitted"
+
+    if speed != 1.0:
+        steps.append(f"[{last}]setpts={1 / speed:.4f}*PTS[sped]")
+        last = "sped"
+
+    # Captions are timed, so one filter each with an enable window.
+    for i, cap in enumerate(spec.get("captions", [])):
+        start, end = float(cap["start"]), float(cap["end"])
+        drawn = caption_filter(cap["text"], cap.get("position", "top"))
+        drawn += f":enable='between(t,{start},{end})'"
+        steps.append(f"[{last}]{drawn}[t{i}]")
+        last = f"t{i}"
+
+    args = ["ffmpeg", "-y", "-i", str(source)]
+    args += audio_input(spec)
+    args += ["-filter_complex", ";".join(steps), "-map", f"[{last}]"]
+    args += audio_output(spec, 1)
+    args += ["-r", "30", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+             "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out)]
+    run(args)
+
+
+def audio_input(spec: dict) -> list[str]:
+    """The audio INPUT, which must sit with the other -i args.
+
+    ffmpeg reads its command line in order and treats everything after an
+    output-side option as belonging to the output. Declaring this late is what
+    produces "cannot be applied to input url", which says nothing useful about
+    the actual mistake.
+
+    There is always an audio track, even when there is no music. A video with
+    no audio stream at all gets flagged as broken by some uploaders, and TikTok
+    will sometimes refuse it outright.
+    """
+    music = spec.get("music")
+    if music:
+        path = HERE / music
+        if not path.exists():
+            raise SystemExit(f"missing music: {path}")
+        return ["-i", str(path)]
+    return ["-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]
+
+
+def audio_output(spec: dict, index: int) -> list[str]:
+    """Map and encode whatever audio_input added, by input index."""
+    bitrate = "192k" if spec.get("music") else "128k"
+    return ["-map", f"{index}:a", "-c:a", "aac", "-b:a", bitrate, "-shortest"]
+
+
+def main() -> None:
+    if len(sys.argv) != 2:
+        raise SystemExit("usage: ./make.py ads/<name>.json")
+
+    spec = json.loads(Path(sys.argv[1]).read_text())
+    out_dir = HERE / "out"
+    out_dir.mkdir(exist_ok=True)
+    out = out_dir / f"{spec['name']}.mp4"
+
+    if spec["kind"] == "slideshow":
+        build_slideshow(spec, out)
+    elif spec["kind"] == "reel":
+        build_reel(spec, out)
+    else:
+        raise SystemExit(f"unknown kind: {spec['kind']}")
+
+    print(f"\n{out}")
+    subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0",
+                    "-show_entries", "stream=width,height,duration",
+                    "-of", "default=noprint_wrappers=1", str(out)])
+
+
+if __name__ == "__main__":
+    main()
