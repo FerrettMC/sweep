@@ -150,6 +150,67 @@ DMs, and the penalty is a silent block on messaging rather than a warning.
 
 ---
 
+## YouTube
+
+Worth more than TikTok for this app, despite costing more. A TikTok is a spike
+that is dead in 48 hours. A YouTube video called "best price tracking apps"
+keeps surfacing in search for years, and the people watching it are looking for
+exactly this rather than scrolling past it.
+
+**Where the small ones are.** Feedspot keeps ranked lists with subscriber counts
+attached, which is what makes them useful for finding the 1k to 50k tier:
+
+- videos.feedspot.com/money_saving_youtube_channels/
+- videos.feedspot.com/couponing_youtube_channels/
+
+Work down from the bottom, not the top.
+
+**Named channels found so far**, all need their size checked before pitching:
+
+- Kristie's Connections, around 219k, couponing and Dollar General penny lists
+- Karlasavings, couponing and clearance finds
+- The Geeky Banana, couponing, glitches and deals
+- MoneySavingExpert, large and UK based, so a poor fit while Sweep is US stores
+
+**Finding the business email.** Most channels put it in the About tab behind a
+captcha, and plenty just put it in the video description instead. Check the
+description first, it is faster and the address is the same.
+
+**Search terms that find the right videos:** best price tracking apps, is this
+sale real, black friday scams, camelcamelcamel, keepa, honey alternative. Then
+look at who made them rather than at the video.
+
+---
+
+## The listicle play, which may beat all of this
+
+There is a whole tier of sites publishing "best price tracking apps 2026"
+roundups: rategrove, cartlens, hunchdrop, savingsgrove, karmanow and others.
+Those articles rank in search, get read by people actively looking for this
+exact category, and keep sending installs for years.
+
+Getting Sweep added to one costs an email. Nobody is bidding against you for a
+slot, because most of these are written by someone who found ten apps in an
+afternoon and would happily have found eleven.
+
+Pitch it as a correction rather than a request: their list is missing an app
+that does something none of the others do, which is verify a discount against
+its own price history across five stores rather than one.
+
+**Know the competition before you email them**, because they will ask:
+
+- **Karma**, 6.5M users, claims 100,000+ retailers, plus coupons and cashback
+- **CamelCamelCamel** and **Keepa**, deep price history, Amazon only
+- **Honey**, **Rakuten**, coupons and cashback, no price verification
+- **Slickdeals**, **DealNews**, human-curated deal feeds
+
+Sweep's honest position: Camel and Keepa do price history but only for Amazon,
+and Karma covers far more stores but does not tell you whether a discount is
+real. Doing the history check across five stores in a phone app is the gap.
+Claiming more than that gets you caught.
+
+---
+
 ## Two codes, not one
 
 The promo system does any tier for any number of days, with a redemption cap.
