@@ -6,6 +6,38 @@ Everything comes out **1080x1920** with captions burned in.
 
 ---
 
+## Driving the app for you
+
+`drive.py` scripts the phone over adb, so a demo run is one command and comes
+out the same every time.
+
+    ./drive.py run demos/search.json    the whole run, stills and all
+    ./drive.py ls                       what's on screen right now
+    ./drive.py tap "Search"             one step, for working out a new demo
+    ./drive.py type "airpods pro 2"
+    ./drive.py shot 01
+
+Elements are found by their text rather than by coordinates, so a demo keeps
+working when the layout moves or a different phone is plugged in. Hardcoded taps
+break on both, and break silently: you get a video of the wrong screen and don't
+notice until you're editing.
+
+Two steps matter more than they sound:
+
+**`hide_keyboard`** before every screenshot. The soft keyboard covers the bottom
+half of the screen, which on a results page is most of the results.
+
+**`demo` on** turns on Android's built-in demo mode, which pins a full battery,
+full signal, a fixed clock and no notification icons. Real footage shows a 21%
+battery and whatever notifications you happen to have. Always turn it off at the
+end, or the phone keeps lying about its battery.
+
+Writing a new demo: run `./drive.py ls` on each screen, copy the labels you need,
+and string the steps together. Prefer `wait` over `sleep` for anything that hits
+the network, because a search across five stores has no predictable duration.
+
+---
+
 ## The workflow
 
 Plug the phone in, then either record a run or grab stills.

@@ -1,0 +1,26 @@
+{
+  "_what": "One search, start to finish, with stills at the moments worth using.",
+  "_before": "Have Sweep open on the Home tab. Costs one search from the daily quota.",
+  "steps": [
+    { "demo": "on" },
+    { "tap": "What are you shopping for" },
+    { "sleep": 1.5 },
+    { "hide_keyboard": "" },
+    { "shot": "01-search-empty" },
+    { "tap": "Search every store at once" },
+    { "sleep": 0.8 },
+    { "type": "airpods pro 2" },
+    { "sleep": 0.8 },
+    { "hide_keyboard": "" },
+    { "shot": "02-typed" },
+    { "tap": "Search" },
+    { "sleep": 1.2 },
+    { "hide_keyboard": "" },
+    { "shot": "03-loading" },
+    { "wait": ["Top picks", 45] },
+    { "sleep": 1.0 },
+    { "hide_keyboard": "" },
+    { "shot": "04-results" },
+    { "demo": "off" }
+  ]
+}
