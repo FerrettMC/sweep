@@ -28,6 +28,12 @@ BG = "0x0D0D0D"          # colours.background, so padding looks intentional
 ACCENT = "0xD85A30"      # colours.accent
 FONT = "/usr/share/fonts/noto/NotoSans-Bold.ttf"
 
+# Height reserved for the caption. The screenshot is scaled to fit what is left
+# and pushed to the other end, so the caption never lands on top of the app's
+# own header. Overlaying looked fine on a mockup and terrible on a real screen:
+# the app has its own title in exactly that spot on most pages.
+BAND = 300
+
 HERE = Path(__file__).parent
 
 
@@ -54,23 +60,36 @@ def escape(text: str) -> str:
 
 
 def caption_filter(text: str, position: str = "top") -> str:
-    """A caption with a slab behind it, so it stays readable over anything."""
+    """A caption centred in its reserved band.
+
+    No box behind it, because the band is already the flat background colour.
+    A slab on top of a slab reads as a mistake.
+    """
     if not text:
         return ""
-    y = "140" if position == "top" else f"{H - 400}"
+    y = f"({BAND}-text_h)/2" if position == "top" else f"{H - BAND}+({BAND}-text_h)/2"
     safe = escape(text)
     return (
         f"drawtext=fontfile={FONT}:text='{safe}':expansion=none:fontcolor=white:"
-        f"fontsize=64:line_spacing=14:x=(w-text_w)/2:y={y}:box=1:"
-        f"boxcolor={BG}@0.82:boxborderw=28:borderw=0"
+        f"fontsize=62:line_spacing=12:x=(w-text_w)/2:y={y}:borderw=0"
     )
 
 
-def fit(label_in: str, label_out: str) -> str:
-    """Scale to fit inside the frame, pad the rest with the app background."""
+def fit(label_in: str, label_out: str, position: str = "top", caption: bool = True) -> str:
+    """Scale into the space left over once the caption band is reserved.
+
+    With a caption at the top the image is pushed down by BAND; at the bottom it
+    sits flush to the top. With no caption it just centres in the whole frame.
+    """
+    if not caption:
+        return (
+            f"[{label_in}]scale={W}:{H}:force_original_aspect_ratio=decrease,"
+            f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color={BG},setsar=1[{label_out}]"
+        )
+    offset = BAND if position == "top" else 0
     return (
-        f"[{label_in}]scale={W}:{H}:force_original_aspect_ratio=decrease,"
-        f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color={BG},setsar=1[{label_out}]"
+        f"[{label_in}]scale={W}:{H - BAND}:force_original_aspect_ratio=decrease,"
+        f"pad={W}:{H}:(ow-iw)/2:{offset}:color={BG},setsar=1[{label_out}]"
     )
 
 
@@ -92,8 +111,10 @@ def build_slideshow(spec: dict, out: Path) -> None:
 
     steps = []
     for i, slide in enumerate(slides):
-        steps.append(fit(f"{i}:v", f"s{i}"))
-        caption = caption_filter(slide.get("caption", ""), slide.get("position", "top"))
+        text = slide.get("caption", "")
+        position = slide.get("position", "top")
+        steps.append(fit(f"{i}:v", f"s{i}", position, caption=bool(text)))
+        caption = caption_filter(text, position)
         if caption:
             steps.append(f"[s{i}]{caption}[c{i}]")
         else:
@@ -133,7 +154,8 @@ def build_reel(spec: dict, out: Path) -> None:
         raise SystemExit(f"missing recording: {source}")
 
     speed = float(spec.get("speed", 1.0))
-    steps = [fit("0:v", "fitted")]
+    has_captions = bool(spec.get("captions"))
+    steps = [fit("0:v", "fitted", "top", caption=has_captions)]
     last = "fitted"
 
     if speed != 1.0:

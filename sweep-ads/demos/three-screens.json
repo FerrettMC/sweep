@@ -1,0 +1,27 @@
+{
+  "_what": "Tracking, search results and Deal Radar, for a three-slide post.",
+  "_before": "Start on the Home tab. Uses no search quota if results are already loaded.",
+  "steps": [
+    { "demo": "on" },
+    { "sleep": 0.5 },
+
+    { "tap": ", Tracking" },
+    { "sleep": 2.0 },
+    { "hide_keyboard": "" },
+    { "shot": "01-tracking" },
+
+    { "tap": ", Search" },
+    { "sleep": 2.0 },
+    { "hide_keyboard": "" },
+    { "shot": "02-search" },
+
+    { "tap": ", Home" },
+    { "sleep": 1.5 },
+    { "tap": "Deal Radar" },
+    { "sleep": 2.5 },
+    { "hide_keyboard": "" },
+    { "shot": "03-radar" },
+
+    { "demo": "off" }
+  ]
+}

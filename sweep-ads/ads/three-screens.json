@@ -1,0 +1,11 @@
+{
+  "name": "three-screens",
+  "kind": "slideshow",
+  "crossfade": 0.4,
+  "_capture": "./drive.py run demos/three-screens.json",
+  "slides": [
+    { "image": "shots/02-search.png", "caption": "One search. Five stores.", "seconds": 2.4 },
+    { "image": "shots/01-tracking.png", "caption": "Track it. Sweep watches.", "seconds": 2.2 },
+    { "image": "shots/03-radar.png", "caption": "Or wait for your price.", "seconds": 2.4, "position": "bottom" }
+  ]
+}

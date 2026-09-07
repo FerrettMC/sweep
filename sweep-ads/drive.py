@@ -24,6 +24,11 @@ from pathlib import Path
 HERE = Path(__file__).parent
 DUMP = "/sdcard/sweep-ui.xml"
 
+# Set by demo_mode(), read by shot(). A notification arriving mid-run puts its
+# icon back in the status bar, so the suppression has to be re-sent per capture
+# rather than once at the start.
+_demo_on = False
+
 
 def adb(*args: str, timeout: int = 30) -> str:
     result = subprocess.run(["adb", *args], capture_output=True, text=True, timeout=timeout)
@@ -111,6 +116,14 @@ def wait_for(text: str, timeout: float = 30.0) -> None:
 
 
 def shot(name: str) -> None:
+    if _demo_on:
+        # A Discord or Snapchat notification landing mid-run puts its icon back
+        # in the status bar. Re-sending costs nothing and is the difference
+        # between usable footage and a reshoot.
+        broadcast = ["shell", "am", "broadcast", "-a", "com.android.systemui.demo"]
+        adb(*broadcast, "-e", "command", "notifications", "-e", "visible", "false")
+        time.sleep(0.3)
+
     (HERE / "shots").mkdir(exist_ok=True)
     path = HERE / "shots" / f"{name}.png"
     with open(path, "wb") as f:
@@ -145,12 +158,15 @@ def demo_mode(on: bool) -> None:
 
     Always turn it off afterwards, or the phone keeps lying about its battery.
     """
+    global _demo_on
     adb("shell", "settings", "put", "global", "sysui_demo_allowed", "1")
     broadcast = ["shell", "am", "broadcast", "-a", "com.android.systemui.demo"]
     if not on:
         adb(*broadcast, "-e", "command", "exit")
+        _demo_on = False
         print("demo mode off")
         return
+    _demo_on = True
     for extras in [
         ["-e", "command", "enter"],
         ["-e", "command", "clock", "-e", "hhmm", "0930"],
