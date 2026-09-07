@@ -163,10 +163,18 @@ def demo_mode(on: bool) -> None:
     broadcast = ["shell", "am", "broadcast", "-a", "com.android.systemui.demo"]
     if not on:
         adb(*broadcast, "-e", "command", "exit")
+        subprocess.run(["adb", "shell", "cmd", "notification", "set_dnd", "off"],
+                       capture_output=True, text=True)
         _demo_on = False
         print("demo mode off")
         return
     _demo_on = True
+    # Do Not Disturb as well as demo mode. Demo mode hides the icons that are
+    # already there; DND stops new ones posting during the shoot, which is what
+    # actually keeps sneaking a Discord icon into an otherwise clean frame.
+    subprocess.run(["adb", "shell", "cmd", "notification", "set_dnd", "priority"],
+                   capture_output=True, text=True)
+
     for extras in [
         ["-e", "command", "enter"],
         ["-e", "command", "clock", "-e", "hhmm", "0930"],
