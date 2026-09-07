@@ -93,12 +93,69 @@ def fit(label_in: str, label_out: str, position: str = "top", caption: bool = Tr
     )
 
 
+ICON = HERE.parent / "sweep-app" / "assets" / "images" / "icon.png"
+
+
+def render_card(slide: dict, index: int) -> Path:
+    """Generate an end card rather than screenshotting one.
+
+    A call to action is the one slide with nothing to photograph. Generating it
+    means the wording is in the ad spec next to everything else, so changing
+    "link in description" to "link in bio" per platform is a text edit rather
+    than a trip back to a design tool.
+    """
+    out = HERE / "shots" / f"_card-{index}.png"
+    lines = slide.get("lines", [])
+    if not lines:
+        raise SystemExit("a card slide needs at least one line")
+
+    steps = [f"color=c={BG}:s={W}x{H}[bg]"]
+    last = "bg"
+
+    if slide.get("icon", True) and ICON.exists():
+        steps.append(f"[1:v]scale=280:280[icon]")
+        steps.append(f"[{last}][icon]overlay=(W-w)/2:560[withicon]")
+        last = "withicon"
+        top = 940
+    else:
+        top = 780
+
+    # First line is the headline, the rest are supporting text.
+    sizes = [86] + [54] * (len(lines) - 1)
+    colours = ["white"] + [ACCENT if i == 0 else "0xAAAAAA" for i in range(len(lines) - 1)]
+    y = top
+    for i, (line, size, colour) in enumerate(zip(lines, sizes, colours)):
+        steps.append(
+            f"[{last}]drawtext=fontfile={FONT}:text='{escape(line)}':expansion=none:"
+            f"fontcolor={colour}:fontsize={size}:x=(w-text_w)/2:y={y}[l{i}]"
+        )
+        last = f"l{i}"
+        y += size + (46 if i == 0 else 26)
+
+    args = ["ffmpeg", "-y", "-f", "lavfi", "-i", f"color=c={BG}:s={W}x{H}:d=1"]
+    if slide.get("icon", True) and ICON.exists():
+        args += ["-i", str(ICON)]
+    # The colour source is declared twice otherwise, once as input and once in
+    # the graph, so drop the graph's own copy and start from input 0.
+    steps[0] = f"[0:v]null[bg]"
+    args += ["-filter_complex", ";".join(steps), "-map", f"[{last}]",
+             "-frames:v", "1", str(out)]
+    run(args)
+    return out
+
+
 def build_slideshow(spec: dict, out: Path) -> None:
     slides = spec["slides"]
     if not slides:
         raise SystemExit("slideshow needs at least one slide")
 
     fade = float(spec.get("crossfade", 0.4))
+
+    # Cards are generated first, then treated as ordinary images from here on.
+    for i, slide in enumerate(slides):
+        if "lines" in slide and "image" not in slide:
+            slide["image"] = str(render_card(slide, i).relative_to(HERE))
+
     args = ["ffmpeg", "-y"]
     for slide in slides:
         image = HERE / slide["image"]
