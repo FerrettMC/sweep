@@ -3,3 +3,4 @@ out/
 shots/*.png
 shots/*.jpg
 *.mp4
+__pycache__/
