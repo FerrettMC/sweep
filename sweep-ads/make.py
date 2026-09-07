@@ -266,7 +266,13 @@ def audio_input(spec: dict) -> list[str]:
         path = HERE / music
         if not path.exists():
             raise SystemExit(f"missing music: {path}")
-        return ["-i", str(path)]
+        # -ss before -i seeks into the track, so "music_start" is the point in
+        # the song the video begins on. Almost always wanted: the first seconds
+        # of a track are an intro, and the part worth using is a chorus a
+        # minute in.
+        start = spec.get("music_start")
+        seek = ["-ss", str(start)] if start is not None else []
+        return [*seek, "-i", str(path)]
     return ["-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]
 
 

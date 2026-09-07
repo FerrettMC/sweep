@@ -28,5 +28,8 @@
       ],
       "seconds": 2.6
     }
-  ]
+  ],
+  "music": "music/Y2Mate.is - The Weeknd - Starboy Lyrics ft Daft Punk.mp3",
+  "music_start": 57,
+  "music_volume": 0.7
 }
