@@ -249,9 +249,11 @@ check("the shell is laid over the video", /<img src="\/assets\/phone-shell\.png"
 check("the shell is decorative", /phone-shell\.png"[^>]*alt=""/.test(html) && /phone-shell\.png"[^>]*aria-hidden/.test(html));
 check("it cannot eat the pointer", /\.demoPhone img \{[^}]*pointer-events:none/.test(css));
 check("the video is placed into the cutout", /\.demoPhone video \{[^}]*left:19\.36%[\s\S]*?width:60\.78%/.test(css));
-// Only ever scaled down: the source PNG is 408 wide, and a soft bezel around a
-// sharp screen looks worse than a smaller phone.
-check("the frame is never upscaled", /\.demoPhone \{[^}]*min\(74vw,340px\)/.test(css));
+check("the frame is capped so it cannot go soft", /\.demoPhone \{[^}]*min\(74vw,340px\)/.test(css));
+// Side by side once there is room, which is the only way the phone gets big
+// enough to read. Same breakpoint as the hero so the page reflows once.
+check("text and video sit side by side on a wide screen", /@media \(min-width:940px\) \{[^}]*\.demoGrid \{ grid-template-columns/.test(css));
+check("and the phone grows there", /@media \(min-width:940px\)[\s\S]{0,220}\.demoPhone \{ width:420px/.test(css));
 // No caption disclaiming the edit. A demo that does not show loading time is
 // not a claim about anything, and every product video is cut the same way. The
 // line that DOES have to stay is the one under "No ads. No AI.", because that

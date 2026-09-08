@@ -323,7 +323,16 @@ function render(stats: Stats) {
      itself is only the screen. That keeps the file to a couple of hundred
      kilobytes and means the bezel stays sharp on a high-density display
      instead of being upscaled along with everything else. */
+  /* Stacked on a narrow screen, side by side once there is room for the phone
+     to be worth looking at. Same 940px breakpoint as the hero, so the page
+     changes shape once rather than twice on the way down. */
+  .demoGrid { display:grid; gap:30px; align-items:center; }
   .demo { display:flex; justify-content:center; margin-top:34px; }
+  @media (min-width:940px) {
+    .demoGrid { grid-template-columns:1fr .82fr; gap:52px; }
+    .demo { margin-top:0; }
+    .demoPhone { width:420px; }
+  }
   /* The shell is a PNG with the screen cut out of it, so the video sits behind
      and shows through the hole rather than being masked. The numbers below are
      measured from that file rather than guessed: the cutout is 248x532 at
@@ -711,27 +720,29 @@ function render(stats: Stats) {
   </section>
 
   <section class="wrap">
-    <div class="rise">
-      <span class="eyebrow">See it work</span>
-      <h2>No mockups. This is the app.</h2>
-      <p class="sub">A search, a tracked price, a radar and a list. Recorded on a phone.</p>
-    </div>
+    <div class="demoGrid">
+      <div class="rise">
+        <span class="eyebrow">See it work</span>
+        <h2>No mockups. This is the app.</h2>
+        <p class="sub">A search, a tracked price, a radar and a list. Recorded on a phone.</p>
+      </div>
 
-    <div class="demo rise" data-d="1">
-      <div class="demoPhone">
-        <!-- muted is what makes autoplay allowed at all; playsinline stops iOS
-             taking the video fullscreen the moment it starts. preload metadata
-             rather than auto, so a phone on mobile data fetches the poster and
-             the header and nothing else until it is on screen. -->
-        <video
-          src="/assets/demo.mp4"
-          poster="/assets/demo-poster.webp"
-          autoplay muted loop playsinline preload="metadata"
-          aria-label="A recording of ${APP_NAME}: a search across five stores, a tracked price, Deal Radar and a shared list."
-        ></video>
-        <!-- Painted over the video, so it must not eat the pointer. Decorative:
-             the video beneath it carries the description. -->
-        <img src="/assets/phone-shell.png" alt="" aria-hidden="true" width="408" height="612">
+      <div class="demo rise" data-d="1">
+        <div class="demoPhone">
+          <!-- muted is what makes autoplay allowed at all; playsinline stops iOS
+               taking the video fullscreen the moment it starts. preload metadata
+               rather than auto, so a phone on mobile data fetches the poster and
+               the header and nothing else until it is on screen. -->
+          <video
+            src="/assets/demo.mp4"
+            poster="/assets/demo-poster.webp"
+            autoplay muted loop playsinline preload="metadata"
+            aria-label="A recording of ${APP_NAME}: a search across five stores, a tracked price, Deal Radar and a shared list."
+          ></video>
+          <!-- Painted over the video, so it must not eat the pointer. Decorative:
+               the video beneath it carries the description. -->
+          <img src="/assets/phone-shell.png" alt="" aria-hidden="true" width="816" height="1224">
+        </div>
       </div>
     </div>
   </section>
