@@ -19,9 +19,12 @@ OUT=out/demo.mp4
 # height matches the frame without losing the tab bar off the bottom: the app
 # has padding at the sides and nothing at the edges to lose.
 #
-# 496x1064 is twice the cutout, so it stays sharp on a high-density display and
-# no larger.
-V="crop=1040:2231:20:130,scale=496:1064,setsar=1"
+# 720x1544 keeps the same 0.4662 aspect. The frame is displayed up to 560px
+# wide, of which the screen is about 61%, so roughly 340 CSS px and 680 device
+# pixels on a high-density display. 720 covers that with nothing spare; the
+# source recording is 1080 wide, so this is still a downscale rather than an
+# invention.
+V="crop=1040:2231:20:130,scale=720:1544,setsar=1"
 ENC=(-r 30 -fps_mode cfr -an -c:v libx264 -crf 30 -preset slow -pix_fmt yuv420p)
 
 # -t goes AFTER -i on purpose. Before it, ffmpeg limits how much of the INPUT

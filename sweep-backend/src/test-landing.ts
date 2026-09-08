@@ -253,7 +253,10 @@ check("the frame is capped so it cannot go soft", /\.demoPhone \{[^}]*min\(74vw,
 // Side by side once there is room, which is the only way the phone gets big
 // enough to read. Same breakpoint as the hero so the page reflows once.
 check("text and video sit side by side on a wide screen", /@media \(min-width:940px\) \{[^}]*\.demoGrid \{ grid-template-columns/.test(css));
-check("and the phone grows there", /@media \(min-width:940px\)[\s\S]{0,220}\.demoPhone \{ width:420px/.test(css));
+check("and the phone grows there", /@media \(min-width:940px\)[\s\S]{0,320}\.demoPhone \{ width:100%; max-width:420px/.test(css));
+// Sized by its column, never by a fixed width, or it overflows into the text
+// beside it at the awkward widths between the two breakpoints.
+check("it grows again on a really wide screen", /@media \(min-width:1200px\)[\s\S]{0,260}max-width:560px/.test(css));
 // No caption disclaiming the edit. A demo that does not show loading time is
 // not a claim about anything, and every product video is cut the same way. The
 // line that DOES have to stay is the one under "No ads. No AI.", because that

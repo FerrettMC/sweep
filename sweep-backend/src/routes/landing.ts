@@ -331,7 +331,16 @@ function render(stats: Stats) {
   @media (min-width:940px) {
     .demoGrid { grid-template-columns:1fr .82fr; gap:52px; }
     .demo { margin-top:0; }
-    .demoPhone { width:420px; }
+    /* Sized by its column rather than by a fixed width, so it can never
+       overflow into the text beside it on an in-between width. */
+    .demoPhone { width:100%; max-width:420px; }
+  }
+  /* Wider still: give the phone the larger half. The point of this section is
+     watching the app work, and at 420px the prices are readable but the rest
+     of the screen is guesswork. */
+  @media (min-width:1200px) {
+    .demoGrid { grid-template-columns:1fr 1.05fr; gap:48px; }
+    .demoPhone { max-width:560px; }
   }
   /* The shell is a PNG with the screen cut out of it, so the video sits behind
      and shows through the hole rather than being masked. The numbers below are
@@ -741,7 +750,7 @@ function render(stats: Stats) {
           ></video>
           <!-- Painted over the video, so it must not eat the pointer. Decorative:
                the video beneath it carries the description. -->
-          <img src="/assets/phone-shell.png" alt="" aria-hidden="true" width="816" height="1224">
+          <img src="/assets/phone-shell.png" alt="" aria-hidden="true" width="1224" height="1836">
         </div>
       </div>
     </div>
