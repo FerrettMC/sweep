@@ -345,7 +345,6 @@ function render(stats: Stats) {
     position:absolute; inset:0; width:100%; height:100%;
     display:block; pointer-events:none;
   }
-  .demoCap { text-align:center; color:var(--faint); font-size:14px; margin-top:18px; }
 
   /* ---- scroll reveal, in three dimensions --------------------------------
      Sections arrive laid back and set into the page, rather than sliding up it.
@@ -735,7 +734,6 @@ function render(stats: Stats) {
         <img src="/assets/phone-shell.png" alt="" aria-hidden="true" width="408" height="612">
       </div>
     </div>
-    <p class="demoCap">The waiting is cut, not sped up. A real search takes a few seconds per store.</p>
   </section>
 
   <section class="wrap prose rise">

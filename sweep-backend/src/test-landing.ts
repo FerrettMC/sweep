@@ -252,9 +252,11 @@ check("the video is placed into the cutout", /\.demoPhone video \{[^}]*left:19\.
 // Only ever scaled down: the source PNG is 408 wide, and a soft bezel around a
 // sharp screen looks worse than a smaller phone.
 check("the frame is never upscaled", /\.demoPhone \{[^}]*min\(74vw,340px\)/.test(css));
-// It shows results that were already loaded, so the wait is absent rather than
-// accelerated. Saying "sped up" would be the small lie this app exists to catch.
-check("it says the waiting is cut, not sped up", /waiting is cut, not sped up/.test(html));
+// No caption disclaiming the edit. A demo that does not show loading time is
+// not a claim about anything, and every product video is cut the same way. The
+// line that DOES have to stay is the one under "No ads. No AI.", because that
+// one qualifies a claim rather than narrating an edit.
+check("the demo is not captioned with a disclaimer", !/sped up/.test(html));
 
 console.log("\n— the pledge —");
 // The two claims that separate Sweep from every other shopping app, said in
