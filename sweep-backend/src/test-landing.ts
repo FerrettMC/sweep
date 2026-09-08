@@ -230,6 +230,18 @@ check("pointer effects are gated on having a pointer", /matchMedia\("\(hover: ho
 
 check("reduced motion disables the overlays", /prefers-reduced-motion[\s\S]*?\.grain, \.prog \{ display:none/.test(css));
 
+console.log("\n— the pledge —");
+// The two claims that separate Sweep from every other shopping app, said in
+// the hero where they get read. The qualifier is tested alongside them on
+// purpose: there IS one ad, opt-in, and the big line is only defensible while
+// the sentence under it says so. Losing the small line while keeping the big
+// one turns an honest page into an overclaim.
+check("the hero says no ads and no AI", /<p class="pledge">No ads\. <span>No AI\.<\/span><\/p>/.test(html));
+check("and it is large", /\.pledge \{[^}]*font-size:clamp\(28px/.test(css));
+check("prices are read, not guessed", /read from the store itself, never guessed/.test(html));
+check("the one ad is admitted in the same breath", /only ad[\s\S]{0,80}choose to watch/.test(html));
+check("it sits above the download button", html.indexOf('class="pledge"') < html.indexOf('class="cta"'));
+
 console.log("\n— the depth carries past the hero —");
 // The point of the rebuild: the hero was three-dimensional and everything below
 // it was flat. These are the pieces that fix that, and they are easy to lose in

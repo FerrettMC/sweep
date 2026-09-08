@@ -210,6 +210,22 @@ function render(stats: Stats) {
   }
   .lede { font-size:19px; color:var(--dim); max-width:31em; }
 
+  /* ---- the pledge --------------------------------------------------------
+     The two things Sweep does not do, large enough to read before anything
+     else in the hero. Both are the opposite of what a shopping app is now
+     assumed to be, so they are worth more than another feature line.
+
+     The qualifier under it is not fine print hedging the claim. There is one
+     ad in the app and it only ever appears because someone asked for it, and
+     saying so in the same breath is what makes the big line believable
+     instead of the usual thing every app says. */
+  .pledge {
+    margin:24px 0 8px; font-weight:800; letter-spacing:-.02em; line-height:1.1;
+    font-size:clamp(28px,4.6vw,42px);
+  }
+  .pledge span { color:var(--accent); }
+  .pledgeNote { color:var(--faint); font-size:14px; margin:0; max-width:40em; }
+
   .ctaRow { display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin-top:30px; }
   .cta {
     position:relative; overflow:hidden;
@@ -511,6 +527,12 @@ function render(stats: Stats) {
           ${APP_NAME} checks several stores in one search, watches prices for you,
           and keeps its own history — so a big red discount badge has to prove itself.
         </p>
+        <p class="pledge">No ads. <span>No AI.</span></p>
+        <p class="pledgeNote">
+          Every price is read from the store itself, never guessed. The only ad
+          in ${APP_NAME} is one you choose to watch for an extra search.
+        </p>
+
         <div class="ctaRow">
           <a class="cta" href="${PLAY_URL}">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.6 2.3 13 12 3.6 21.7a1.6 1.6 0 0 1-.6-1.3V3.6c0-.5.2-1 .6-1.3Zm11 10.8 2.6 2.6-9.3 5.3 6.7-7.9Zm0-2.2L7.9 3l9.3 5.3-2.6 2.6Zm4.2-1.3 2.5 1.5c.9.5.9 1.9 0 2.4l-2.5 1.5L15.9 12l2.9-2.4Z"/></svg>
