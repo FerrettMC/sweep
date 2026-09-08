@@ -588,8 +588,8 @@ function render(stats: Stats) {
   <section class="wrap">
     <div class="rise">
       <span class="eyebrow">What it does</span>
-      <h2>Six things, done properly.</h2>
-      <p class="sub">Rather than fifteen done badly.</p>
+      <h2>Six features, all free.</h2>
+      <p class="sub">No card, no trial, nothing interrupting you.</p>
     </div>
 
     <div class="feats">
