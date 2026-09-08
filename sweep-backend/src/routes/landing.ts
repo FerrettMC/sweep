@@ -314,6 +314,28 @@ function render(stats: Stats) {
     background:radial-gradient(ellipse at 50% 45%, rgba(228,115,63,.26), transparent 68%);
     filter:blur(58px); transform:translateZ(-60px); z-index:-1;
   }
+  /* ---- the demo loop -----------------------------------------------------
+     A real recording of the app, cut to four features and looped. Muted and
+     autoplaying, which is the only kind of autoplay a browser allows, and the
+     only kind anyone should want.
+
+     The frame is drawn in CSS rather than baked into the video, so the video
+     itself is only the screen. That keeps the file to a couple of hundred
+     kilobytes and means the bezel stays sharp on a high-density display
+     instead of being upscaled along with everything else. */
+  .demo { display:flex; justify-content:center; margin-top:34px; }
+  .demoPhone {
+    position:relative; width:min(74vw,300px);
+    border-radius:38px; padding:10px;
+    background:linear-gradient(160deg,#2A2A30,#15151A);
+    box-shadow:0 30px 70px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.05) inset;
+  }
+  .demoPhone video {
+    display:block; width:100%; height:auto;
+    border-radius:29px; background:#000;
+  }
+  .demoCap { text-align:center; color:var(--faint); font-size:14px; margin-top:18px; }
+
   /* ---- scroll reveal, in three dimensions --------------------------------
      Sections arrive laid back and set into the page, rather than sliding up it.
      The perspective is per element: one shared scene would swing anything far
@@ -680,6 +702,30 @@ function render(stats: Stats) {
         <p>Collect things from anywhere you searched or tracked, and watch what the whole lot costs move over time.</p>
       </div>
     </div>
+  </section>
+
+  <section class="wrap">
+    <div class="rise">
+      <span class="eyebrow">See it work</span>
+      <h2>No mockups. This is the app.</h2>
+      <p class="sub">A search, a tracked price, a radar and a list. Recorded on a phone.</p>
+    </div>
+
+    <div class="demo rise" data-d="1">
+      <div class="demoPhone">
+        <!-- muted is what makes autoplay allowed at all; playsinline stops iOS
+             taking the video fullscreen the moment it starts. preload metadata
+             rather than auto, so a phone on mobile data fetches the poster and
+             the header and nothing else until it is on screen. -->
+        <video
+          src="/assets/demo.mp4"
+          poster="/assets/demo-poster.webp"
+          autoplay muted loop playsinline preload="metadata"
+          aria-label="A recording of ${APP_NAME}: a search across five stores, a tracked price, Deal Radar and a shared list."
+        ></video>
+      </div>
+    </div>
+    <p class="demoCap">The waiting is cut, not sped up. A real search takes a few seconds per store.</p>
   </section>
 
   <section class="wrap prose rise">

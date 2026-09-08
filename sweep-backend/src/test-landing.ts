@@ -230,6 +230,24 @@ check("pointer effects are gated on having a pointer", /matchMedia\("\(hover: ho
 
 check("reduced motion disables the overlays", /prefers-reduced-motion[\s\S]*?\.grain, \.prog \{ display:none/.test(css));
 
+console.log("\n— the demo loop —");
+// A real recording rather than a mockup, which is the whole point of showing
+// it. The autoplay attributes are load-bearing: a browser blocks autoplay
+// without muted, and iOS takes the video fullscreen without playsinline, so
+// losing either turns the section into a black rectangle.
+check("the page plays a demo", /<video[\s\S]*?src="\/assets\/demo\.mp4"/.test(html));
+check("muted, or it will not autoplay", /<video[\s\S]*?\bmuted\b/.test(html));
+check("loops", /<video[\s\S]*?\bloop\b/.test(html));
+check("playsinline, or iOS goes fullscreen", /<video[\s\S]*?\bplaysinline\b/.test(html));
+check("has a poster for before it loads", /poster="\/assets\/demo-poster\.webp"/.test(html));
+check("described for a screen reader", /aria-label="A recording of/.test(html));
+// The frame is CSS, so the file holds only the screen. Baking a bezel in costs
+// bytes and upscales badly on a high-density display.
+check("the bezel is drawn in CSS", /\.demoPhone \{[^}]*border-radius/.test(css));
+// It shows results that were already loaded, so the wait is absent rather than
+// accelerated. Saying "sped up" would be the small lie this app exists to catch.
+check("it says the waiting is cut, not sped up", /waiting is cut, not sped up/.test(html));
+
 console.log("\n— the pledge —");
 // The two claims that separate Sweep from every other shopping app, said in
 // the hero where they get read. The qualifier is tested alongside them on

@@ -25,6 +25,8 @@ const ASSET_DIR = join(process.cwd(), "assets");
 const FILES: Record<string, { file: string; type: string }> = {
   "hero.webp": { file: "hero.webp", type: "image/webp" },
   "hero.png": { file: "hero.png", type: "image/png" },
+  "demo.mp4": { file: "demo.mp4", type: "video/mp4" },
+  "demo-poster.webp": { file: "demo-poster.webp", type: "image/webp" },
 };
 
 /** Immutable in practice: the content changes only with a deploy. */
