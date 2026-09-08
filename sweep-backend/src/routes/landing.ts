@@ -183,6 +183,31 @@ function render(stats: Stats) {
 
   main, header, footer { position:relative; z-index:1; }
 
+  /* ---- ambient glow ------------------------------------------------------
+     Warmth at the top of the page so the black is not flat, and nothing more.
+
+     What this is not: the two blobs that used to drift across here on a 26
+     second loop, and the light that followed the cursor. Both were movement
+     with no reason behind it, and movement in the corner of the eye is read as
+     something needing attention. This holds still, sits well under the text,
+     and is roughly a third of the strength those were.
+
+     Fixed rather than scrolling, so it stays behind the hero where the warmth
+     belongs instead of travelling down the page with the reader. */
+  .aura { position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+  .aura b {
+    position:absolute; display:block; border-radius:50%;
+    filter:blur(110px); opacity:.42;
+  }
+  .aura b:nth-child(1) {
+    width:720px; height:720px; top:-280px; left:-200px;
+    background:radial-gradient(circle, rgba(228,115,63,.20), transparent 70%);
+  }
+  .aura b:nth-child(2) {
+    width:560px; height:560px; top:8%; right:-240px;
+    background:radial-gradient(circle, rgba(194,74,34,.15), transparent 70%);
+  }
+
   /* ---- hero ------------------------------------------------------------- */
   .hero { padding-top:74px; padding-bottom:40px; }
   .heroGrid { display:grid; gap:44px; align-items:center; }
@@ -282,6 +307,13 @@ function render(stats: Stats) {
      untouched, so the idle bob and the tilt do not fight. */
   @keyframes float { 50% { translate:0 -16px; } }
   .phone img { width:100%; height:auto; display:block; }
+  /* Sits behind the device on its own plane, so the tilt carries it rather
+     than leaving it flat on the page. Half the strength it had before. */
+  .phone::before {
+    content:""; position:absolute; inset:6% 10% 10%;
+    background:radial-gradient(ellipse at 50% 45%, rgba(228,115,63,.26), transparent 68%);
+    filter:blur(58px); transform:translateZ(-60px); z-index:-1;
+  }
   /* ---- scroll reveal, in three dimensions --------------------------------
      Sections arrive laid back and set into the page, rather than sliding up it.
      The perspective is per element: one shared scene would swing anything far
@@ -501,6 +533,7 @@ function render(stats: Stats) {
     .phone { transform:rotateX(4deg) rotateY(-10deg); }
     .float { opacity:1; }
     .grain, .prog { display:none; }
+    .aura { opacity:.25; }
     .feat, .feat:hover, .stat, .proof, .slab { transform:none; }
     .feat .ico, .feat h3, .feat p,
     .stat b, .proof svg, .proof .verdict, .proof .proofTop,
@@ -514,6 +547,7 @@ function render(stats: Stats) {
 <div class="prog" id="prog" aria-hidden="true"></div>
 <div class="grain" aria-hidden="true"></div>
 
+<div class="aura" aria-hidden="true"><b></b><b></b></div>
 <main>
   <div class="hero wrap">
     <div class="heroGrid">

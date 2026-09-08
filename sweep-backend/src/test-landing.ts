@@ -253,15 +253,21 @@ check("the tilt is driven by the attribute", /querySelectorAll\("\[data-tilt\]"\
 check("stats have depth", /\.stat b \{[^}]*translateZ/.test(css));
 check("the proof panel has depth", /\.proof \.verdict \{[^}]*translateZ/.test(css));
 check("the closing is a lit slab", /\.slab \{[^}]*perspective/.test(css));
-// The background is plain black and stays that way. Drifting accent blobs and
-// a spotlight following the cursor were both on this page and both were pulling
-// the eye off the words, so they came out. Asserted as absence rather than
-// deleted, because decoration like this creeps back one commit at a time.
+// The background is black with a little warmth on top, and the rules about what
+// that warmth may do are the point. Movement in the corner of the eye reads as
+// something needing attention, so the glow holds still and nothing tracks the
+// cursor. Asserted rather than trusted, because decoration creeps back one
+// commit at a time.
 check("the background is plain black", /--bg:#000000/.test(css));
-check("no drifting blobs", !/\.aura/.test(css) && !/\.aura/.test(html));
+check("there is some warmth over it", /\.aura b \{/.test(css) && /class="aura"/.test(html));
+check("but it never moves", !/@keyframes drift/.test(css) && !/\.aura[^}]*animation/.test(css));
+// Only the glows, not every use of the accent. Button shadows and hover
+// borders sit higher on purpose: those are on things you are pointing at,
+// which is the opposite of ambient.
+check("and it is faint", (css.match(/radial-gradient\([^;]*?rgba\(228,115,63,\.(\d+)\)/g) ?? [])
+  .every((g) => Number((g.match(/rgba\(228,115,63,\.(\d+)\)/) ?? [])[1] ?? 99) <= 30));
 check("no cursor spotlight", !/\.spot\b/.test(css) && !/id="spot"/.test(html));
-check("nothing is left driving them", !/blobs/.test(script) && !/spot\./.test(script));
-check("and no accent glow bleeding behind panels", !/radial-gradient\(ellipse[^)]*rgba\(228,115,63/.test(css));
+check("nothing at all follows the mouse", !/blobs/.test(script) && !/spot\./.test(script));
 
 // Every element that tilts must have its own perspective. One shared scene
 // swings whatever sits far from its vanishing point, and these run the full
