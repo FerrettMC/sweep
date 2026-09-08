@@ -1,10 +1,12 @@
 # Play Store screenshots
 
-Five raw captures at 1080x2424, straight off a Pixel running the live app.
-Real data, real prices, nothing mocked up.
+Five captures at 1080x2231, straight off a Pixel running the live app. Real
+data, real prices, nothing mocked up.
 
-The notification-icon strip has been blanked out. Clock, wifi, signal and
-battery are real but pinned by Android's demo mode, so every shot matches.
+Cropped so there is no phone furniture in frame: the Android status bar is off
+the top and the gesture pill is off the bottom. Every image starts on the app's
+own header and ends on its own tab bar, so a device frame can go straight
+around them.
 
 ## Order matters
 
@@ -21,7 +23,8 @@ through. Keep this order.
 
 ## For the designer
 
-- 9:16, minimum 320px and maximum 3840px on the longest side. These are fine as-is.
+- Play wants between 16:9 and 9:16, 320px to 3840px on the longest side. At
+  1080x2231 these sit inside that, so they can be used as they are.
 - Feel free to place them in a device frame and add a background.
 - Brand colours: background `#0D0D0D`, surface `#1A1A1A`, accent `#D85A30`.
 - Please don't crop out the price or the store name on any shot. Those are the
