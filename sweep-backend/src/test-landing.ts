@@ -264,7 +264,7 @@ console.log("\n— the pledge —");
 // one turns an honest page into an overclaim.
 check("the hero says no ads and no AI", /<p class="pledge">No ads\. <span>No AI\.<\/span><\/p>/.test(html));
 check("and it is large", /\.pledge \{[^}]*font-size:clamp\(28px/.test(css));
-check("prices are read, not guessed", /read from the store itself, never guessed/.test(html));
+check("prices are read, not guessed", /read from the store, never guessed/.test(html));
 check("the one ad is admitted in the same breath", /only ad[\s\S]{0,80}choose to watch/.test(html));
 check("it sits above the download button", html.indexOf('class="pledge"') < html.indexOf('class="cta"'));
 

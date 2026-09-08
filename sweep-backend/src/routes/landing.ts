@@ -271,7 +271,7 @@ function render(stats: Stats) {
     transform:translateX(-160%); animation:sheen 4.5s ease-in-out infinite;
   }
   @keyframes sheen { 0%,55% { transform:translateX(-160%); } 100% { transform:translateX(320%); } }
-  .note { color:var(--faint); font-size:14px; }
+  .note { color:var(--faint); font-size:14px; margin-top:14px; }
 
   .chips { display:flex; flex-wrap:wrap; gap:9px; margin-top:26px; }
   .chip {
@@ -591,13 +591,12 @@ function render(stats: Stats) {
         <span class="badge"><i></i>Live on Google Play</span>
         <h1>Know whether that sale <span>is really a sale.</span></h1>
         <p class="lede">
-          ${APP_NAME} checks several stores in one search, watches prices for you,
-          and keeps its own history — so a big red discount badge has to prove itself.
+          One search across five stores, and a price history ${APP_NAME} keeps itself.
         </p>
         <p class="pledge">No ads. <span>No AI.</span></p>
         <p class="pledgeNote">
-          Every price is read from the store itself, never guessed. The only ad
-          in ${APP_NAME} is one you choose to watch for an extra search.
+          Prices are read from the store, never guessed &mdash; and the only ad
+          is one you choose to watch.
         </p>
 
         <div class="ctaRow">
@@ -606,7 +605,7 @@ function render(stats: Stats) {
             Get it on Google Play
           </a>
         </div>
-        <p class="note" style="margin-top:14px">Free. No card, and no trial that expires into a charge.</p>
+        <p class="note">Free. No card.</p>
         <div class="chips">${storeChips}</div>
       </div>
 
@@ -622,9 +621,6 @@ function render(stats: Stats) {
           <div class="float f2" aria-hidden="true">
             <div class="k">Is this sale real?</div>
             <div class="v good">Lowest we have seen</div>
-          </div>
-          <div class="float f3" aria-hidden="true">
-            <div class="row"><i style="background:#0071DC"></i>Walmart<b>&nbsp;$268</b></div>
           </div>
           <picture>
             <source srcset="/assets/hero.webp" type="image/webp">
