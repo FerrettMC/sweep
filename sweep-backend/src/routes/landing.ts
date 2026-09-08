@@ -144,7 +144,12 @@ function render(stats: Stats) {
   /* Dark only. The app is dark, the screenshot is dark, and a light landing
      page handing over to a dark app is a jolt. */
   :root {
-    --bg:#0B0B0D; --panel:#141417; --panel2:#1A1A1E; --line:#26262B;
+    /* Plain black. The drifting accent blobs and the cursor spotlight that
+       used to sit on top of this read as decoration rather than as part of
+       the page, and they pulled the eye away from what it was meant to be
+       reading. The accent still exists, it just lives on things that mean
+       something now: the button, the links, the progress bar. */
+    --bg:#000000; --panel:#141417; --panel2:#1A1A1E; --line:#26262B;
     --fg:#F4F4F6; --dim:#A0A0AA; --faint:#6E6E78;
     --accent:#E4733F; --accent2:#F0A868; --accent-deep:#C24A22;
     --good:#3DA35D;
@@ -176,33 +181,6 @@ function render(stats: Stats) {
      of those ends the string. */
   .wrap { max-width:1120px; margin:0 auto; padding-left:22px; padding-right:22px; }
 
-  /* ---- the moving background -------------------------------------------
-     Two blurred blobs on a slow drift. Transform and opacity only, so the
-     compositor owns it and the main thread never sees a frame of this. */
-  .aura { position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
-  .aura b {
-    position:absolute; display:block; border-radius:50%;
-    filter:blur(90px); opacity:.5;
-    /* --par is written on scroll, at a different rate per blob, so the
-       background has its own depth rather than being painted on. */
-    translate:0 var(--par,0px);
-  }
-  .aura b:nth-child(1) {
-    width:640px; height:640px; top:-220px; left:-160px;
-    background:radial-gradient(circle, rgba(228,115,63,.55), transparent 70%);
-    animation:drift1 26s ease-in-out infinite;
-  }
-  .aura b:nth-child(2) {
-    width:520px; height:520px; top:22%; right:-200px;
-    background:radial-gradient(circle, rgba(194,74,34,.42), transparent 70%);
-    animation:drift2 32s ease-in-out infinite;
-  }
-  @keyframes drift1 {
-    50% { transform:translate3d(90px,70px,0) scale(1.12); }
-  }
-  @keyframes drift2 {
-    50% { transform:translate3d(-70px,-50px,0) scale(1.08); }
-  }
   main, header, footer { position:relative; z-index:1; }
 
   /* ---- hero ------------------------------------------------------------- */
@@ -288,14 +266,6 @@ function render(stats: Stats) {
      untouched, so the idle bob and the tilt do not fight. */
   @keyframes float { 50% { translate:0 -16px; } }
   .phone img { width:100%; height:auto; display:block; }
-  /* The glow sits behind the device, in its own plane, so the 3D rotation
-     carries it along instead of leaving it flat on the page. */
-  .phone::before {
-    content:""; position:absolute; inset:6% 10% 10%;
-    background:radial-gradient(ellipse at 50% 45%, rgba(228,115,63,.55), transparent 68%);
-    filter:blur(52px); transform:translateZ(-60px); z-index:-1;
-  }
-
   /* ---- scroll reveal, in three dimensions --------------------------------
      Sections arrive laid back and set into the page, rather than sliding up it.
      The perspective is per element: one shared scene would swing anything far
@@ -418,11 +388,6 @@ function render(stats: Stats) {
     will-change:transform;
   }
   .slab h2, .slab .sub, .slab .cta, .slab .note { transform:translateZ(34px); }
-  .slab::before {
-    content:""; position:absolute; inset:-40px 10% auto; height:120px;
-    background:radial-gradient(ellipse, rgba(228,115,63,.4), transparent 70%);
-    filter:blur(46px); transform:translateZ(-50px); pointer-events:none;
-  }
   .closing .sub { margin:0 auto 30px; }
   .closing h2 { font-size:clamp(30px,5vw,46px); }
 
@@ -442,18 +407,6 @@ function render(stats: Stats) {
     position:fixed; top:0; left:0; right:0; height:2px; z-index:9;
     background:linear-gradient(90deg,var(--accent2),var(--accent));
     transform:scaleX(0); transform-origin:0 50%;
-  }
-
-  /* ---- cursor spotlight --------------------------------------------------
-     Follows the pointer as a soft warm light over the whole page. Fixed,
-     blurred and pointer-events:none, so it lights things without ever being
-     in the way of them. */
-  .spot {
-    position:fixed; width:520px; height:520px; z-index:2;
-    left:0; top:0; margin:-260px 0 0 -260px;
-    border-radius:50%; pointer-events:none; opacity:0;
-    background:radial-gradient(circle, rgba(228,115,63,.13), transparent 62%);
-    transition:opacity .5s ease;
   }
 
   /* ---- grain -------------------------------------------------------------
@@ -531,7 +484,7 @@ function render(stats: Stats) {
     .proof .line { stroke-dashoffset:0; }
     .phone { transform:rotateX(4deg) rotateY(-10deg); }
     .float { opacity:1; }
-    .spot, .grain, .prog { display:none; }
+    .grain, .prog { display:none; }
     .feat, .feat:hover, .stat, .proof, .slab { transform:none; }
     .feat .ico, .feat h3, .feat p,
     .stat b, .proof svg, .proof .verdict, .proof .proofTop,
@@ -543,8 +496,6 @@ function render(stats: Stats) {
 <body>
 
 <div class="prog" id="prog" aria-hidden="true"></div>
-<div class="aura" aria-hidden="true"><b></b><b></b></div>
-<div class="spot" id="spot" aria-hidden="true"></div>
 <div class="grain" aria-hidden="true"></div>
 
 <main>
@@ -789,7 +740,6 @@ function render(stats: Stats) {
   // Three listeners would each schedule their own frame and the browser would
   // do the same work three times over for one movement of the mouse.
   var phone = document.getElementById("phone");
-  var spot = document.getElementById("spot");
   var cta = document.querySelector(".cta");
   var tilters = document.querySelectorAll("[data-tilt]");
   var hasPointer = window.matchMedia("(hover: hover)").matches;
@@ -802,7 +752,6 @@ function render(stats: Stats) {
     window.addEventListener("mousemove", function (e) {
       mx = e.clientX;
       my = e.clientY;
-      if (spot && !spot.style.opacity) spot.style.opacity = "1";
       if (queued) return;
       queued = true;
       requestAnimationFrame(paint);
@@ -812,9 +761,6 @@ function render(stats: Stats) {
       queued = false;
       var w = window.innerWidth;
       var h = window.innerHeight;
-
-      // The light itself.
-      if (spot) spot.style.transform = "translate3d(" + mx + "px," + my + "px,0)";
 
       // The device leans toward the cursor, about its resting pose.
       if (phone) {
@@ -868,7 +814,6 @@ function render(stats: Stats) {
   // scrollY inside the frame rather than in the listener keeps the handler to
   // a single boolean write, which is what makes it cheap enough to leave on.
   var prog = document.getElementById("prog");
-  var blobs = document.querySelectorAll(".aura b");
   var scrollQueued = false;
 
   window.addEventListener("scroll", function () {
@@ -885,12 +830,6 @@ function render(stats: Stats) {
         var p = Math.min(1, y / (window.innerHeight * 0.9));
         phone.style.setProperty("--lift", (-p * 42).toFixed(1) + "px");
         phone.style.setProperty("--fade", (1 - p * 0.45).toFixed(3));
-      }
-
-      // The background moves slower than the page, and each blob at its own
-      // rate, which is what stops it reading as wallpaper.
-      for (var b = 0; b < blobs.length; b++) {
-        blobs[b].style.setProperty("--par", (y * (b === 0 ? -0.12 : -0.06)).toFixed(1) + "px");
       }
 
       // Every panel leans continuously with its position on screen: laid back

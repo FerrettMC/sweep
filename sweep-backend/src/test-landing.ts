@@ -228,7 +228,7 @@ check("pointer work is frame-throttled", /requestAnimationFrame\(paint\)/.test(s
 // there, and the listener should not even be attached.
 check("pointer effects are gated on having a pointer", /matchMedia\("\(hover: hover\)"\)/.test(script));
 
-check("reduced motion disables the overlays", /prefers-reduced-motion[\s\S]*?\.spot, \.grain, \.prog \{ display:none/.test(css));
+check("reduced motion disables the overlays", /prefers-reduced-motion[\s\S]*?\.grain, \.prog \{ display:none/.test(css));
 
 console.log("\n— the depth carries past the hero —");
 // The point of the rebuild: the hero was three-dimensional and everything below
@@ -241,7 +241,15 @@ check("the tilt is driven by the attribute", /querySelectorAll\("\[data-tilt\]"\
 check("stats have depth", /\.stat b \{[^}]*translateZ/.test(css));
 check("the proof panel has depth", /\.proof \.verdict \{[^}]*translateZ/.test(css));
 check("the closing is a lit slab", /\.slab \{[^}]*perspective/.test(css));
-check("the background parallaxes", /--par/.test(css) && /--par/.test(script));
+// The background is plain black and stays that way. Drifting accent blobs and
+// a spotlight following the cursor were both on this page and both were pulling
+// the eye off the words, so they came out. Asserted as absence rather than
+// deleted, because decoration like this creeps back one commit at a time.
+check("the background is plain black", /--bg:#000000/.test(css));
+check("no drifting blobs", !/\.aura/.test(css) && !/\.aura/.test(html));
+check("no cursor spotlight", !/\.spot\b/.test(css) && !/id="spot"/.test(html));
+check("nothing is left driving them", !/blobs/.test(script) && !/spot\./.test(script));
+check("and no accent glow bleeding behind panels", !/radial-gradient\(ellipse[^)]*rgba\(228,115,63/.test(css));
 
 // Every element that tilts must have its own perspective. One shared scene
 // swings whatever sits far from its vanishing point, and these run the full
