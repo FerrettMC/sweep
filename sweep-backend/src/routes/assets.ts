@@ -27,6 +27,7 @@ const FILES: Record<string, { file: string; type: string }> = {
   "hero.png": { file: "hero.png", type: "image/png" },
   "demo.mp4": { file: "demo.mp4", type: "video/mp4" },
   "demo-poster.webp": { file: "demo-poster.webp", type: "image/webp" },
+  "phone-shell.png": { file: "phone-shell.png", type: "image/png" },
 };
 
 /** Immutable in practice: the content changes only with a deploy. */

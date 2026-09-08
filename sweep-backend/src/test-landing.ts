@@ -241,9 +241,17 @@ check("loops", /<video[\s\S]*?\bloop\b/.test(html));
 check("playsinline, or iOS goes fullscreen", /<video[\s\S]*?\bplaysinline\b/.test(html));
 check("has a poster for before it loads", /poster="\/assets\/demo-poster\.webp"/.test(html));
 check("described for a screen reader", /aria-label="A recording of/.test(html));
-// The frame is CSS, so the file holds only the screen. Baking a bezel in costs
-// bytes and upscales badly on a high-density display.
-check("the bezel is drawn in CSS", /\.demoPhone \{[^}]*border-radius/.test(css));
+// The bezel is a PNG with the screen cut out of it, laid over the video. The
+// video is positioned into that hole by measured percentages, so if the shell
+// file is ever swapped for one with a different cutout, these numbers have to
+// move with it or the screen will not line up.
+check("the shell is laid over the video", /<img src="\/assets\/phone-shell\.png"/.test(html));
+check("the shell is decorative", /phone-shell\.png"[^>]*alt=""/.test(html) && /phone-shell\.png"[^>]*aria-hidden/.test(html));
+check("it cannot eat the pointer", /\.demoPhone img \{[^}]*pointer-events:none/.test(css));
+check("the video is placed into the cutout", /\.demoPhone video \{[^}]*left:19\.36%[\s\S]*?width:60\.78%/.test(css));
+// Only ever scaled down: the source PNG is 408 wide, and a soft bezel around a
+// sharp screen looks worse than a smaller phone.
+check("the frame is never upscaled", /\.demoPhone \{[^}]*min\(74vw,340px\)/.test(css));
 // It shows results that were already loaded, so the wait is absent rather than
 // accelerated. Saying "sped up" would be the small lie this app exists to catch.
 check("it says the waiting is cut, not sped up", /waiting is cut, not sped up/.test(html));

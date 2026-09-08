@@ -324,15 +324,26 @@ function render(stats: Stats) {
      kilobytes and means the bezel stays sharp on a high-density display
      instead of being upscaled along with everything else. */
   .demo { display:flex; justify-content:center; margin-top:34px; }
+  /* The shell is a PNG with the screen cut out of it, so the video sits behind
+     and shows through the hole rather than being masked. The numbers below are
+     measured from that file rather than guessed: the cutout is 248x532 at
+     (79,41) in a 408x612 image, which is what the percentages are.
+
+     Capped at the PNG's own 408px so the frame is only ever scaled down. Above
+     that the bezel softens, and a soft bezel around a sharp screen looks worse
+     than a smaller phone. */
   .demoPhone {
-    position:relative; width:min(74vw,300px);
-    border-radius:38px; padding:10px;
-    background:linear-gradient(160deg,#2A2A30,#15151A);
-    box-shadow:0 30px 70px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.05) inset;
+    position:relative; width:min(74vw,340px); aspect-ratio:408/612;
+    filter:drop-shadow(0 30px 60px rgba(0,0,0,.65));
   }
   .demoPhone video {
-    display:block; width:100%; height:auto;
-    border-radius:29px; background:#000;
+    position:absolute;
+    left:19.36%; top:6.70%; width:60.78%; height:86.93%;
+    display:block; object-fit:cover; background:#000;
+  }
+  .demoPhone img {
+    position:absolute; inset:0; width:100%; height:100%;
+    display:block; pointer-events:none;
   }
   .demoCap { text-align:center; color:var(--faint); font-size:14px; margin-top:18px; }
 
@@ -723,6 +734,9 @@ function render(stats: Stats) {
           autoplay muted loop playsinline preload="metadata"
           aria-label="A recording of ${APP_NAME}: a search across five stores, a tracked price, Deal Radar and a shared list."
         ></video>
+        <!-- Painted over the video, so it must not eat the pointer. Decorative:
+             the video beneath it carries the description. -->
+        <img src="/assets/phone-shell.png" alt="" aria-hidden="true" width="408" height="612">
       </div>
     </div>
     <p class="demoCap">The waiting is cut, not sped up. A real search takes a few seconds per store.</p>
