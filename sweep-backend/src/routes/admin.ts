@@ -27,7 +27,7 @@ import type { FastifyInstance } from "fastify";
 import { requireAdmin } from "../lib/adminAuth.js";
 import { getAdminStats } from "../lib/adminStats.js";
 import { createPromoCode, deletePromoCode, listPromoCodes } from "../lib/promoAdmin.js";
-import { probe, probeAdapter, recentStress, stress } from "../lib/probe.js";
+import { probe, probeAdapter, probeDirect, recentStress, stress } from "../lib/probe.js";
 
 export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin", async (_request, reply) => {
@@ -80,6 +80,22 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // Runs the adapter repeatedly and reports the spread. One run says almost
   // nothing about a store that fails intermittently.
+  // Can we fetch the retailer straight from our own address, skipping the paid
+  // middleman? Measured rather than assumed, because the answer is allowed to
+  // change and because a measurement settles an argument that opinions do not.
+  app.post("/admin/probe/direct", { preHandler: requireAdmin }, async (request, reply) => {
+    const { retailer } = (request.body ?? {}) as { retailer?: string };
+    if (typeof retailer !== "string" || !retailer.trim()) {
+      return reply.status(400).send({ error: "retailer is required" });
+    }
+    const result = await probeDirect(retailer.trim());
+    request.log.info(
+      { retailer: result.retailer, verdict: result.verdict },
+      "admin direct probe",
+    );
+    return result;
+  });
+
   app.post("/admin/probe/stress", { preHandler: requireAdmin }, async (request, reply) => {
     const { retailer, runs, spendMoney } = (request.body ?? {}) as {
       retailer?: string;

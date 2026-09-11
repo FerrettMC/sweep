@@ -145,7 +145,18 @@ async function refuse(raw: string): Promise<string | null> {
   return null;
 }
 
-export async function probe(rawUrl: string): Promise<ProbeResult> {
+/**
+ * Fetch a url and report what came back.
+ *
+ * `headers` overrides the default pair, for asking whether a fuller, more
+ * browser-shaped request gets a different answer than a bare one. It cannot
+ * change the TLS fingerprint, which on the sites where this matters most is
+ * the signal actually being read.
+ */
+export async function probe(
+  rawUrl: string,
+  headers?: Record<string, string>,
+): Promise<ProbeResult> {
   const started = Date.now();
   const base: ProbeResult = {
     url: rawUrl,
@@ -176,7 +187,7 @@ export async function probe(rawUrl: string): Promise<ProbeResult> {
     try {
       res = await fetch(current, {
         redirect: "manual",
-        headers: { "user-agent": UA, "accept-language": "en-US,en;q=0.9" },
+        headers: headers ?? { "user-agent": UA, "accept-language": "en-US,en;q=0.9" },
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
     } catch (err) {
@@ -516,4 +527,117 @@ export async function stress(
   if (recent.length > RECENT_LIMIT) recent.length = RECENT_LIMIT;
 
   return result;
+}
+
+// ---- can we fetch the retailer directly, from our own address? -------------
+//
+// The question this answers: is the money being spent on Bright Data and
+// Decodo actually necessary, or would a well-dressed request out of our own
+// network do?
+//
+// It is worth re-asking occasionally rather than assuming. Detection changes,
+// and so does our hosting. But the answer has been no, twice, for reasons that
+// are structural rather than a matter of trying harder:
+//
+//   Amazon runs AWS WAF Bot Control, whose first layer scores the source ASN
+//   before any HTTP is parsed. A datacenter range is refused on the strength of
+//   being a datacenter range, so no header set reaches the code that would read
+//   it. Reported failure rates for datacenter addresses run 60-70%.
+//
+//   Walmart runs Akamai Bot Manager with HUMAN on top, and in 2026 the deciding
+//   signal is the TLS fingerprint — JA3/JA4 — which is a property of the client
+//   library, not of anything we can put in a header. Node's fingerprint is not a
+//   browser's. An HTTP client without a matching fingerprint and a live _px3
+//   cookie is reported to last 10-20 requests.
+//
+// So this exists to MEASURE, not to evade. It sends one request, with honest
+// browser headers, and reports exactly what came back.
+
+const DIRECT_TARGETS: Record<string, { label: string; url: string }[]> = {
+  amazon: [
+    { label: "product", url: "https://www.amazon.com/dp/B0CP4CG1ZB" },
+    { label: "search", url: "https://www.amazon.com/s?k=airpods+pro+2" },
+  ],
+  walmart: [
+    { label: "product", url: "https://www.walmart.com/ip/1234567890" },
+    { label: "search", url: "https://www.walmart.com/search?q=airpods+pro+2" },
+  ],
+};
+
+/**
+ * Chrome's header set, in Chrome's order.
+ *
+ * Order matters to a fingerprinter as much as content does. This is not an
+ * attempt to pass as a browser — it cannot, the TLS handshake gives it away
+ * before a single header is sent — it is so the measurement tests the best
+ * case rather than a strawman.
+ */
+const BROWSER_HEADERS: Record<string, string> = {
+  "sec-ch-ua": '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": '"Windows"',
+  "upgrade-insecure-requests": "1",
+  "user-agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+  accept:
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+  "sec-fetch-site": "none",
+  "sec-fetch-mode": "navigate",
+  "sec-fetch-user": "?1",
+  "sec-fetch-dest": "document",
+  "accept-encoding": "gzip, deflate, br",
+  "accept-language": "en-US,en;q=0.9",
+};
+
+export interface DirectProbeResult {
+  retailer: string;
+  attempts: (ProbeResult & { label: string })[];
+  /** Plain-English reading of what the attempts mean. */
+  verdict: string;
+}
+
+export async function probeDirect(retailer: string): Promise<DirectProbeResult> {
+  const targets = DIRECT_TARGETS[retailer.toLowerCase()];
+  if (!targets) {
+    return {
+      retailer,
+      attempts: [],
+      verdict: `Nothing to try for ${retailer}. Known: ${Object.keys(DIRECT_TARGETS).join(", ")}`,
+    };
+  }
+
+  const attempts: (ProbeResult & { label: string })[] = [];
+  for (const { label, url } of targets) {
+    const result = await probe(url, BROWSER_HEADERS);
+    attempts.push({ ...result, label });
+  }
+
+  const blocked = attempts.filter(
+    (a) => a.challenges.length > 0 || a.status === 403 || a.status === 503 || a.status === 429,
+  );
+  const usable = attempts.filter((a) => a.status === 200 && a.priceish > 2);
+
+  let verdict: string;
+  if (usable.length === attempts.length) {
+    verdict =
+      "Every attempt came back with product data. Worth a stress run before " +
+      "believing it — one page is not a pattern, and the first requests from a " +
+      "fresh address are the ones most likely to succeed.";
+  } else if (usable.length > 0) {
+    verdict =
+      `${usable.length} of ${attempts.length} returned data. Partial success is ` +
+      "the shape of rate limiting rather than of a way through: it works until " +
+      "it is worth blocking.";
+  } else if (blocked.length > 0) {
+    verdict =
+      "Refused or challenged. This is the expected answer from a datacenter " +
+      "address and is not something headers can fix — see the notes above this " +
+      "function for which layer does the refusing.";
+  } else {
+    verdict =
+      "No data and no obvious challenge either. Read the markers: a 200 with " +
+      "nothing priceish in it is usually a soft block that returns an empty shell.";
+  }
+
+  return { retailer, attempts, verdict };
 }
