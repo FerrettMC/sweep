@@ -17,12 +17,58 @@ ourselves" has now been researched three times.
 | Etsy | own scraper, no proxy | — | free |
 
 Measured from ScrapeCheck over seven days: amazon 26 calls, walmart 22, bestbuy
-23, ebay 37, etsy 30. At that rate the Amazon free tier has roughly **44x
-headroom** and Decodo has about 21 months.
+23, ebay 37, etsy 30.
 
-Worth re-measuring before acting on any of this. The numbers above are from a
-week with about a dozen users, and the thing that changes them is advertising
-working.
+**Do not read headroom off those numbers.** They are what an app with a dozen
+users and almost no real usage looks like — most of them are test searches.
+Capacity has to be calculated from the daily cap, not extrapolated from an
+empty week.
+
+## What the free tiers actually support
+
+One search fans out to every store, so **one search costs one Decodo request
+and one Bright Data record**. The free tier allows 10 searches per user per day.
+
+| Active users | at 3/day | Decodo (2,000 **total**, never refills) | Bright Data (5,000/mo) |
+| ------------ | -------- | --------------------------------------- | ---------------------- |
+| 10 | 30/day | 67 days | fine |
+| 20 | 60/day | **33 days** | fine |
+| 50 | 150/day | **13 days** | fine |
+| 100 | 300/day | **7 days** | **1.8x over** |
+
+If users hit the 10/day cap instead, 20 users drain Decodo in **10 days** and
+put Bright Data 1.2x over.
+
+The ceilings, stated plainly:
+
+- **Bright Data: 164 searches a day.** That is 16 users at the cap, or 55 users
+  doing three searches a day.
+- **Decodo: 2,000 searches, ever.** It is a one-time trial, not a monthly
+  allowance, so it does not recover.
+
+So the free setup cannot survive the app working. Any real traction takes
+Walmart out within weeks and Amazon within a month or two.
+
+## What growth costs
+
+Both fallbacks are $0.90 per 1,000, with 1,000 a month free each.
+
+| Active users | searches/mo | Amazon + Walmart per month |
+| ------------ | ----------- | -------------------------- |
+| 20 @ 3/day | 1,800 | **$1.48** |
+| 50 @ 3/day | 4,600 | **$6.41** |
+| 100 @ 3/day | 9,100 | **$14.62** |
+| 250 @ 3/day | 22,800 | **$39.24** |
+| 20 @ 10/day | 6,100 | **$9.14** |
+| 100 @ 10/day | 30,400 | **$52.92** |
+
+Pro is $5.99 a month. At a 1% conversion rate, 100 users is one subscriber,
+which covers the bill at that size with change. The metered stores are not
+where this becomes unaffordable — the point is that they stop being free the
+moment anybody actually uses the app, and that is a switch to plan for rather
+than to discover.
+
+---
 
 ---
 
