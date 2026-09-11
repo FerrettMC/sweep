@@ -103,18 +103,62 @@ answers it from production in about a minute per store. It reports status,
 redirects, challenge phrases and a count of price-shaped values, which is
 enough to tell "this parses" from "this is a challenge page wearing a 200".
 
-Worth probing, roughly in order of how likely they are to answer:
+Worth probing. Search page first, and **if it comes back amber, probe a product
+page from that store as well** — product pages usually still put a price in the
+HTML because retailers want Google to show it in search results, even when the
+listing page renders in the browser. A store where only product pages parse is
+still worth having: paste-a-link lookup works, even if keyword search does not.
 
-| Store | Try | Note |
-| ----- | --- | ---- |
-| ~~Target~~ | — | **Tested 11 Sep 2026: no.** See below. |
-| B&H Photo | `https://www.bhphotovideo.com/c/search?q=airpods` | Electronics, historically light protection |
-| GameStop | `https://www.gamestop.com/search/?q=switch` | Narrow catalogue, low defences |
-| Micro Center | `https://www.microcenter.com/search/search_results.aspx?Ntt=ssd` | Electronics, small operation |
-| Barnes & Noble | `https://www.barnesandnoble.com/s/dune` | Books, and nobody scrapes them |
-| Chewy | `https://www.chewy.com/s?query=dog+food` | Pet, a category nothing else here covers |
-| Home Depot | `https://www.homedepot.com/s/drill` | Bigger, likely Akamai |
-| Costco | `https://www.costco.com/CatalogSearch?keyword=tv` | Probably hard, cheap to find out |
+Grab a product url by opening the search page yourself and copying one; there
+is no point guessing at ids.
+
+**Electronics**
+
+    https://www.bhphotovideo.com/c/search?q=airpods
+    https://www.microcenter.com/search/search_results.aspx?Ntt=ssd
+    https://www.adorama.com/l/?searchinfo=airpods
+    https://www.crutchfield.com/search/airpods.html
+    https://www.gamestop.com/search/?q=switch
+
+**Music and hobby** — enthusiast retailers, historically the lightest defences
+
+    https://www.sweetwater.com/store/search?s=sm7b
+    https://www.guitarcenter.com/search?Ntt=sm7b
+    https://www.harborfreight.com/search?q=impact+driver
+
+**Home and hardware**
+
+    https://www.homedepot.com/s/drill
+    https://www.lowes.com/search?searchTerm=drill
+    https://www.wayfair.com/keyword.php?keyword=desk
+    https://www.ikea.com/us/en/search/?q=desk
+
+**Warehouse and department**
+
+    https://www.costco.com/CatalogSearch?keyword=tv
+    https://www.samsclub.com/s/tv
+    https://www.kohls.com/search.jsp?search=airpods
+    https://www.macys.com/shop/featured/airpods
+    https://www.jcpenney.com/s/airpods
+
+**Specialty** — categories none of the current five cover
+
+    https://www.chewy.com/s?query=dog+food
+    https://www.petco.com/shop/en/petcostore/search?q=dog+food
+    https://www.barnesandnoble.com/s/dune
+    https://www.rei.com/search?q=tent
+    https://www.dickssportinggoods.com/search/SearchDisplay?searchTerm=tent
+    https://www.tractorsupply.com/tsc/search/boots
+    https://www.ulta.com/shop/search?q=moisturizer
+    https://www.sephora.com/search?keyword=moisturizer
+
+**Auto**
+
+    https://www.autozone.com/searchresult?searchText=wiper+blades
+    https://www.oreillyauto.com/search?q=wiper+blades
+
+If a url 404s the pattern has moved; search on the site in a browser and copy
+whatever is in the address bar.
 
 Known dead, do not re-test: **Newegg** and **ASOS** both parsed perfectly in
 development and failed the moment they ran from production, which is the whole
