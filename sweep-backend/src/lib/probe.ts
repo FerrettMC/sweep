@@ -241,7 +241,19 @@ export async function probe(
       truncated,
       markers: MARKERS.filter((m) => body.includes(m.needle)).map((m) => m.name),
       challenges: CHALLENGES.filter((c) => low.includes(c)),
-      priceish: (body.match(/"(?:price|currentPrice|salePrice)"\s*:\s*"?\d+\.\d{2}/g) ?? []).length,
+      // Counts integer prices as well as decimal ones, and the nested shape
+      // where "price" holds an object rather than a number.
+      //
+      // The first version required two decimal places, which reported zero for
+      // Sweetwater — whose search page embeds a complete product index with
+      // "finalPrice": 439 in it. A candidate that good scoring zero is the
+      // expensive kind of wrong, so the key list is wide and the decimals are
+      // optional. False positives cost a glance; false negatives cost a store.
+      priceish: (
+        body.match(
+          /"(?:price|currentPrice|salePrice|finalPrice|basePrice|catalogPrice|listPrice|retailPrice|offerPrice|unitPrice)"\s*:\s*"?\$?\d+(?:[.,]\d{1,2})?/g,
+        ) ?? []
+      ).length,
       redirects,
       error: null,
       refused: null,

@@ -112,7 +112,15 @@ still worth having: paste-a-link lookup works, even if keyword search does not.
 Grab a product url by opening the search page yourself and copying one; there
 is no point guessing at ids.
 
-**Electronics**
+The 403s are not about the server's address. B&H, Micro Center, GameStop and
+Crutchfield all refuse plain curl from a residential connection too, returning
+an identical ~5.7KB challenge page. They are refusing the **client**, by TLS
+fingerprint, and no proxy fixes that. Only a real browser engine or an
+impersonating client would get past, which is a different and much larger
+undertaking than a parser.
+
+**Electronics** — all four tested 11 Sep 2026, all 403 from both a datacenter
+and a residential address. Do not re-test without a browser engine.
 
     https://www.bhphotovideo.com/c/search?q=airpods
     https://www.microcenter.com/search/search_results.aspx?Ntt=ssd
@@ -122,7 +130,7 @@ is no point guessing at ids.
 
 **Music and hobby** — enthusiast retailers, historically the lightest defences
 
-    https://www.sweetwater.com/store/search?s=sm7b
+    https://www.sweetwater.com/store/search?s=sm7b   <-- WORKS, see below
     https://www.guitarcenter.com/search?Ntt=sm7b
     https://www.harborfreight.com/search?q=impact+driver
 
@@ -164,6 +172,17 @@ Known dead, do not re-test: **Newegg** and **ASOS** both parsed perfectly in
 development and failed the moment they ran from production, which is the whole
 lesson. **Zappos** is Amazon-owned, so expect Amazon's defences; its public API
 is from 2010 and long gone.
+
+**Sweetwater — works, 11 Sep 2026.** The search page server-renders a complete
+Algolia index into the HTML: `productName`, `brand`, `longDescription`,
+`price.finalPrice`, `price.hasPriceDrop`, `rating.average`, `rating.count`,
+`image.path`, `objectID` as the SKU, and a product `url`. That is a richer
+payload than several adapters already shipping. Prices are integers rather than
+decimals, which is what the probe's price counter used to miss.
+
+Music and audio gear, so it covers ground none of the current five do. Needs a
+stress run from production before it counts — plain curl reached it from a
+residential address here, which is not the same question.
 
 **Target — tested and rejected, 11 Sep 2026.** The search page answers from
 production in 0.7s with `__NEXT_DATA__` in it, which looks like a win and is
