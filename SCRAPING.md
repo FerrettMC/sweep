@@ -149,75 +149,43 @@ answers it from production in about a minute per store. It reports status,
 redirects, challenge phrases and a count of price-shaped values, which is
 enough to tell "this parses" from "this is a challenge page wearing a 200".
 
-Worth probing. Search page first, and **if it comes back amber, probe a product
-page from that store as well** — product pages usually still put a price in the
-HTML because retailers want Google to show it in search results, even when the
-listing page renders in the browser. A store where only product pages parse is
-still worth having: paste-a-link lookup works, even if keyword search does not.
+**All 27 candidates tested, 11 Sep 2026.** From a residential connection, which
+is the generous case — a datacenter address does worse. Two are viable.
 
-Grab a product url by opening the search page yourself and copying one; there
-is no point guessing at ids.
+### Parseable
 
-The 403s are not about the server's address. B&H, Micro Center, GameStop and
-Crutchfield all refuse plain curl from a residential connection too, returning
-an identical ~5.7KB challenge page. They are refusing the **client**, by TLS
-fingerprint, and no proxy fixes that. Only a real browser engine or an
-impersonating client would get past, which is a different and much larger
-undertaking than a parser.
+**B&H Photo** — server-renders prices into the HTML, with `data-selenium`
+attributes left in production as stable parsing hooks. Carries the full
+structure: `preSavingsPrice` struck through, `uppedDecimalPrice` current, and
+`savings`. Original, current and discount, which is exactly what the sale check
+needs. Hashed CSS class names are fragile; the data-selenium attributes are not.
 
-**Electronics** — all four tested 11 Sep 2026, all 403 from both a datacenter
-and a residential address. Do not re-test without a browser engine.
+**Sweetwater** — server-renders a complete Algolia index. See below.
 
-    https://www.bhphotovideo.com/c/search?q=airpods
-    https://www.microcenter.com/search/search_results.aspx?Ntt=ssd
-    https://www.adorama.com/l/?searchinfo=airpods
-    https://www.crutchfield.com/search/airpods.html
-    https://www.gamestop.com/search/?q=switch
+### Shells — 200, but the products render in the browser
 
-**Music and hobby** — enthusiast retailers, historically the lightest defences
+Target, Sephora, JCPenney, IKEA, Ulta, O'Reilly. Every dollar amount in these
+pages is marketing copy: promo thresholds, loyalty tiers, category labels. Not
+one product price. Same architecture as Target, same dead end.
 
-    https://www.sweetwater.com/store/search?s=sm7b   <-- WORKS, see below
-    https://www.guitarcenter.com/search?Ntt=sm7b
-    https://www.harborfreight.com/search?q=impact+driver
+### Refused
 
-**Home and hardware**
+Micro Center, Adorama, Crutchfield, GameStop, Guitar Center, Harbor Freight,
+Home Depot, Lowe's, Wayfair, Costco, Sam's Club, Kohl's, Macy's, Chewy, Petco,
+REI, Dick's, Tractor Supply, AutoZone. Challenge pages or hard 403s from a
+residential address, so a proxy does not help.
 
-    https://www.homedepot.com/s/drill
-    https://www.lowes.com/search?searchTerm=drill
-    https://www.wayfair.com/keyword.php?keyword=desk
-    https://www.ikea.com/us/en/search/?q=desk
+### The part that matters more than the tally
 
-**Warehouse and department**
+**Both survivors are intermittent.** B&H returned 403 then 200 minutes later;
+Sweetwater returned 200 twice, then 403 for every request after. That is rate
+limiting and probabilistic challenging rather than a fixed wall, which means a
+scraper would work sometimes and the failure would look like a broken store
+rather than a refused request.
 
-    https://www.costco.com/CatalogSearch?keyword=tv
-    https://www.samsclub.com/s/tv
-    https://www.kohls.com/search.jsp?search=airpods
-    https://www.macys.com/shop/featured/airpods
-    https://www.jcpenney.com/s/airpods
-
-**Specialty** — categories none of the current five cover
-
-    https://www.chewy.com/s?query=dog+food
-    https://www.petco.com/shop/en/petcostore/search?q=dog+food
-    https://www.barnesandnoble.com/s/dune
-    https://www.rei.com/search?q=tent
-    https://www.dickssportinggoods.com/search/SearchDisplay?searchTerm=tent
-    https://www.tractorsupply.com/tsc/search/boots
-    https://www.ulta.com/shop/search?q=moisturizer
-    https://www.sephora.com/search?keyword=moisturizer
-
-**Auto**
-
-    https://www.autozone.com/searchresult?searchText=wiper+blades
-    https://www.oreillyauto.com/search?q=wiper+blades
-
-If a url 404s the pattern has moved; search on the site in a browser and copy
-whatever is in the address bar.
-
-Known dead, do not re-test: **Newegg** and **ASOS** both parsed perfectly in
-development and failed the moment they ran from production, which is the whole
-lesson. **Zappos** is Amazon-owned, so expect Amazon's defences; its public API
-is from 2010 and long gone.
+So the honest read on adding stores cheaply: closed. Two candidates out of
+twenty-seven, both needing a residential exit, both unreliable even from one.
+Anything further is the metered path at $0.90/1,000.
 
 **Sweetwater — works, 11 Sep 2026.** The search page server-renders a complete
 Algolia index into the HTML: `productName`, `brand`, `longDescription`,
