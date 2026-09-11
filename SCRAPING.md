@@ -180,9 +180,27 @@ Algolia index into the HTML: `productName`, `brand`, `longDescription`,
 payload than several adapters already shipping. Prices are integers rather than
 decimals, which is what the probe's price counter used to miss.
 
-Music and audio gear, so it covers ground none of the current five do. Needs a
-stress run from production before it counts — plain curl reached it from a
-residential address here, which is not the same question.
+Music and audio gear, so it covers ground none of the current five do.
+
+**But not from our own address.** From Railway it returns 403 with px-captcha,
+which is PerimeterX refusing a datacenter. From a residential connection the
+same url returns 200 and a megabyte of product data. So Sweetwater is wall two,
+not wall one: it blocks *where the request comes from*, not *what is making
+it*, and a residential exit walks straight in.
+
+That makes it the first candidate in this whole search that is actually
+addable. It needs a residential proxy, which means Decodo — and Decodo already
+serves Walmart, which the one-retailer-per-provider rule says not to stack.
+
+The way out is now available: move Walmart to walmartscraperapi.com, whose free
+1,000 a month is ten times current Walmart usage, and Decodo's residential is
+free for Sweetwater.
+
+One thing to size first: the search page is **1MB**. Decodo's pay-as-you-go is
+billed per gigabyte, so at $4/GB that is about four tenths of a cent per
+search, or roughly 40 cents a month at current volume. Cheap, but ten times the
+bandwidth of a lean page, and worth checking whether a narrower url returns the
+same index before wiring it up.
 
 **Target — tested and rejected, 11 Sep 2026.** The search page answers from
 production in 0.7s with `__NEXT_DATA__` in it, which looks like a win and is
