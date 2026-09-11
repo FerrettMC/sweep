@@ -221,7 +221,21 @@ try {
   const days = new Set(stats.trend.map((d) => d.date));
   check("no duplicate days", days.size === 7, [...days]);
 
-  console.log("\n— revenue —");
+  console.log("\n— the probe verdict needs prices, not markers —");
+// Target's search page carries __NEXT_DATA__ and zero prices: 224 bytes of
+// pageProps, everything real fetched client-side from an API that 403s. The
+// verdict accepted markers OR prices and called that "with product data",
+// which is the one wrong answer that costs a day rather than a minute.
+const probeView = (await import("node:fs")).readFileSync(
+  new URL("./routes/admin.ts", import.meta.url), "utf8");
+check("a green verdict needs a price",
+  /d\.priceish > 0\) \{ headline = "Reachable, with product data"/.test(probeView));
+check("markers alone are only amber",
+  /d\.markers\.length\) \{ headline = "Reachable, but the prices are not in the HTML"/.test(probeView));
+check("and it says what to do about it",
+  /renders its products in the browser/.test(probeView));
+
+console.log("\n— revenue —");
   check("MRR is tiers times list price",
     Math.abs(stats.revenue.monthly - (stats.tiers.pro * stats.revenue.pro + stats.tiers.ultimate * stats.revenue.ultimate)) < 0.001,
     stats.revenue);

@@ -578,7 +578,14 @@ async function runProbe() {
   // every marker a real page does, so checked afterwards it reads as a clean
   // success — which is exactly how it was misread the first time.
   else if (d.bounced) { headline = "Blocked - bounced to the homepage"; colour = "#dc2626"; }
-  else if (d.markers.length || d.priceish > 0) { headline = "Reachable, with product data"; colour = "#16a34a"; }
+  // Prices, not markers. This used to accept either, and markers alone said
+  // "Reachable, with product data" about Target's search page, which carries
+  // __NEXT_DATA__ and not one price: the payload is 224 bytes of status code
+  // and everything real is fetched client-side from an API that 403s. A green
+  // verdict there is worse than a red one, because it sends someone off to
+  // write a parser for a page with nothing in it.
+  else if (d.priceish > 0) { headline = "Reachable, with product data"; colour = "#16a34a"; }
+  else if (d.markers.length) { headline = "Reachable, but the prices are not in the HTML"; colour = "#d97706"; }
   else if (d.status === 200) { headline = "200, but nothing a parser wants"; colour = "#d97706"; }
   else { headline = "HTTP " + d.status; colour = "#dc2626"; }
 
@@ -591,7 +598,13 @@ async function runProbe() {
   row("Took", (d.ms / 1000).toFixed(1) + "s");
   if (d.bytes) row("Size", Math.round(d.bytes / 1024) + " KB" + (d.truncated ? " (capped)" : ""));
   if (d.markers.length) row("Markers", d.markers.join(", "));
-  if (d.priceish) row("Price-shaped values", d.priceish);
+  row("Price-shaped values", d.priceish);
+  if (!d.priceish && d.markers.length && d.status === 200) {
+    row("What that means",
+      "The page loaded but renders its products in the browser. A scraper would " +
+      "get this same empty shell. Find the API the page calls and probe that " +
+      "instead — it is usually the part that is defended.");
+  }
   if (d.challenges.length) row("Challenge text", d.challenges.join(", "));
   if (d.redirects.length) row("Redirects", d.redirects.length + " &rarr; " + d.finalUrl);
   if (d.bounced) {

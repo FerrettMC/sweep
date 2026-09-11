@@ -107,7 +107,7 @@ Worth probing, roughly in order of how likely they are to answer:
 
 | Store | Try | Note |
 | ----- | --- | ---- |
-| Target | `https://www.target.com/s?searchTerm=airpods` | Has an internal Redsky API that is widely reachable. Unofficial, so it can move without warning. |
+| ~~Target~~ | — | **Tested 11 Sep 2026: no.** See below. |
 | B&H Photo | `https://www.bhphotovideo.com/c/search?q=airpods` | Electronics, historically light protection |
 | GameStop | `https://www.gamestop.com/search/?q=switch` | Narrow catalogue, low defences |
 | Micro Center | `https://www.microcenter.com/search/search_results.aspx?Ntt=ssd` | Electronics, small operation |
@@ -120,6 +120,20 @@ Known dead, do not re-test: **Newegg** and **ASOS** both parsed perfectly in
 development and failed the moment they ran from production, which is the whole
 lesson. **Zappos** is Amazon-owned, so expect Amazon's defences; its public API
 is from 2010 and long gone.
+
+**Target — tested and rejected, 11 Sep 2026.** The search page answers from
+production in 0.7s with `__NEXT_DATA__` in it, which looks like a win and is
+not. The page contains **zero prices**: `pageProps` is 224 bytes of status code
+and preload variables, and every product is fetched in the browser afterwards
+from Target's Redsky API. Redsky is callable in principle — the web key is in
+the page source, 27 times — but it answers 403 with a bot challenge
+(`AtaVerifyCaptcha`, toadmash.net). So the open half has no data and the half
+with the data is defended. Nothing to build on unless the Redsky challenge
+becomes passable, which is the same class of problem as Amazon and Walmart.
+
+This is also the shape to watch for in every other candidate: a modern store
+whose HTML is a shell. Reachable and parseable are different questions, and the
+gap between them is a wasted day.
 
 ### The bar for shipping one
 
