@@ -118,6 +118,17 @@ export function formatChartDate(value: string | Date): string {
 }
 
 /** "3 searches" / "1 search" — avoids a stray plural in the UI. */
+/**
+ * Count plus a noun.
+ *
+ * The default plural just appends "s", which is wrong for anything ending in
+ * s, ch, sh or x — this produced "9 searchs left today" on the profile screen
+ * for a while. Pass `plural` explicitly for those.
+ *
+ * Also worth noting it builds an English string, so it does not belong in
+ * anything user-facing that has a translation key available. The profile line
+ * that caused the typo was untranslated for the same reason it was misspelled.
+ */
 export function pluralize(count: number, singular: string, plural?: string) {
   return `${count} ${count === 1 ? singular : (plural ?? `${singular}s`)}`;
 }

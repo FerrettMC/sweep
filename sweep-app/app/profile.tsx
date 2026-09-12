@@ -39,7 +39,7 @@ import {
   getQuota,
   getRetailerStatus,
 } from "@/lib/api";
-import { pluralize, retailerColor } from "@/lib/format";
+import { retailerColor } from "@/lib/format";
 import { setGuestMode } from "@/lib/guestMode";
 import {
   deregisterPushNotifications,
@@ -262,7 +262,13 @@ export default function ProfileScreen() {
             </Text>
           )}
           {searchesLeft !== null && (
-            <Text style={styles.sub}>{pluralize(searchesLeft, "search")} left today</Text>
+            <Text style={styles.sub}>
+              {searchesLeft === 0
+                ? t("common.noSearchesLeft")
+                : searchesLeft === 1
+                  ? t("common.searchLeft", { count: searchesLeft })
+                  : t("common.searchesLeft", { count: searchesLeft })}
+            </Text>
           )}
           {/* Only for someone actually paying. Cancelling opens Play, because
               Google requires it to happen there — an app can't quietly make

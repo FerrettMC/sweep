@@ -224,10 +224,15 @@ export default function TrackingScreen() {
         </View>
       )}
 
-      {/* Only once there is enough to be worth filtering. Below that, a search
-          box and a sort menu over three rows is furniture pretending to be a
-          feature, and the sort key on three items is noise either way. */}
-      {(tracked?.length ?? 0) >= 4 && (
+      {/* Two, not four. The first version of this gated at four on the grounds
+          that sorting three rows is noise — but the free tier's ceiling IS
+          three tracked products, so a gate of four hid sorting and filtering
+          from every free user permanently. A threshold above the tier limit is
+          not a threshold, it is an off switch.
+
+          One item still gets nothing, because there is genuinely nothing to
+          order or filter. */}
+      {(tracked?.length ?? 0) >= 2 && (
         <View style={styles.controls}>
           <View style={styles.searchWrap}>
             <Ionicons name="search" size={15} color={colors.textTertiary} />
