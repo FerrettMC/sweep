@@ -17,7 +17,7 @@ import {
   Linking,
   Pressable,
   ScrollView,
-  SectionList,
+  FlatList,
   StyleSheet,
   Text,
   TextInput,
@@ -80,19 +80,35 @@ interface Section {
 }
 
 /**
- * Results two to a row.
+ * Every store's results in one list, ordered by relevance.
  *
- * SectionList has no numColumns, unlike FlatList, so the pairing happens in
- * the data: each row is one item holding up to two products. Chunking here
- * rather than at every call site means the sections keep arriving as flat
- * lists of products and only the rendering knows about columns.
+ * There is no relevance score to sort by. The API returns each store's own
+ * ranking and nothing that compares across them, so this interleaves: every
+ * store's first result, then every store's second, and so on.
+ *
+ * That is the only fair reading of "relevance" available here. Concatenating
+ * would bury whichever store answered last behind twenty results from the
+ * first, and sorting by price answers a different question — the one the
+ * Cheapest highlight already answers.
+ *
+ * Results arriving mid-search do reshuffle the list, because a store's first
+ * result belongs at the top wherever it turns up. The store strip above the
+ * grid says which stores are still coming, so the movement has a visible
+ * reason rather than looking like a glitch.
  */
-type GridSection = Omit<Section, "data"> & { data: SearchProduct[][] };
+function byRelevance(sections: Section[]): SearchProduct[] {
+  const ranked = sections
+    .filter((section) => section.data.length > 0)
+    .map((section) => section.data);
+  const deepest = ranked.length === 0 ? 0 : Math.max(...ranked.map((l) => l.length));
 
-function inPairs(items: SearchProduct[]): SearchProduct[][] {
-  const rows: SearchProduct[][] = [];
-  for (let i = 0; i < items.length; i += 2) rows.push(items.slice(i, i + 2));
-  return rows;
+  const merged: SearchProduct[] = [];
+  for (let rank = 0; rank < deepest; rank++) {
+    for (const list of ranked) {
+      if (list[rank]) merged.push(list[rank]);
+    }
+  }
+  return merged;
 }
 
 /**
@@ -241,9 +257,9 @@ export default function SearchScreen() {
   // Bumped on each new search so an in-flight poll from the previous one can
   // tell it's stale and stop writing results into the current view.
   const searchGeneration = useRef(0);
-  // The list's item is a ROW of products now, not a product, because
-  // SectionList has no numColumns and the pairing lives in the data.
-  const listRef = useRef<SectionList<SearchProduct[], GridSection>>(null);
+  // A flat list now, not a section list: results are merged into one
+  // relevance-ordered grid rather than grouped by store.
+  const listRef = useRef<FlatList<SearchProduct>>(null);
 
   // useFocusEffect, not useEffect: the quota changes while the user is on other
   // screens (it resets at midnight, and tracking flows can spend one), so the
@@ -354,7 +370,7 @@ export default function SearchScreen() {
 
       // A new search reuses the same scrolled list, so without this you land
       // partway down the previous results and think nothing happened.
-      listRef.current?.getScrollResponder()?.scrollTo({ y: 0, animated: false });
+      listRef.current?.scrollToOffset({ offset: 0, animated: false });
 
       // Counts the action; shows nothing. Sweep deliberately ships no
       // interstitials — see lib/ads.ts. Left as a call rather than deleted so
@@ -656,13 +672,10 @@ export default function SearchScreen() {
    * below is seventy lines — duplicating it per column is how the two columns
    * would end up offering different things.
    */
-  // Paired for the two-up grid. Memoised because SectionList compares this by
-  // reference, and rebuilding it every render restarts the list's own
-  // bookkeeping on each keystroke in the search box.
-  const gridSections = useMemo(
-    () => (sections ?? []).map((section) => ({ ...section, data: inPairs(section.data) })),
-    [sections],
-  );
+  // Memoised because FlatList compares data by reference, and rebuilding it
+  // every render restarts the list's own bookkeeping on each keystroke in the
+  // search box.
+  const results = useMemo(() => byRelevance(sections ?? []), [sections]);
 
   function ResultCard({ item }: { item: SearchProduct }) {
     return (
@@ -925,15 +938,15 @@ export default function SearchScreen() {
       )}
 
       {sections && (
-        <SectionList
+        <FlatList
           ref={listRef}
-          sections={gridSections}
-          keyExtractor={(row) => row.map((p) => `${p.retailer}:${p.retailerId}`).join("|")}
+          data={results}
+          numColumns={2}
+          columnWrapperStyle={styles.gridRow}
+          keyExtractor={(item) => `${item.retailer}:${item.retailerId}`}
           contentContainerStyle={styles.list}
-          stickySectionHeadersEnabled={false}
           // Amazon's section is empty while pending, and its header is the only
           // thing telling the user it's still coming.
-          renderSectionFooter={undefined}
           keyboardShouldPersistTaps="handled"
           ListHeaderComponent={
             <>
@@ -980,55 +993,64 @@ export default function SearchScreen() {
                   this kind of thing.
                 </Text>
               )}
+              {/* What the per-store section headers used to say, now that the
+                  results are one merged list. Dropping it would have lost the
+                  only thing telling someone Amazon is still coming, and the
+                  only place a store's failure is visible at all. */}
               {sections.length > 0 && (
-                <Text style={styles.byStoreHeading}>{t("search.byStore")}</Text>
+                <View style={styles.storeStrip}>
+                  {sections.map((section) => {
+                    const failed =
+                      section.status !== "success" && section.status !== "pending";
+                    return (
+                      <View key={section.retailer} style={styles.storeChip}>
+                        {section.status === "pending" ? (
+                          <ActivityIndicator size="small" color={colors.textSecondary} />
+                        ) : (
+                          <View
+                            style={[
+                              styles.storeChipDot,
+                              {
+                                backgroundColor: failed
+                                  ? colors.textTertiary
+                                  : retailerColor(colors, section.retailer),
+                              },
+                            ]}
+                          />
+                        )}
+                        <Text
+                          style={[styles.storeChipText, failed && styles.storeChipFailed]}
+                        >
+                          {section.title}
+                        </Text>
+                        {section.status === "success" && section.data.length > 0 && (
+                          <Text style={styles.storeChipCount}>{section.data.length}</Text>
+                        )}
+                        {/* A store that answered with nothing and a store that
+                            broke are different facts, and both used to be
+                            written out in full under the store's name. */}
+                        {section.status === "success" && section.data.length === 0 && (
+                          <Text style={styles.storeChipCount}>0</Text>
+                        )}
+                        {failed && (
+                          <Ionicons
+                            name="alert-circle-outline"
+                            size={13}
+                            color={colors.textTertiary}
+                          />
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
               )}
             </>
           }
-          renderSectionHeader={({ section }) => (
-            <View style={styles.sectionHeader}>
-              <View
-                style={[styles.sectionDot, { backgroundColor: retailerColor(colors, section.retailer) }]}
-              />
-              <Text style={styles.sectionTitle}>{section.title}</Text>
-              {section.status === "pending" && (
-                <View style={styles.pendingRow}>
-                  <ActivityIndicator size="small" color={colors.textSecondary} />
-                  {/* The measured median for this store, when we have one.
-                      This used to be a hardcoded "Amazon is slow" branch,
-                      which was true but would quietly stop being true — and
-                      said nothing about any other store having a bad day. */}
-                  <Text style={styles.sectionStatus}>
-                    {typicalSeconds[section.retailer] !== undefined
-                      ? t("search.checkingTypical", {
-                          seconds: typicalSeconds[section.retailer],
-                        })
-                      : section.retailer === "amazon"
-                        ? t("search.checkingSlow")
-                        : t("search.checking")}
-                  </Text>
-                </View>
-              )}
-              {section.status !== "success" && section.status !== "pending" && (
-                <Text style={styles.sectionStatus}>{section.message}</Text>
-              )}
-              {section.status === "success" && section.data.length === 0 && (
-                <Text style={styles.sectionStatus}>{t("search.noMatches")}</Text>
-              )}
-            </View>
-          )}
-          renderItem={({ item: row }) => (
-            <View style={styles.gridRow}>
-              {row.map((product) => (
-                <ResultCard
-                  key={`${product.retailer}:${product.retailerId}`}
-                  item={product}
-                />
-              ))}
-              {/* An odd last row would otherwise stretch its one card to full
-                  width, which reads as a different kind of result. */}
-              {row.length === 1 && <View style={styles.gridFiller} />}
-            </View>
+          renderItem={({ item }) => (
+            <ResultCard
+              key={`${item.retailer}:${item.retailerId}`}
+              item={item}
+            />
           )}
           ListFooterComponent={<View style={styles.footerSpace} />}
         />
@@ -1247,13 +1269,33 @@ const makeStyles = (colors: Palette) =>
       marginTop: spacing.md,
       lineHeight: 15,
     },
-    byStoreHeading: {
-      color: colors.textPrimary,
-      fontSize: type.heading.fontSize,
-      fontWeight: "800",
-      marginTop: spacing.lg,
-    },
     cardWrap: { marginBottom: spacing.sm },
+    storeStrip: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.xs,
+      marginTop: spacing.sm,
+      marginBottom: spacing.sm,
+    },
+    storeChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      borderRadius: radius.pill,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    storeChipDot: { width: 7, height: 7, borderRadius: radius.pill },
+    storeChipText: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "700",
+    },
+    storeChipFailed: { color: colors.textTertiary },
+    storeChipCount: { color: colors.textTertiary, fontSize: type.caption.fontSize },
     gridRow: {
       flexDirection: "row",
       gap: spacing.sm,
