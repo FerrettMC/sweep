@@ -772,7 +772,10 @@ function render(stats: Stats) {
     </p>
   </section>
 
-  <section class="wrap prose rise">
+  <!-- Anchored so there is a url to give when a directory asks for a pricing
+       page. Without one the only link is the Play listing, which shows the
+       subscription prices and none of the reasoning. -->
+  <section class="wrap prose rise" id="pricing">
     <span class="eyebrow">The honest bit</span>
     <h2>What costs nothing, and what doesn&rsquo;t.</h2>
     <p>
