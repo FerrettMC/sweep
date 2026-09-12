@@ -10,7 +10,7 @@
 // genuinely scarce resource, and a user should never spend their last one
 // without knowing it was their last one.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
@@ -30,7 +30,8 @@ import ResultsMenu from "@/components/ResultsMenu";
 import StorePicker, { type StoreOption } from "@/components/StorePicker";
 import WhyLimitedSheet from "@/components/WhyLimitedSheet";
 import HighlightCard from "@/components/HighlightCard";
-import ProductCard from "@/components/ProductCard";
+import ProductCard, { type CardAction } from "@/components/ProductCard";
+import CardActionSheet from "@/components/CardActionSheet";
 import { Button, EmptyState, ErrorBanner, Loading, Screen } from "@/components/ui";
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
@@ -76,6 +77,22 @@ interface Section {
   status: RetailerResult["status"] | "pending";
   message: string | null;
   data: SearchProduct[];
+}
+
+/**
+ * Results two to a row.
+ *
+ * SectionList has no numColumns, unlike FlatList, so the pairing happens in
+ * the data: each row is one item holding up to two products. Chunking here
+ * rather than at every call site means the sections keep arriving as flat
+ * lists of products and only the rendering knows about columns.
+ */
+type GridSection = Omit<Section, "data"> & { data: SearchProduct[][] };
+
+function inPairs(items: SearchProduct[]): SearchProduct[][] {
+  const rows: SearchProduct[][] = [];
+  for (let i = 0; i < items.length; i += 2) rows.push(items.slice(i, i + 2));
+  return rows;
 }
 
 /**
@@ -196,6 +213,7 @@ export default function SearchScreen() {
   }
   const [showWhy, setShowWhy] = useState(false);
   const [listTarget, setListTarget] = useState<ListTarget | null>(null);
+  const [sheet, setSheet] = useState<{ subject: string; actions: CardAction[] } | null>(null);
   // Null until a search tells us what this tier allows. Persisted so the choice
   // survives a restart — it's a preference, not a per-search decision.
   const [resultsRange, setResultsRange] = useState<{
@@ -223,7 +241,9 @@ export default function SearchScreen() {
   // Bumped on each new search so an in-flight poll from the previous one can
   // tell it's stale and stop writing results into the current view.
   const searchGeneration = useRef(0);
-  const listRef = useRef<SectionList<SearchProduct, Section>>(null);
+  // The list's item is a ROW of products now, not a product, because
+  // SectionList has no numColumns and the pairing lives in the data.
+  const listRef = useRef<SectionList<SearchProduct[], GridSection>>(null);
 
   // useFocusEffect, not useEffect: the quota changes while the user is on other
   // screens (it resets at midnight, and tracking flows can spend one), so the
@@ -629,6 +649,102 @@ export default function SearchScreen() {
 
   const outOfSearches = quota !== null && quota.remaining <= 0;
 
+  /**
+   * One result card.
+   *
+   * Its own function because a row renders two of them, and the actions list
+   * below is seventy lines — duplicating it per column is how the two columns
+   * would end up offering different things.
+   */
+  // Paired for the two-up grid. Memoised because SectionList compares this by
+  // reference, and rebuilding it every render restarts the list's own
+  // bookkeeping on each keystroke in the search box.
+  const gridSections = useMemo(
+    () => (sections ?? []).map((section) => ({ ...section, data: inPairs(section.data) })),
+    [sections],
+  );
+
+  function ResultCard({ item }: { item: SearchProduct }) {
+    return (
+      <ProductCard
+        variant="grid"
+        // Tapping the card opens the product, which is what a tap on a product
+        // is expected to do — and it means the photo needs one control rather
+        // than two circles competing on top of it.
+        onPress={() => router.push(`/lookup?url=${encodeURIComponent(item.url)}`)}
+        title={item.title}
+        retailer={item.retailer}
+        price={item.price}
+        listPrice={item.listPrice}
+        imageUrl={item.imageUrl}
+        rating={item.rating}
+        ratingCount={item.ratingCount}
+        sellerRating={item.sellerRating}
+        sellerRatingCount={item.sellerRatingCount}
+        onShowActions={(rest) => setSheet({ subject: item.title, actions: rest })}
+        actions={[
+          {
+            key: "compare",
+            icon: "star-outline",
+            activeIcon: "star",
+            label: "Compare",
+            activeLabel: "Added",
+            active: Boolean(starred[productKey(item)]),
+            onPress: () => toggleStar(item),
+          },
+          {
+            key: "list",
+            icon: "list-outline",
+            label: "List",
+            onPress: () =>
+              setListTarget({
+                retailer: item.retailer,
+                retailerId: item.retailerId,
+                title: item.title,
+                url: item.url,
+              }),
+          },
+          // Always present now. This used to be dropped on tiers
+          // without "Sweep this deal", but product lookup is on every
+          // tier — it's the limit that differs, not the feature.
+          {
+            key: "details",
+            icon: "reader-outline",
+            label: t("search.details"),
+            tone: "accent" as const,
+            onPress: () =>
+              router.push(`/lookup?url=${encodeURIComponent(item.url)}`),
+          },
+          {
+            key: "cart",
+            icon: "cart-outline",
+            label: t("cart.add"),
+            // Identified by retailer + id rather than url. The server
+            // looks a url up by exact string match, which misses when
+            // the stored one differs by so much as a tracking
+            // parameter — and then falls back to scraping the page,
+            // which can simply fail. retailer + id hits the unique
+            // index, so a product we already have from this very
+            // search is found without touching the network.
+            onPress: () =>
+              void addToCartFrom({
+                retailer: item.retailer,
+                retailerId: item.retailerId,
+              }),
+          },
+          // Search is for comparing who's cheapest. Tracking happens by
+          // pasting a link on the Tracking tab, which costs no quota.
+          {
+            key: "open",
+            icon: "open-outline",
+            label: "Open",
+            onPress: () => Linking.openURL(item.url),
+          },
+        ]}
+      />
+    );
+  }
+
   return (
     <Screen>
       {/* Above the bar rather than inside it. In the row it was a third
@@ -811,8 +927,8 @@ export default function SearchScreen() {
       {sections && (
         <SectionList
           ref={listRef}
-          sections={sections}
-          keyExtractor={(item) => `${item.retailer}:${item.retailerId}`}
+          sections={gridSections}
+          keyExtractor={(row) => row.map((p) => `${p.retailer}:${p.retailerId}`).join("|")}
           contentContainerStyle={styles.list}
           stickySectionHeadersEnabled={false}
           // Amazon's section is empty while pending, and its header is the only
@@ -901,83 +1017,30 @@ export default function SearchScreen() {
               )}
             </View>
           )}
-          renderItem={({ item }) => (
-            <View style={styles.cardWrap}>
-              <ProductCard
-                title={item.title}
-                retailer={item.retailer}
-                price={item.price}
-                listPrice={item.listPrice}
-                imageUrl={item.imageUrl}
-                rating={item.rating}
-                ratingCount={item.ratingCount}
-                sellerRating={item.sellerRating}
-                sellerRatingCount={item.sellerRatingCount}
-                actions={[
-                  {
-                    key: "compare",
-                    icon: "star-outline",
-                    activeIcon: "star",
-                    label: "Compare",
-                    activeLabel: "Added",
-                    active: Boolean(starred[productKey(item)]),
-                    onPress: () => toggleStar(item),
-                  },
-                  {
-                    key: "list",
-                    icon: "list-outline",
-                    label: "List",
-                    onPress: () =>
-                      setListTarget({
-                        retailer: item.retailer,
-                        retailerId: item.retailerId,
-                        title: item.title,
-                        url: item.url,
-                      }),
-                  },
-                  // Always present now. This used to be dropped on tiers
-                  // without "Sweep this deal", but product lookup is on every
-                  // tier — it's the limit that differs, not the feature.
-                  {
-                    key: "details",
-                    icon: "reader-outline",
-                    label: t("search.details"),
-                    tone: "accent" as const,
-                    onPress: () =>
-                      router.push(`/lookup?url=${encodeURIComponent(item.url)}`),
-                  },
-                  {
-                    key: "cart",
-                    icon: "cart-outline",
-                    label: t("cart.add"),
-                    // Identified by retailer + id rather than url. The server
-                    // looks a url up by exact string match, which misses when
-                    // the stored one differs by so much as a tracking
-                    // parameter — and then falls back to scraping the page,
-                    // which can simply fail. retailer + id hits the unique
-                    // index, so a product we already have from this very
-                    // search is found without touching the network.
-                    onPress: () =>
-                      void addToCartFrom({
-                        retailer: item.retailer,
-                        retailerId: item.retailerId,
-                      }),
-                  },
-                  // Search is for comparing who's cheapest. Tracking happens by
-                  // pasting a link on the Tracking tab, which costs no quota.
-                  {
-                    key: "open",
-                    icon: "open-outline",
-                    label: "Open",
-                    onPress: () => Linking.openURL(item.url),
-                  },
-                ]}
-              />
+          renderItem={({ item: row }) => (
+            <View style={styles.gridRow}>
+              {row.map((product) => (
+                <ResultCard
+                  key={`${product.retailer}:${product.retailerId}`}
+                  item={product}
+                />
+              ))}
+              {/* An odd last row would otherwise stretch its one card to full
+                  width, which reads as a different kind of result. */}
+              {row.length === 1 && <View style={styles.gridFiller} />}
             </View>
           )}
           ListFooterComponent={<View style={styles.footerSpace} />}
         />
       )}
+      {/* One sheet for the screen, not one per card: eight cards on screen
+          would otherwise mean eight modals mounted at once. */}
+      <CardActionSheet
+        subject={sheet?.subject ?? null}
+        actions={sheet?.actions ?? []}
+        onClose={() => setSheet(null)}
+      />
+
       <AddToListSheet
         product={listTarget}
         onClose={() => setListTarget(null)}
@@ -1191,5 +1254,12 @@ const makeStyles = (colors: Palette) =>
       marginTop: spacing.lg,
     },
     cardWrap: { marginBottom: spacing.sm },
+    gridRow: {
+      flexDirection: "row",
+      gap: spacing.sm,
+      marginBottom: spacing.sm,
+      alignItems: "stretch",
+    },
+    gridFiller: { flex: 1 },
     footerSpace: { height: spacing.xl },
   });

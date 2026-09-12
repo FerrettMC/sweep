@@ -16,6 +16,18 @@
 // Actions are declared as data rather than passed as elements so every screen
 // renders them identically. Handing in a <Button> was how the card ended up
 // with two different visual languages for "things you can do here".
+//
+// ---- the grid variant ----
+//
+// `variant="grid"` is this same card stacked vertically for a two-up search
+// grid: image on top, then store, title, price, verdict. A variant rather than
+// a second component, because the note above about a price rendering two
+// different ways on two screens applies more when the layouts differ, not less.
+//
+// A half-width card has no room for a five-button toolbar, which is the exact
+// squeeze the toolbar was built to fix. So the accent action becomes a circle
+// on the image and the rest move behind an overflow button. What stays visible
+// is what people read: picture, title, price, and whether the discount is real.
 
 import { type Palette, radius, spacing, type } from "@/constants/theme";
 import { useTheme, useThemedStyles } from "@/lib/theme";
@@ -69,6 +81,13 @@ interface Props {
   /** Toolbar under the card. Undefined entries are dropped, so a screen can
    *  write `sweepAvailable ? sweepAction : null` inline. */
   actions?: (CardAction | null | undefined | false)[];
+  /**
+   * "row" is the full-width card that tracking uses. "grid" is the half-width
+   * one for a two-up search grid.
+   */
+  variant?: "row" | "grid";
+  /** Grid only: hands the non-primary actions to a sheet the screen owns. */
+  onShowActions?: (actions: CardAction[]) => void;
 }
 
 export default function ProductCard({
@@ -86,6 +105,8 @@ export default function ProductCard({
   noteTone = "good",
   onPress,
   actions,
+  variant = "row",
+  onShowActions,
 }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -103,6 +124,96 @@ export default function ProductCard({
     : formatSellerRating(sellerRating ?? null, sellerRatingCount ?? null);
 
   const visible = (actions ?? []).filter((a): a is CardAction => Boolean(a));
+
+  if (variant === "grid") {
+    return (
+      <View style={[styles.card, styles.gridCard]}>
+        <Pressable
+          style={({ pressed }) => pressed && onPress && styles.pressed}
+          onPress={onPress}
+          disabled={!onPress}
+        >
+          <View style={styles.gridThumbWrap}>
+            {imageUrl && !imageFailed ? (
+              <Image
+                source={{ uri: imageUrl }}
+                style={styles.thumb}
+                resizeMode="contain"
+                onError={() => setImageFailed(true)}
+              />
+            ) : (
+              <View style={[styles.thumb, styles.thumbEmpty]}>
+                <Ionicons name="image-outline" size={22} color={colors.textTertiary} />
+              </View>
+            )}
+          </View>
+
+          <View style={styles.gridBody}>
+            <View style={styles.badgeRow}>
+              <View
+                style={[
+                  styles.retailerDot,
+                  { backgroundColor: retailerColor(colors, retailer) },
+                ]}
+              />
+              <Text style={styles.retailer} numberOfLines={1}>
+                {retailerLabel(retailer)}
+              </Text>
+            </View>
+
+            <Text style={styles.gridTitle} numberOfLines={2}>
+              {title}
+            </Text>
+
+            {/* The discount stays on the card, never behind the overflow. It
+                is the one line here a competitor does not have, and the first
+                version of this grid dropped it — which defeated the point. */}
+            <View style={styles.gridPriceRow}>
+              <Text style={[styles.price, price === null && styles.priceMissing]}>
+                {price === null ? t("card.noPrice") : formatPrice(price)}
+              </Text>
+              {listPrice !== null && discount !== null && (
+                <Text style={styles.gridListPrice}>{formatPrice(listPrice)}</Text>
+              )}
+            </View>
+            {listPrice !== null && discount !== null && (
+              <View style={styles.gridDiscountPill}>
+                <Text style={styles.discountText}>{discount}% off list</Text>
+              </View>
+            )}
+
+            {note && (
+              <Text
+                style={[
+                  styles.gridNote,
+                  noteTone === "bad" && styles.noteBad,
+                  noteTone === "neutral" && styles.noteNeutral,
+                ]}
+                numberOfLines={2}
+              >
+                {note}
+              </Text>
+            )}
+          </View>
+        </Pressable>
+
+        {/* Every action, including the accent one. Tapping the card itself is
+            the primary action now, so the photo carries one control instead of
+            two competing circles sitting on the product. */}
+        {visible.length > 0 && onShowActions && (
+          <Pressable
+            onPress={() => onShowActions(visible)}
+            hitSlop={8}
+            style={({ pressed }) => [styles.gridMore, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel={t("card.moreActions")}
+          >
+            <Ionicons name="ellipsis-horizontal" size={16} color={colors.textSecondary} />
+          </Pressable>
+        )}
+      </View>
+    );
+  }
 
   return (
     <View style={styles.card}>
@@ -244,6 +355,53 @@ const makeStyles = (colors: Palette) =>
       overflow: "hidden",
     },
     thumb: { width: "100%", height: "100%" },
+
+    // ---- grid variant ----
+    gridCard: { position: "relative", flex: 1 },
+    gridThumbWrap: {
+      width: "100%",
+      aspectRatio: 1,
+      backgroundColor: "#FFFFFF",
+      overflow: "hidden",
+    },
+    gridBody: { gap: 3, padding: spacing.sm },
+    gridTitle: {
+      color: colors.textPrimary,
+      fontSize: type.label.fontSize,
+      fontWeight: "700",
+      lineHeight: 18,
+    },
+    gridNote: { color: colors.success, fontSize: type.caption.fontSize, fontWeight: "700" },
+    gridPriceRow: { flexDirection: "row", alignItems: "baseline", gap: spacing.xs },
+    gridListPrice: {
+      color: colors.textTertiary,
+      fontSize: type.caption.fontSize,
+      textDecorationLine: "line-through",
+    },
+    gridDiscountPill: {
+      alignSelf: "flex-start",
+      backgroundColor: colors.successMuted,
+      borderRadius: radius.sm,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      marginTop: 2,
+    },
+    // Solid rather than translucent: product photos are usually white, but not
+    // always, and a control that vanishes on a dark one is worse than a
+    // slightly heavy one that never does.
+    gridMore: {
+      position: "absolute",
+      top: spacing.xs,
+      right: spacing.xs,
+      width: 30,
+      height: 30,
+      borderRadius: radius.pill,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     thumbEmpty: {
       backgroundColor: colors.surfaceRaised,
       alignItems: "center",
