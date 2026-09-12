@@ -57,8 +57,18 @@ export async function identifyForPurchases(userId: string | null) {
   if (!KEY) return;
   startPurchases();
   try {
-    if (userId) await Purchases.logIn(userId);
-    else await Purchases.logOut();
+    if (userId) {
+      await Purchases.logIn(userId);
+    } else if (identifiedUserId !== null) {
+      // Only when somebody was actually identified. RevenueCat logs an error
+      // for logOut on an anonymous user, and this runs on every launch — so a
+      // guest, or anyone before the first sign-in, produced a red LogBox toast
+      // on top of the tab bar in development, which swallowed taps on it.
+      //
+      // Nothing was broken by the call itself: logging out an anonymous user
+      // is already a no-op. It just said so loudly.
+      await Purchases.logOut();
+    }
     identifiedUserId = userId;
   } catch {
     // Identity failing shouldn't block using the app; it only means a purchase

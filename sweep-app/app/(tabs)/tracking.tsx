@@ -189,8 +189,12 @@ export default function TrackingScreen() {
     }
   }
 
-  if (tracked === null && !error) return <Loading />;
-
+  // Above the early return, and it has to stay there. A hook after a
+  // conditional return is called on some renders and not others, which is the
+  // "Rendered more hooks than during the previous render" crash: this screen
+  // returns <Loading /> until the first fetch lands, so the very first render
+  // skipped it and the second did not.
+  //
   // Filter first, then sort. The other order sorts rows that are about to be
   // thrown away, which on a hundred-item Ultimate list is work for nothing.
   const sorted = useMemo(
@@ -200,6 +204,9 @@ export default function TrackingScreen() {
         .sort(SORTS[sortKey]),
     [tracked, query, sortKey],
   );
+
+  if (tracked === null && !error) return <Loading />;
+
   const atLimit = limits ? limits.used >= limits.maxTrackedProducts : false;
 
   return (
