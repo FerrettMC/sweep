@@ -18,6 +18,7 @@
 export const en = {
   common: {
     cancel: "Cancel",
+    clear: "Clear",
     close: "Close",
     save: "Save",
     delete: "Delete",
@@ -275,6 +276,20 @@ export const en = {
   },
 
   tracking: {
+    filterPlaceholder: "Filter your tracked items",
+    sortBy: "Sort by",
+    sortDeal: "Best deal",
+    sortDealHint: "Biggest discount off list price right now",
+    sortDropHint: "Fallen the most since you started watching",
+    sortNewestHint: "Most recently added to your list",
+    sortCheapestHint: "Lowest price first",
+    sortNameHint: "A to Z",
+    sortDrop: "Biggest drop",
+    sortNewest: "Newest added",
+    sortCheapest: "Cheapest",
+    sortName: "Name",
+    filterNone: "Nothing matches that",
+    filterNoneBody: "No tracked item has that in its name or store.",
     empty: "Nothing tracked yet",
     sameAsStart: "Same as when you started ({{price}})",
     downSince: "Down {{amount}} since you started",
@@ -765,6 +780,7 @@ export type Translations = typeof en;
 export const es: Translations = {
   common: {
     cancel: "Cancelar",
+    clear: "Borrar",
     close: "Cerrar",
     save: "Guardar",
     delete: "Eliminar",
@@ -1027,6 +1043,20 @@ export const es: Translations = {
   },
 
   tracking: {
+    filterPlaceholder: "Filtra lo que sigues",
+    sortBy: "Ordenar por",
+    sortDeal: "Mejor oferta",
+    sortDealHint: "Mayor descuento sobre el precio de lista ahora",
+    sortDropHint: "Lo que más ha bajado desde que lo sigues",
+    sortNewestHint: "Lo último que añadiste",
+    sortCheapestHint: "Precio más bajo primero",
+    sortNameHint: "De la A a la Z",
+    sortDrop: "Mayor bajada",
+    sortNewest: "Añadido antes",
+    sortCheapest: "Más barato",
+    sortName: "Nombre",
+    filterNone: "No hay coincidencias",
+    filterNoneBody: "Ningún artículo que sigues tiene eso en su nombre o tienda.",
     empty: "Todavía no sigues nada",
     sameAsStart: "Igual que cuando empezaste ({{price}})",
     downSince: "Ha bajado {{amount}} desde que empezaste",

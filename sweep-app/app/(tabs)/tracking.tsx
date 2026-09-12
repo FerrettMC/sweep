@@ -8,6 +8,7 @@ import AddToListSheet, { type ListTarget } from "@/components/AddToListSheet";
 import BudgetEntrySheet, { type EntryDraft } from "@/components/BudgetEntrySheet";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import ProductCard from "@/components/ProductCard";
+import SortMenu from "@/components/SortMenu";
 import TrackedItemSheet from "@/components/TrackedItemSheet";
 import {
   Button,
@@ -33,10 +34,19 @@ import {
   getBudget,
   getBudgetPrefill,
 } from "@/lib/api";
-import { formatPrice, percentOff } from "@/lib/format";
+import { formatPrice, percentOff, retailerLabel } from "@/lib/format";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
-import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import {
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function TrackingScreen() {
   const params = useLocalSearchParams<{ addUrl?: string }>();
@@ -58,6 +68,9 @@ export default function TrackingScreen() {
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [listTarget, setListTarget] = useState<ListTarget | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("deal");
+  const [showSort, setShowSort] = useState(false);
+  const [query, setQuery] = useState("");
   const [boughtDraft, setBoughtDraft] = useState<EntryDraft | null>(null);
   const [budgetCategories, setBudgetCategories] = useState<string[]>([]);
   const [canCustomCategories, setCanCustomCategories] = useState(false);
@@ -178,8 +191,14 @@ export default function TrackingScreen() {
 
   if (tracked === null && !error) return <Loading />;
 
-  const sorted = [...(tracked ?? [])].sort(
-    (a, b) => dealScore(b) - dealScore(a),
+  // Filter first, then sort. The other order sorts rows that are about to be
+  // thrown away, which on a hundred-item Ultimate list is work for nothing.
+  const sorted = useMemo(
+    () =>
+      (tracked ?? [])
+        .filter((item) => matchesQuery(item, query))
+        .sort(SORTS[sortKey]),
+    [tracked, query, sortKey],
   );
   const atLimit = limits ? limits.used >= limits.maxTrackedProducts : false;
 
@@ -195,6 +214,40 @@ export default function TrackingScreen() {
             {tier !== "free" ? ` · ${tier}` : ""}
           </Text>
           {atLimit && <Text style={styles.limitFull}>{t("tracking.limitReached")}</Text>}
+        </View>
+      )}
+
+      {/* Only once there is enough to be worth filtering. Below that, a search
+          box and a sort menu over three rows is furniture pretending to be a
+          feature, and the sort key on three items is noise either way. */}
+      {(tracked?.length ?? 0) >= 4 && (
+        <View style={styles.controls}>
+          <View style={styles.searchWrap}>
+            <Ionicons name="search" size={15} color={colors.textTertiary} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder={t("tracking.filterPlaceholder")}
+              placeholderTextColor={colors.textTertiary}
+              style={styles.searchInput}
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+            {query.length > 0 && (
+              <Pressable onPress={() => setQuery("")} hitSlop={8}>
+                <Ionicons name="close-circle" size={16} color={colors.textTertiary} />
+              </Pressable>
+            )}
+          </View>
+
+          <Pressable
+            onPress={() => setShowSort(true)}
+            style={({ pressed }) => [styles.sortButton, pressed && styles.sortPressed]}
+            accessibilityRole="button"
+          >
+            <Ionicons name="swap-vertical" size={15} color={colors.textSecondary} />
+            <Text style={styles.sortLabel}>{t(SORT_LABELS[sortKey])}</Text>
+          </Pressable>
         </View>
       )}
 
@@ -251,19 +304,36 @@ export default function TrackingScreen() {
           />
         }
         ListEmptyComponent={
-          <EmptyState
-            title={t("tracking.empty")}
-            // Named Target, which Sweep doesn't support, and left out two
-            // stores it does.
-            body={t("tracking.emptyBody", { stores: storeListPhrase() })}
-            action={
-              <Button
-                label={t("tracking.compareInstead")}
-                onPress={() => router.push("/search")}
-                variant="secondary"
-              />
-            }
-          />
+          // Two different empties. Tracking nothing wants the explanation and
+          // a way to start; a filter that matched nothing wants telling that
+          // the list still exists, or it reads as everything having vanished.
+          query.trim().length > 0 && (tracked?.length ?? 0) > 0 ? (
+            <EmptyState
+              title={t("tracking.filterNone")}
+              body={t("tracking.filterNoneBody")}
+              action={
+                <Button
+                  label={t("common.clear")}
+                  onPress={() => setQuery("")}
+                  variant="secondary"
+                />
+              }
+            />
+          ) : (
+            <EmptyState
+              title={t("tracking.empty")}
+              // Named Target, which Sweep doesn't support, and left out two
+              // stores it does.
+              body={t("tracking.emptyBody", { stores: storeListPhrase() })}
+              action={
+                <Button
+                  label={t("tracking.compareInstead")}
+                  onPress={() => router.push("/search")}
+                  variant="secondary"
+                />
+              }
+            />
+          )
         }
         renderItem={({ item }) => {
           // What's happened since THIS user started watching — the number that
@@ -371,6 +441,19 @@ export default function TrackingScreen() {
         }}
       />
 
+      <SortMenu
+        visible={showSort}
+        title={t("tracking.sortBy")}
+        options={(Object.keys(SORT_LABELS) as SortKey[]).map((key) => ({
+          key,
+          label: t(SORT_LABELS[key]),
+          hint: t(SORT_HINTS[key]),
+        }))}
+        value={sortKey}
+        onPick={setSortKey}
+        onClose={() => setShowSort(false)}
+      />
+
       <ConfirmDialog
         content={
           confirmUntrack && {
@@ -456,8 +539,107 @@ function dealScore(item: TrackedProduct): number {
   return percentOff(item.product.price, item.product.listPrice) ?? 0;
 }
 
+/**
+ * How much the price has moved since this user started watching, as a share of
+ * what they first saw.
+ *
+ * Proportional rather than absolute on purpose: $20 off a $40 item is a better
+ * catch than $20 off a $900 one, and a list sorted by dollars would put every
+ * expensive thing first regardless of whether anything happened to it.
+ *
+ * Positive means it fell. Null prices score zero rather than sorting to an end,
+ * since "we do not know" is not the same as "no change".
+ */
+function dropSinceTracking(item: TrackedProduct): number {
+  const started = item.priceAtTracking;
+  const now = item.product.price;
+  if (started === null || now === null || started === 0) return 0;
+  return ((started - now) / started) * 100;
+}
+
+export type SortKey = "deal" | "drop" | "newest" | "cheapest" | "name";
+
+export const SORT_HINTS = {
+  deal: "tracking.sortDealHint",
+  drop: "tracking.sortDropHint",
+  newest: "tracking.sortNewestHint",
+  cheapest: "tracking.sortCheapestHint",
+  name: "tracking.sortNameHint",
+} as const;
+
+export const SORT_LABELS = {
+  deal: "tracking.sortDeal",
+  drop: "tracking.sortDrop",
+  newest: "tracking.sortNewest",
+  cheapest: "tracking.sortCheapest",
+  name: "tracking.sortName",
+} as const;
+
+const SORTS: Record<SortKey, (a: TrackedProduct, b: TrackedProduct) => number> = {
+  deal: (a, b) => dealScore(b) - dealScore(a),
+  drop: (a, b) => dropSinceTracking(b) - dropSinceTracking(a),
+  newest: (a, b) => +new Date(b.addedAt) - +new Date(a.addedAt),
+  // Missing prices last. A row with no price is the least useful answer to
+  // "what is cheapest", so it does not get to sit at the top of that list.
+  cheapest: (a, b) =>
+    (a.product.price ?? Number.POSITIVE_INFINITY) -
+    (b.product.price ?? Number.POSITIVE_INFINITY),
+  name: (a, b) => a.product.title.localeCompare(b.product.title),
+};
+
+/** Matches on title and store, because "amazon" is a thing people type. */
+function matchesQuery(item: TrackedProduct, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    item.product.title.toLowerCase().includes(q) ||
+    retailerLabel(item.product.retailer).toLowerCase().includes(q)
+  );
+}
+
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
+    controls: {
+      flexDirection: "row",
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.sm,
+    },
+    searchWrap: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 8,
+    },
+    searchInput: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: type.label.fontSize,
+      padding: 0,
+    },
+    sortButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 8,
+    },
+    sortPressed: { opacity: 0.7 },
+    sortLabel: {
+      color: colors.textSecondary,
+      fontSize: type.caption.fontSize,
+      fontWeight: "700",
+    },
     limitRow: {
       flexDirection: "row",
       justifyContent: "space-between",
