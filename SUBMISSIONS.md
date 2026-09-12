@@ -44,15 +44,15 @@ price tracker" style questions.
 These take a form rather than an email, so nothing lands in spam and nothing
 needs the domain's mail set up properly.
 
-| Where | Route |
-| ----- | ----- |
-| XDA Developers | xda-developers.com/contact/ → "News Tip" |
-| Droid Life | droid-life.com/contact/ → **"Apps"** category |
-| Android Headlines | androidheadlines.com/news-tips |
-| Phandroid | phandroid.com — has a form specifically for app review requests |
-| Clark.com | clark.com/contact/ — consumer money, best shopping-side fit |
-| The Penny Hoarder | thepennyhoarder.com/contact/ |
-| The Krazy Coupon Lady | thekrazycouponlady.com/contact |
+| Where                 | Route                                                           |
+| --------------------- | --------------------------------------------------------------- |
+| XDA Developers        | xda-developers.com/contact/ → "News Tip"                        |
+| Droid Life            | droid-life.com/contact/ → **"Apps"** category                   |
+| Android Headlines     | androidheadlines.com/news-tips                                  |
+| Phandroid             | phandroid.com — has a form specifically for app review requests |
+| Clark.com             | clark.com/contact/ — consumer money, best shopping-side fit     |
+| The Penny Hoarder     | thepennyhoarder.com/contact/                                    |
+| The Krazy Coupon Lady | thekrazycouponlady.com/contact                                  |
 
 Short version to paste, since most forms cap the length:
 
